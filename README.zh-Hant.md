@@ -60,3 +60,4 @@ python pythonProject/create_icon.py <input_image> pythonProject/assets/app.ico
 
 ## 授權
 MIT
+
