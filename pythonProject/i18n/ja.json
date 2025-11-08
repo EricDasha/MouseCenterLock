@@ -8,6 +8,14 @@
   "hotkey.unlock": "解除のホットキー",
   "hotkey.toggle": "切替のホットキー",
   "hotkey.hint": "英数字/FキーとCtrl/Altの組み合わせを推奨",
+  "hotkey.input.hint": "例：L, K, F1, 1",
+  "hotkey.input.tooltip": "単一の文字 (A-Z)、数字 (0-9)、またはファンクションキー (F1-F24) を入力",
+  "hotkey.invalid": "無効なホットキーです。単一の文字 (A-Z)、数字 (0-9)、またはファンクションキー (F1-F24) を使用してください。",
+  "hotkey.capture.hint": "クリックして任意のキーを押す",
+  "hotkey.capture.tooltip": "このボックスをクリックし、設定したいキー（文字、数字、またはファンクションキー）を押してください",
+  "hotkey.missing": "ロックのホットキーを設定してください。",
+  "hotkey.missing.unlock": "解除のホットキーを設定してください。",
+  "hotkey.missing.toggle": "切替のホットキーを設定してください。",
   "menu.toggle": "ロック切替",
   "menu.lock": "ロック",
   "menu.unlock": "解除",
@@ -32,6 +40,16 @@
   "saved": "設定を保存しました",
   "error": "エラー",
   "hotkey.register.fail": "ホットキーの登録に失敗。別アプリと競合の可能性",
-  "tray.minimized": "システムトレイに最小化しました。右クリックで終了（Shift+閉じるで即終了）"
+  "tray.minimized": "システムトレイに最小化しました。右クリックで終了（Shift+閉じるで即終了）",
+  "close.dialog.title": "閉じる動作",
+  "close.dialog.message": "ウィンドウをどのように閉じますか？",
+  "close.dialog.info": "設定 > 詳細で後から変更できます。",
+  "close.quit": "終了",
+  "close.minimize": "トレイに最小化",
+  "close.title": "閉じる動作",
+  "theme.dark": "ダーク",
+  "theme.light": "ライト",
+  "theme.title": "テーマ",
+  "section.appearance": "外観設定"
 }
 

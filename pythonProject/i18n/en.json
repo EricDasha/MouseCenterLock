@@ -8,6 +8,14 @@
   "hotkey.unlock": "Unlock hotkey",
   "hotkey.toggle": "Toggle hotkey",
   "hotkey.hint": "Use Ctrl/Alt (and Shift) with letters/numbers/F-keys",
+  "hotkey.input.hint": "e.g. L, K, F1, 1",
+  "hotkey.input.tooltip": "Enter a single letter (A-Z), number (0-9), or function key (F1-F24)",
+  "hotkey.invalid": "Invalid hotkey key. Use a single letter (A-Z), number (0-9), or function key (F1-F24).",
+  "hotkey.capture.hint": "Click then press any key",
+  "hotkey.capture.tooltip": "Click this box, then press the key you want to set (letter, number, or function key)",
+  "hotkey.missing": "Please set the lock hotkey.",
+  "hotkey.missing.unlock": "Please set the unlock hotkey.",
+  "hotkey.missing.toggle": "Please set the toggle hotkey.",
   "menu.toggle": "Toggle lock",
   "menu.lock": "Lock",
   "menu.unlock": "Unlock",
@@ -32,6 +40,16 @@
   "saved": "Settings saved",
   "error": "Error",
   "hotkey.register.fail": "Failed to register hotkeys. Possibly conflicting app",
-  "tray.minimized": "Minimized to system tray. Right-click tray icon to quit (hold Shift while closing to quit immediately)"
+  "tray.minimized": "Minimized to system tray. Right-click tray icon to quit (hold Shift while closing to quit immediately)",
+  "close.dialog.title": "Close Behavior",
+  "close.dialog.message": "How do you want to close the window?",
+  "close.dialog.info": "You can change this later in Settings > Advanced.",
+  "close.quit": "Quit",
+  "close.minimize": "Minimize to tray",
+  "close.title": "Close behavior",
+  "theme.dark": "Dark",
+  "theme.light": "Light",
+  "theme.title": "Theme",
+  "section.appearance": "Appearance"
 }
 

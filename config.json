@@ -1,9 +1,24 @@
 {
   "language": "zh-Hans",
   "hotkeys": {
-    "lock": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "L" },
-    "unlock": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "U" },
-    "toggle": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "K" }
+    "lock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "key": "L"
+    },
+    "unlock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "key": "U"
+    },
+    "toggle": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "key": "K"
+    }
   },
   "recenter": {
     "enabled": true,
@@ -13,6 +28,7 @@
     "mode": "virtualCenter",
     "customX": 0,
     "customY": 0
-  }
+  },
+  "theme": "dark",
+  "closeBehavior": "quit"
 }
-

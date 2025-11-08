@@ -8,6 +8,14 @@
   "hotkey.unlock": "解锁快捷键",
   "hotkey.toggle": "切换快捷键",
   "hotkey.hint": "建议仅使用字母/数字/F键与 Ctrl/Alt 组合",
+  "hotkey.input.hint": "例如：L, K, F1, 1",
+  "hotkey.input.tooltip": "输入单个字母 (A-Z)、数字 (0-9) 或功能键 (F1-F24)",
+  "hotkey.invalid": "无效的快捷键键。请使用单个字母 (A-Z)、数字 (0-9) 或功能键 (F1-F24)。",
+  "hotkey.capture.hint": "点击后按任意键",
+  "hotkey.capture.tooltip": "点击此框，然后按下要设置的按键（字母、数字或功能键）",
+  "hotkey.missing": "请设置锁定快捷键。",
+  "hotkey.missing.unlock": "请设置解锁快捷键。",
+  "hotkey.missing.toggle": "请设置切换快捷键。",
   "menu.toggle": "切换锁定",
   "menu.lock": "锁定",
   "menu.unlock": "解锁",
@@ -32,6 +40,16 @@
   "saved": "设置已保存",
   "error": "错误",
   "hotkey.register.fail": "热键注册失败，可能与其他程序冲突",
-  "tray.minimized": "已最小化到系统托盘运行，右键托盘图标可退出（按住 Shift 点击关闭按钮可立即退出）"
+  "tray.minimized": "已最小化到系统托盘运行，右键托盘图标可退出（按住 Shift 点击关闭按钮可立即退出）",
+  "close.dialog.title": "关闭行为",
+  "close.dialog.message": "您希望如何关闭窗口？",
+  "close.dialog.info": "您可以在设置 > 高级中稍后更改此选项。",
+  "close.quit": "退出",
+  "close.minimize": "最小化到托盘",
+  "close.title": "关闭行为",
+  "theme.dark": "深色",
+  "theme.light": "浅色",
+  "theme.title": "主题",
+  "section.appearance": "外观设置"
 }
 

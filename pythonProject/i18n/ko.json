@@ -8,6 +8,14 @@
   "hotkey.unlock": "해제 단축키",
   "hotkey.toggle": "전환 단축키",
   "hotkey.hint": "영숫자/F키와 Ctrl/Alt 조합 권장",
+  "hotkey.input.hint": "예: L, K, F1, 1",
+  "hotkey.input.tooltip": "단일 문자 (A-Z), 숫자 (0-9) 또는 기능 키 (F1-F24) 입력",
+  "hotkey.invalid": "잘못된 단축키입니다. 단일 문자 (A-Z), 숫자 (0-9) 또는 기능 키 (F1-F24)를 사용하세요.",
+  "hotkey.capture.hint": "클릭 후 키를 누르세요",
+  "hotkey.capture.tooltip": "이 상자를 클릭한 후 설정하려는 키(문자, 숫자 또는 기능 키)를 누르세요",
+  "hotkey.missing": "고정 단축키를 설정하세요.",
+  "hotkey.missing.unlock": "해제 단축키를 설정하세요.",
+  "hotkey.missing.toggle": "전환 단축키를 설정하세요.",
   "menu.toggle": "고정 전환",
   "menu.lock": "고정",
   "menu.unlock": "해제",
@@ -32,6 +40,16 @@
   "saved": "설정이 저장되었습니다",
   "error": "오류",
   "hotkey.register.fail": "단축키 등록 실패. 다른 프로그램과 충돌 가능",
-  "tray.minimized": "시스템 트레이로 최소화되었습니다. 우클릭으로 종료 (Shift+닫기로 즉시 종료)"
+  "tray.minimized": "시스템 트레이로 최소화되었습니다. 우클릭으로 종료 (Shift+닫기로 즉시 종료)",
+  "close.dialog.title": "닫기 동작",
+  "close.dialog.message": "창을 어떻게 닫으시겠습니까?",
+  "close.dialog.info": "설정 > 고급에서 나중에 변경할 수 있습니다.",
+  "close.quit": "종료",
+  "close.minimize": "트레이로 최소화",
+  "close.title": "닫기 동작",
+  "theme.dark": "다크",
+  "theme.light": "라이트",
+  "theme.title": "테마",
+  "section.appearance": "외관 설정"
 }
 

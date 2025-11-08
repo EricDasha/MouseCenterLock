@@ -8,6 +8,14 @@
   "hotkey.unlock": "解鎖快捷鍵",
   "hotkey.toggle": "切換快捷鍵",
   "hotkey.hint": "建議僅使用字母/數字/F鍵與 Ctrl/Alt 組合",
+  "hotkey.input.hint": "例如：L, K, F1, 1",
+  "hotkey.input.tooltip": "輸入單個字母 (A-Z)、數字 (0-9) 或功能鍵 (F1-F24)",
+  "hotkey.invalid": "無效的快捷鍵鍵。請使用單個字母 (A-Z)、數字 (0-9) 或功能鍵 (F1-F24)。",
+  "hotkey.capture.hint": "點擊後按任意鍵",
+  "hotkey.capture.tooltip": "點擊此框，然後按下要設定的按鍵（字母、數字或功能鍵）",
+  "hotkey.missing": "請設定鎖定快捷鍵。",
+  "hotkey.missing.unlock": "請設定解鎖快捷鍵。",
+  "hotkey.missing.toggle": "請設定切換快捷鍵。",
   "menu.toggle": "切換鎖定",
   "menu.lock": "鎖定",
   "menu.unlock": "解鎖",
@@ -32,6 +40,16 @@
   "saved": "設定已儲存",
   "error": "錯誤",
   "hotkey.register.fail": "熱鍵註冊失敗，可能與其他程式衝突",
-  "tray.minimized": "已最小化到系統托盤執行，右鍵托盤圖示可退出（按住 Shift 點擊關閉按鈕可立即退出）"
+  "tray.minimized": "已最小化到系統托盤執行，右鍵托盤圖示可退出（按住 Shift 點擊關閉按鈕可立即退出）",
+  "close.dialog.title": "關閉行為",
+  "close.dialog.message": "您希望如何關閉視窗？",
+  "close.dialog.info": "您可以在設定 > 進階中稍後更改此選項。",
+  "close.quit": "退出",
+  "close.minimize": "最小化到系統匣",
+  "close.title": "關閉行為",
+  "theme.dark": "深色",
+  "theme.light": "淺色",
+  "theme.title": "主題",
+  "section.appearance": "外觀設定"
 }
 

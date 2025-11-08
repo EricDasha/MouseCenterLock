@@ -5,19 +5,11 @@ import os
 from ctypes import wintypes
 
 from PySide6 import QtCore, QtGui, QtWidgets
+import keyboard
 
 
 # --- Windows constants and helpers ---
 user32 = ctypes.windll.user32
-
-WM_HOTKEY = 0x0312
-
-MOD_ALT = 0x0001
-MOD_CONTROL = 0x0002
-
-HOTKEY_ID_LOCK = 1
-HOTKEY_ID_UNLOCK = 2
-HOTKEY_ID_TOGGLE = 4
 
 # --- Configuration & i18n ---
 if getattr(sys, 'frozen', False):
@@ -38,10 +30,12 @@ CONFIG_PATH = os.path.join(_RUN_DIR, "config.json")
 
 def load_json(path, default):
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
     except Exception:
-        return default
+        pass
+    return default
 
 
 class SettingsManager:
@@ -51,6 +45,8 @@ class SettingsManager:
         if self.data is None:
             self.data = load_json(CONFIG_DEFAULT_PATH, {})
         self.data.setdefault("language", "zh-Hans")
+        self.data.setdefault("theme", "dark")  # "dark" or "light"
+        self.data.setdefault("closeBehavior", None)  # None = ask first time, "quit" or "tray"
         self.data.setdefault("hotkeys", {
             "lock": {"modCtrl": True, "modAlt": True, "modShift": False, "key": "L"},
             "unlock": {"modCtrl": True, "modAlt": True, "modShift": False, "key": "U"},
@@ -70,7 +66,32 @@ class SettingsManager:
 class I18n:
     def __init__(self, lang_code: str):
         self.lang_code = lang_code
-        self.strings = load_json(os.path.join(I18N_DIR, f"{lang_code}.json"), {})
+        # 尝试多个路径加载语言文件
+        lang_paths = [
+            os.path.join(I18N_DIR, f"{lang_code}.json"),  # 主要路径
+            os.path.join(_RUN_DIR, "i18n", f"{lang_code}.json"),  # 运行目录
+        ]
+        
+        self.strings = {}
+        for path in lang_paths:
+            self.strings = load_json(path, {})
+            if self.strings:
+                break
+        
+        # 如果还是失败，尝试默认语言
+        if not self.strings:
+            default_paths = [
+                os.path.join(I18N_DIR, "zh-Hans.json"),
+                os.path.join(_RUN_DIR, "i18n", "zh-Hans.json"),
+            ]
+            for path in default_paths:
+                self.strings = load_json(path, {})
+                if self.strings:
+                    break
+        
+        # 如果所有路径都失败，使用空字典（会使用 fallback）
+        if not self.strings:
+            self.strings = {}
 
     def t(self, key: str, fallback: str = None) -> str:
         if key in self.strings:
@@ -115,79 +136,164 @@ def unclip_cursor():
         raise ctypes.WinError()
 
 
-# --- Native hotkey bridge ---
-class HotkeyEmitter(QtCore.QObject):
-    hotkeyPressed = QtCore.Signal(int)
+# --- Hotkey management using keyboard library ---
+_hotkey_strings = {}  # Store hotkey strings for removal
 
 
-class NativeEventFilter(QtCore.QAbstractNativeEventFilter):
-    def __init__(self, emitter: 'HotkeyEmitter'):
-        super().__init__()
-        self._emitter = emitter
-
-    def nativeEventFilter(self, eventType, message):
-        if eventType == "windows_generic_MSG":
-            msg = ctypes.cast(int(message), ctypes.POINTER(MSG)).contents
-            if msg.message == WM_HOTKEY:
-                self._emitter.hotkeyPressed.emit(msg.wParam)
-        return False, 0
-
-
-class MSG(ctypes.Structure):
-    _fields_ = [
-        ("hwnd", wintypes.HWND),
-        ("message", wintypes.UINT),
-        ("wParam", wintypes.WPARAM),
-        ("lParam", wintypes.LPARAM),
-        ("time", wintypes.DWORD),
-        ("pt", wintypes.POINT),
-    ]
-
-
-def build_mod_flags(cfg):
-    mods = 0
+def build_hotkey_string(cfg):
+    """Build keyboard library hotkey string from config."""
+    mods = []
     if cfg.get("modCtrl"):
-        mods |= MOD_CONTROL
+        mods.append("ctrl")
     if cfg.get("modAlt"):
-        mods |= MOD_ALT
+        mods.append("alt")
     if cfg.get("modShift"):
-        mods |= 0x0004
-    return mods
+        mods.append("shift")
+    
+    key = cfg.get("key", "").lower()
+    if key.startswith('f') and key[1:].isdigit():
+        # F keys: f1, f2, etc.
+        return "+".join(mods + [key])
+    elif len(key) == 1 and key.isalnum():
+        # Single character keys
+        return "+".join(mods + [key])
+    else:
+        raise ValueError(f"Unsupported hotkey key: {key}")
 
 
-def key_to_vk(key_str: str):
-    s = (key_str or "").upper()
-    if len(s) == 1 and 'A' <= s <= 'Z':
-        return ord(s)
-    if len(s) == 1 and '0' <= s <= '9':
-        return ord(s)
-    if s.startswith('F') and s[1:].isdigit():
-        n = int(s[1:])
-        if 1 <= n <= 24:
-            return 0x70 + (n - 1)
-    return None
-
-
-def register_hotkeys(settings):
+def register_hotkeys(settings, callbacks):
+    """Register hotkeys using keyboard library.
+    
+    Args:
+        settings: SettingsManager instance
+        callbacks: dict with keys 'lock', 'unlock', 'toggle', each is a callable
+    """
+    global _hotkey_strings
     hk = settings.data["hotkeys"]
-    specs = [
-        (HOTKEY_ID_LOCK, hk["lock"]),
-        (HOTKEY_ID_UNLOCK, hk["unlock"]),
-        (HOTKEY_ID_TOGGLE, hk["toggle"]),
-    ]
-    for id_, spec in specs:
-        mods = build_mod_flags(spec)
-        vk = key_to_vk(spec.get("key", ""))
-        if not vk:
-            raise ValueError("Unsupported hotkey key: " + str(spec.get("key")))
-        if not user32.RegisterHotKey(None, id_, mods, vk):
-            raise ctypes.WinError()
+    
+    # Clear existing hotkeys
+    unregister_hotkeys()
+    
+    # Create thread-safe wrappers that execute in Qt main thread
+    def make_thread_safe(callback):
+        def wrapper():
+            QtCore.QTimer.singleShot(0, callback)
+        return wrapper
+    
+    try:
+        # Register lock hotkey
+        lock_str = build_hotkey_string(hk["lock"])
+        keyboard.add_hotkey(lock_str, make_thread_safe(callbacks["lock"]), suppress=False)
+        _hotkey_strings["lock"] = lock_str
+        
+        # Register unlock hotkey
+        unlock_str = build_hotkey_string(hk["unlock"])
+        keyboard.add_hotkey(unlock_str, make_thread_safe(callbacks["unlock"]), suppress=False)
+        _hotkey_strings["unlock"] = unlock_str
+        
+        # Register toggle hotkey
+        toggle_str = build_hotkey_string(hk["toggle"])
+        keyboard.add_hotkey(toggle_str, make_thread_safe(callbacks["toggle"]), suppress=False)
+        _hotkey_strings["toggle"] = toggle_str
+        
+    except Exception as e:
+        unregister_hotkeys()
+        raise e
 
 
 def unregister_hotkeys():
-    user32.UnregisterHotKey(None, HOTKEY_ID_LOCK)
-    user32.UnregisterHotKey(None, HOTKEY_ID_UNLOCK)
-    user32.UnregisterHotKey(None, HOTKEY_ID_TOGGLE)
+    """Unregister all hotkeys."""
+    global _hotkey_strings
+    # Use clear_all_hotkeys for simplicity, or remove individually
+    try:
+        keyboard.clear_all_hotkeys()
+    except Exception:
+        # Fallback: try to remove each hotkey individually
+        for key, hotkey_str in _hotkey_strings.items():
+            try:
+                keyboard.remove_hotkey(hotkey_str)
+            except Exception:
+                pass
+    _hotkey_strings.clear()
+
+
+# --- Hotkey Key Capture Widget ---
+class HotkeyKeyEdit(QtWidgets.QLineEdit):
+    """自定义按键捕获控件，用于捕获单个按键"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setPlaceholderText("点击后按任意键...")
+        self._capturing = False
+        
+    def mousePressEvent(self, event):
+        """点击时开始捕获按键"""
+        if event.button() == QtCore.Qt.LeftButton:
+            self._start_capture()
+        super().mousePressEvent(event)
+    
+    def _start_capture(self):
+        """开始捕获按键"""
+        self._capturing = True
+        self.setText("")
+        self.setPlaceholderText("按任意键...")
+        # 使用主题适配的样式
+        palette = QtWidgets.QApplication.palette()
+        bg_color = palette.color(QtGui.QPalette.Base).name()
+        self.setStyleSheet(f"background-color: {bg_color}; border: 2px solid #0a84ff;")
+        self.setFocus()
+    
+    def _stop_capture(self):
+        """停止捕获按键"""
+        self._capturing = False
+        self.setStyleSheet("")
+        if not self.text():
+            self.setPlaceholderText("点击后按任意键...")
+    
+    def keyPressEvent(self, event):
+        """捕获按键"""
+        if not self._capturing:
+            super().keyPressEvent(event)
+            return
+        
+        # 忽略修饰键
+        if event.key() in (QtCore.Qt.Key_Control, QtCore.Qt.Key_Alt, QtCore.Qt.Key_Shift,
+                          QtCore.Qt.Key_Meta, QtCore.Qt.Key_AltGr):
+            return
+        
+        key_text = self._key_to_string(event.key())
+        if key_text:
+            self.setText(key_text)
+            self._stop_capture()
+        else:
+            # 无效按键，显示提示
+            palette = QtWidgets.QApplication.palette()
+            bg_color = palette.color(QtGui.QPalette.Base).name()
+            self.setStyleSheet(f"background-color: {bg_color}; border: 2px solid #ff3b30;")
+            QtCore.QTimer.singleShot(500, self._stop_capture)
+    
+    def _key_to_string(self, key):
+        """将 Qt 按键码转换为字符串"""
+        # 字母键 A-Z
+        if QtCore.Qt.Key_A <= key <= QtCore.Qt.Key_Z:
+            return chr(key)
+        
+        # 数字键 0-9
+        if QtCore.Qt.Key_0 <= key <= QtCore.Qt.Key_9:
+            return chr(key)
+        
+        # 功能键 F1-F24
+        if QtCore.Qt.Key_F1 <= key <= QtCore.Qt.Key_F24:
+            num = key - QtCore.Qt.Key_F1 + 1
+            return f"F{num}"
+        
+        return None
+    
+    def focusOutEvent(self, event):
+        """失去焦点时停止捕获"""
+        if self._capturing:
+            self._stop_capture()
+        super().focusOutEvent(event)
 
 
 # --- Main Window ---
@@ -197,7 +303,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = settings
         self.i18n = i18n
         self.setWindowTitle(self.i18n.t("app.title", "Mouse Center Lock"))
-        self.setMinimumSize(560, 360)
+        self.setMinimumSize(600, 450)  # 设置最小窗口大小，确保文字清晰
+        self.resize(680, 520)  # 设置合适的初始窗口大小
+        # 确保关闭按钮可用，只移除帮助按钮
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
 
         self.locked = False
@@ -239,15 +347,33 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tray.show()
 
     # --- Styling ---
-    def _apply_theme(self):
+    def _apply_theme(self, theme=None):
+        if theme is None:
+            theme = self.settings.data.get("theme", "dark")
+        
         QtWidgets.QApplication.setStyle("Fusion")
         palette = QtGui.QPalette()
 
-        base = QtGui.QColor(28, 28, 30)
-        alt = QtGui.QColor(44, 44, 46)
-        text = QtGui.QColor(235, 235, 245)
-        hint = QtGui.QColor(142, 142, 147)
-        accent = QtGui.QColor(10, 132, 255)
+        if theme == "light":
+            # Light theme
+            base = QtGui.QColor(255, 255, 255)
+            alt = QtGui.QColor(242, 242, 247)
+            text = QtGui.QColor(0, 0, 0)
+            hint = QtGui.QColor(142, 142, 147)
+            accent = QtGui.QColor(0, 122, 255)
+            button_bg = QtGui.QColor(0, 122, 255)
+            button_hover = QtGui.QColor(0, 132, 255)
+            button_pressed = QtGui.QColor(0, 96, 214)
+        else:
+            # Dark theme (default)
+            base = QtGui.QColor(28, 28, 30)
+            alt = QtGui.QColor(44, 44, 46)
+            text = QtGui.QColor(235, 235, 245)
+            hint = QtGui.QColor(142, 142, 147)
+            accent = QtGui.QColor(10, 132, 255)
+            button_bg = QtGui.QColor(10, 132, 255)
+            button_hover = QtGui.QColor(43, 149, 255)
+            button_pressed = QtGui.QColor(6, 113, 221)
 
         palette.setColor(QtGui.QPalette.Window, base)
         palette.setColor(QtGui.QPalette.Base, alt)
@@ -263,14 +389,25 @@ class MainWindow(QtWidgets.QMainWindow):
         palette.setColor(QtGui.QPalette.PlaceholderText, hint)
         QtWidgets.QApplication.setPalette(palette)
 
+        bg_color = base.name()
+        text_color = text.name()
         self.setStyleSheet(
-            """
-            QMainWindow { background: #1c1c1e; }
-            QWidget { color: #ebebf5; font-size: 14px; }
-            QPushButton { background: #0a84ff; border: none; border-radius: 10px; padding: 8px 14px; }
-            QPushButton:hover { background: #2b95ff; }
-            QPushButton:pressed { background: #0671dd; }
-            QLabel { font-size: 13px; }
+            f"""
+            QMainWindow {{ background: {bg_color}; }}
+            QWidget {{ color: {text_color}; font-size: 14px; }}
+            QPushButton {{ 
+                background: {button_bg.name()}; 
+                color: white;
+                border: none; 
+                border-radius: 10px; 
+                padding: 8px 14px; 
+            }}
+            QPushButton:hover {{ background: {button_hover.name()}; }}
+            QPushButton:pressed {{ background: {button_pressed.name()}; }}
+            QLabel {{ font-size: 13px; }}
+            QCheckBox {{ font-size: 13px; }}
+            QComboBox {{ font-size: 13px; padding: 4px; }}
+            QSpinBox {{ font-size: 13px; padding: 4px; }}
             """
         )
 
@@ -431,15 +568,49 @@ class MainWindow(QtWidgets.QMainWindow):
                 unclip_cursor()
         finally:
             unregister_hotkeys()
+            # Stop keyboard listener thread
+            try:
+                keyboard.unhook_all()
+            except Exception:
+                pass
             QtWidgets.QApplication.quit()
 
     def closeEvent(self, event):
+        close_behavior = self.settings.data.get("closeBehavior")
+        
+        # First time: ask user
+        if close_behavior is None:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle(self.i18n.t("close.dialog.title", "Close Behavior"))
+            msg.setText(self.i18n.t("close.dialog.message", "How do you want to close the window?"))
+            msg.setInformativeText(self.i18n.t("close.dialog.info", "You can change this later in Settings > Advanced."))
+            
+            btn_quit = msg.addButton(self.i18n.t("close.quit", "Quit"), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+            btn_tray = msg.addButton(self.i18n.t("close.minimize", "Minimize to tray"), QtWidgets.QMessageBox.ButtonRole.RejectRole)
+            msg.setDefaultButton(btn_tray)
+            
+            msg.exec()
+            
+            if msg.clickedButton() == btn_quit:
+                close_behavior = "quit"
+            else:
+                close_behavior = "tray"
+            
+            self.settings.data["closeBehavior"] = close_behavior
+            self.settings.save()
+        
+        # Shift+Close = override and quit
         modifiers = QtWidgets.QApplication.keyboardModifiers()
-        # Shift+Close = truly quit, otherwise minimize to tray
         if modifiers & QtCore.Qt.ShiftModifier:
             event.accept()
             self._quit()
-        else:
+            return
+        
+        # Apply configured behavior
+        if close_behavior == "quit":
+            event.accept()
+            self._quit()
+        else:  # "tray" or default
             event.ignore()
             self.hide()
             self.tray.showMessage(
@@ -494,20 +665,29 @@ class MainWindow(QtWidgets.QMainWindow):
             modCtrl = QtWidgets.QCheckBox("Ctrl")
             modAlt = QtWidgets.QCheckBox("Alt")
             modShift = QtWidgets.QCheckBox("Shift")
-            keyCombo = QtWidgets.QComboBox()
-            keyCombo.setEditable(True)
-            items = [f"F{i}" for i in range(1, 25)] + [chr(c) for c in range(ord('A'), ord('Z')+1)] + [str(i) for i in range(0,10)]
-            keyCombo.addItems(items)
+            
+            # 使用按键捕获控件，点击后按任意键即可记录
+            keyEdit = HotkeyKeyEdit()
+            keyEdit.setPlaceholderText(self.i18n.t("hotkey.capture.hint", "点击后按任意键"))
+            keyEdit.setToolTip(self.i18n.t("hotkey.capture.tooltip", "点击此框，然后按下要设置的按键（字母、数字或功能键）"))
+            keyEdit.setMinimumWidth(80)
+            
             spec = self.settings.data["hotkeys"][spec_key]
             modCtrl.setChecked(bool(spec.get("modCtrl")))
             modAlt.setChecked(bool(spec.get("modAlt")))
             modShift.setChecked(bool(spec.get("modShift")))
-            keyCombo.setCurrentText(str(spec.get("key", "")))
-            return title, modCtrl, modAlt, modShift, keyCombo
+            
+            # 设置当前按键值
+            current_key = str(spec.get("key", "")).upper()
+            if current_key:
+                keyEdit.setText(current_key)
+                keyEdit.setPlaceholderText("")
+            
+            return title, modCtrl, modAlt, modShift, keyEdit
 
-        t1, c1, a1, s1, k1 = make_hotkey_row("" + "", "lock")
-        t2, c2, a2, s2, k2 = make_hotkey_row("" + "", "unlock")
-        t3, c3, a3, s3, k3 = make_hotkey_row("" + "", "toggle")
+        t1, c1, a1, s1, k1 = make_hotkey_row(self.i18n.t("hotkey.lock", "Lock hotkey"), "lock")
+        t2, c2, a2, s2, k2 = make_hotkey_row(self.i18n.t("hotkey.unlock", "Unlock hotkey"), "unlock")
+        t3, c3, a3, s3, k3 = make_hotkey_row(self.i18n.t("hotkey.toggle", "Toggle hotkey"), "toggle")
 
         grid.addWidget(t1, row, 0)
         grid.addWidget(c1, row, 1)
@@ -530,16 +710,16 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(k3, row, 4)
         row += 2
 
-        behaviorLabel = QtWidgets.QLabel("" + "")
+        behaviorLabel = QtWidgets.QLabel(self.i18n.t("section.behavior", "Behavior"))
         behaviorLabel.setStyleSheet("font-weight:600;")
         grid.addWidget(behaviorLabel, row, 0, 1, 4)
         row += 1
 
-        recenterEnabled = QtWidgets.QCheckBox("")
+        recenterEnabled = QtWidgets.QCheckBox(self.i18n.t("recenter.enabled", "Enable recentering"))
         recenterEnabled.setChecked(bool(self.settings.data["recenter"].get("enabled", True)))
         grid.addWidget(recenterEnabled, row, 0, 1, 2)
 
-        recenterLabel = QtWidgets.QLabel("")
+        recenterLabel = QtWidgets.QLabel(self.i18n.t("recenter.interval", "Recenter interval (ms)"))
         recenterSpin = QtWidgets.QSpinBox()
         recenterSpin.setRange(16, 5000)
         recenterSpin.setSingleStep(16)
@@ -548,11 +728,11 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(recenterSpin, row, 3)
         row += 1
 
-        posLabel = QtWidgets.QLabel("")
+        posLabel = QtWidgets.QLabel(self.i18n.t("position.title", "Target position"))
         posCombo = QtWidgets.QComboBox()
-        posCombo.addItem("", "virtualCenter")
-        posCombo.addItem("", "primaryCenter")
-        posCombo.addItem("", "custom")
+        posCombo.addItem(self.i18n.t("position.virtualCenter", "Virtual screen center"), "virtualCenter")
+        posCombo.addItem(self.i18n.t("position.primaryCenter", "Primary screen center"), "primaryCenter")
+        posCombo.addItem(self.i18n.t("position.custom", "Custom"), "custom")
         posCombo.setCurrentIndex(["virtualCenter","primaryCenter","custom"].index(self.settings.data["position"].get("mode","virtualCenter")))
         grid.addWidget(posLabel, row, 0)
         grid.addWidget(posCombo, row, 1)
@@ -572,7 +752,7 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(ySpin, row, 3)
         row += 1
 
-        langLabel = QtWidgets.QLabel("")
+        langLabel = QtWidgets.QLabel(self.i18n.t("language.title", "Language"))
         langCombo = QtWidgets.QComboBox()
         langCombo.addItem("English", "en")
         langCombo.addItem("简体中文", "zh-Hans")
@@ -587,30 +767,74 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(langCombo, row, 1)
         row += 1
 
-        applyBtn = QtWidgets.QPushButton("")
+        appearanceLabel = QtWidgets.QLabel(self.i18n.t("section.appearance", "Appearance"))
+        appearanceLabel.setStyleSheet("font-weight:600;")
+        grid.addWidget(appearanceLabel, row, 0, 1, 4)
+        row += 1
+
+        themeLabel = QtWidgets.QLabel(self.i18n.t("theme.title", "Theme"))
+        themeCombo = QtWidgets.QComboBox()
+        themeCombo.addItem(self.i18n.t("theme.dark", "Dark"), "dark")
+        themeCombo.addItem(self.i18n.t("theme.light", "Light"), "light")
+        current_theme = self.settings.data.get("theme", "dark")
+        themes = [themeCombo.itemData(i) for i in range(themeCombo.count())]
+        if current_theme in themes:
+            themeCombo.setCurrentIndex(themes.index(current_theme))
+        grid.addWidget(themeLabel, row, 0)
+        grid.addWidget(themeCombo, row, 1)
+        row += 1
+
+        closeBehaviorLabel = QtWidgets.QLabel(self.i18n.t("close.title", "Close behavior"))
+        closeBehaviorCombo = QtWidgets.QComboBox()
+        closeBehaviorCombo.addItem(self.i18n.t("close.minimize", "Minimize to tray"), "tray")
+        closeBehaviorCombo.addItem(self.i18n.t("close.quit", "Quit application"), "quit")
+        current_close = self.settings.data.get("closeBehavior", "tray")
+        if current_close is None:
+            current_close = "tray"
+        close_behaviors = [closeBehaviorCombo.itemData(i) for i in range(closeBehaviorCombo.count())]
+        if current_close in close_behaviors:
+            closeBehaviorCombo.setCurrentIndex(close_behaviors.index(current_close))
+        grid.addWidget(closeBehaviorLabel, row, 0)
+        grid.addWidget(closeBehaviorCombo, row, 1)
+        row += 1
+
+        applyBtn = QtWidgets.QPushButton(self.i18n.t("apply", "Apply"))
         applyBtn.setFixedHeight(36)
         grid.addWidget(applyBtn, row, 0, 1, 2)
 
-        # i18n texts
+        # i18n texts - 设置其他控件的文本（已在创建时设置的不需要重复设置）
         hotkeysLabel.setText(self.i18n.t("section.hotkeys", "Hotkeys"))
-        t1.setText(self.i18n.t("hotkey.lock", "Lock hotkey"))
-        t2.setText(self.i18n.t("hotkey.unlock", "Unlock hotkey"))
-        t3.setText(self.i18n.t("hotkey.toggle", "Toggle hotkey"))
-        behaviorLabel.setText(self.i18n.t("section.behavior", "Behavior"))
-        recenterEnabled.setText(self.i18n.t("recenter.enabled", "Enable recentering"))
-        recenterLabel.setText(self.i18n.t("recenter.interval", "Recenter interval (ms)"))
-        posLabel.setText(self.i18n.t("position.title", "Target position"))
-        posCombo.setItemText(0, self.i18n.t("position.virtualCenter", "Virtual screen center"))
-        posCombo.setItemText(1, self.i18n.t("position.primaryCenter", "Primary screen center"))
-        posCombo.setItemText(2, self.i18n.t("position.custom", "Custom"))
-        langLabel.setText(self.i18n.t("language.title", "Language"))
-        applyBtn.setText(self.i18n.t("apply", "Apply"))
 
         def on_apply():
+            # 获取按键值（已通过按键捕获控件验证）
+            def get_key_value(key_edit):
+                text = key_edit.text().strip().upper()
+                if not text:
+                    return None
+                return text
+            
+            k1_val = get_key_value(k1)
+            k2_val = get_key_value(k2)
+            k3_val = get_key_value(k3)
+            
+            # 检查是否有未设置的按键
+            if not k1_val:
+                QtWidgets.QMessageBox.warning(self, self.i18n.t("error", "Error"), 
+                    self.i18n.t("hotkey.missing", "Please set the lock hotkey."))
+                return
+            if not k2_val:
+                QtWidgets.QMessageBox.warning(self, self.i18n.t("error", "Error"), 
+                    self.i18n.t("hotkey.missing.unlock", "Please set the unlock hotkey."))
+                return
+            if not k3_val:
+                QtWidgets.QMessageBox.warning(self, self.i18n.t("error", "Error"), 
+                    self.i18n.t("hotkey.missing.toggle", "Please set the toggle hotkey."))
+                return
+            
             hk = self.settings.data["hotkeys"]
-            hk["lock"] = {"modCtrl": c1.isChecked(), "modAlt": a1.isChecked(), "modShift": s1.isChecked(), "key": k1.currentText().strip()}
-            hk["unlock"] = {"modCtrl": c2.isChecked(), "modAlt": a2.isChecked(), "modShift": s2.isChecked(), "key": k2.currentText().strip()}
-            hk["toggle"] = {"modCtrl": c3.isChecked(), "modAlt": a3.isChecked(), "modShift": s3.isChecked(), "key": k3.currentText().strip()}
+            hk["lock"] = {"modCtrl": c1.isChecked(), "modAlt": a1.isChecked(), "modShift": s1.isChecked(), "key": k1_val}
+            hk["unlock"] = {"modCtrl": c2.isChecked(), "modAlt": a2.isChecked(), "modShift": s2.isChecked(), "key": k2_val}
+            hk["toggle"] = {"modCtrl": c3.isChecked(), "modAlt": a3.isChecked(), "modShift": s3.isChecked(), "key": k3_val}
 
             self.settings.data["recenter"]["enabled"] = recenterEnabled.isChecked()
             self.settings.data["recenter"]["intervalMs"] = int(recenterSpin.value())
@@ -618,14 +842,28 @@ class MainWindow(QtWidgets.QMainWindow):
             self.settings.data["position"]["customX"] = int(xSpin.value())
             self.settings.data["position"]["customY"] = int(ySpin.value())
             self.settings.data["language"] = langCombo.currentData()
+            
+            # Apply theme
+            new_theme = themeCombo.currentData()
+            if self.settings.data.get("theme") != new_theme:
+                self.settings.data["theme"] = new_theme
+                self._apply_theme(new_theme)
+            
+            # Apply close behavior
+            self.settings.data["closeBehavior"] = closeBehaviorCombo.currentData()
 
             self.settings.save()
 
             try:
                 unregister_hotkeys()
-                register_hotkeys(self.settings)
-            except Exception:
-                QtWidgets.QMessageBox.critical(self, self.i18n.t("error", "Error"), self.i18n.t("hotkey.register.fail", "Failed to register hotkeys"))
+                register_hotkeys(self.settings, {
+                    "lock": self.lock,
+                    "unlock": self.unlock,
+                    "toggle": self.toggle_lock
+                })
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(self, self.i18n.t("error", "Error"), 
+                    self.i18n.t("hotkey.register.fail", "Failed to register hotkeys") + f": {str(e)}")
 
             self._update_toggle_button()
             self._update_tray_meta()
@@ -705,23 +943,19 @@ def main():
     settings = SettingsManager()
     i18n = I18n(settings.data.get("language", "zh-Hans"))
 
-    try:
-        register_hotkeys(settings)
-    except Exception:
-        QtWidgets.QMessageBox.critical(None, i18n.t("error","Error"), i18n.t("hotkey.register.fail","Failed to register hotkeys"))
-
     window = MainWindow(settings, i18n)
     window.show()
 
-    emitter = HotkeyEmitter()
-    nef = NativeEventFilter(emitter)
-    app.installNativeEventFilter(nef)
-
-    emitter.hotkeyPressed.connect(lambda hid: (
-        window.lock() if hid == HOTKEY_ID_LOCK else
-        window.unlock() if hid == HOTKEY_ID_UNLOCK else
-        window.toggle_lock() if hid == HOTKEY_ID_TOGGLE else None
-    ))
+    # Register hotkeys with callbacks
+    try:
+        register_hotkeys(settings, {
+            "lock": window.lock,
+            "unlock": window.unlock,
+            "toggle": window.toggle_lock
+        })
+    except Exception as e:
+        QtWidgets.QMessageBox.critical(None, i18n.t("error","Error"), 
+            i18n.t("hotkey.register.fail","Failed to register hotkeys") + f": {str(e)}")
 
     ret = app.exec()
     try:
@@ -729,6 +963,10 @@ def main():
             unclip_cursor()
     finally:
         unregister_hotkeys()
+        try:
+            keyboard.unhook_all()
+        except Exception:
+            pass
     return ret
 
 
