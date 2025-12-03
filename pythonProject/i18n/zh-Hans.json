@@ -21,6 +21,11 @@
   "section.behavior": "行为设置",
   "recenter.enabled": "启用定时回正",
   "recenter.interval": "回正频率 (毫秒)",
+  "window.specific.enabled": "启用特定窗口锁定",
+  "window.specific.title": "目标窗口",
+  "window.specific.refresh": "刷新",
+  "window.specific.pick": "选择进程",
+  "window.specific.autoLock": "窗口切换时自动锁定/解锁",
   "position.title": "回正位置",
   "position.virtualCenter": "虚拟屏中心",
   "position.primaryCenter": "主屏中心",
@@ -28,10 +33,14 @@
   "position.x": "X",
   "position.y": "Y",
   "language.title": "语言",
+  "theme.title": "主题",
   "apply": "应用",
   "saved": "设置已保存",
   "error": "错误",
+  "lock.failed": "锁定失败: {}",
+  "unlock.failed": "解锁失败: {}",
+  "locked.message": "已锁定到屏幕中心",
+  "unlocked.message": "已解除锁定",
   "hotkey.register.fail": "热键注册失败，可能与其他程序冲突",
   "tray.minimized": "已最小化到系统托盘运行，右键托盘图标可退出（按住 Shift 点击关闭按钮可立即退出）"
 }
-

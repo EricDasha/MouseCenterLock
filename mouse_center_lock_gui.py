@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 # --- Windows constants and helpers ---
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 
 WM_HOTKEY = 0x0312
 
@@ -45,12 +46,27 @@ def load_json(path, default):
 
 
 class SettingsManager:
+    """Manages application settings including loading, default values, and saving."""
+    
     def __init__(self):
         # Load user config if present; otherwise from packaged default
-        self.data = load_json(CONFIG_PATH, None)
-        if self.data is None:
-            self.data = load_json(CONFIG_DEFAULT_PATH, {})
+        data = load_json(CONFIG_PATH, None)
+        if data is None:
+            data = load_json(CONFIG_DEFAULT_PATH, {})
+        
+        # Ensure data is a dictionary
+        if not isinstance(data, dict):
+            data = {}
+            
+        self.data = data
+        
+        # Set default values for all settings
+        self._set_default_settings()
+
+    def _set_default_settings(self):
+        """Set default values for all settings."""
         self.data.setdefault("language", "zh-Hans")
+        self.data.setdefault("theme", "dark")
         self.data.setdefault("hotkeys", {
             "lock": {"modCtrl": True, "modAlt": True, "modShift": False, "key": "L"},
             "unlock": {"modCtrl": True, "modAlt": True, "modShift": False, "key": "U"},
@@ -58,8 +74,16 @@ class SettingsManager:
         })
         self.data.setdefault("recenter", {"enabled": True, "intervalMs": 250})
         self.data.setdefault("position", {"mode": "virtualCenter", "customX": 0, "customY": 0})
+        # Add window-specific locking settings
+        self.data.setdefault("windowSpecific", {
+            "enabled": False,
+            "targetWindow": "",
+            "targetWindowHandle": 0,
+            "autoLockOnWindowFocus": False
+        })
 
     def save(self):
+        """Save current settings to the configuration file."""
         try:
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
@@ -72,10 +96,10 @@ class I18n:
         self.lang_code = lang_code
         self.strings = load_json(os.path.join(I18N_DIR, f"{lang_code}.json"), {})
 
-    def t(self, key: str, fallback: str = None) -> str:
+    def t(self, key: str, fallback: str = "") -> str:
         if key in self.strings:
             return self.strings[key]
-        return fallback if fallback is not None else key
+        return fallback if fallback else key
 
 
 class RECT(ctypes.Structure):
@@ -113,6 +137,23 @@ def clip_cursor_to_point(x, y):
 def unclip_cursor():
     if not user32.ClipCursor(None):
         raise ctypes.WinError()
+
+
+# Add function to get active window information
+def get_active_window_info():
+    """Get the handle and title of the currently active window."""
+    hwnd = user32.GetForegroundWindow()
+    if hwnd == 0:
+        return None, None
+    
+    # Get window title
+    length = user32.GetWindowTextLengthW(hwnd)
+    if length == 0:
+        return hwnd, ""
+    
+    buffer = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buffer, length + 1)
+    return hwnd, buffer.value
 
 
 # --- Native hotkey bridge ---
@@ -197,12 +238,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = settings
         self.i18n = i18n
         self.setWindowTitle(self.i18n.t("app.title", "Mouse Center Lock"))
-        self.setMinimumSize(560, 360)
+        self.setMinimumSize(400, 300)  # 最小窗口大小
+        self.resize(620, 650)  # 默认窗口大小设置为620×650
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
 
         self.locked = False
+        self.lastActiveWindowTitle = ""
         self.recenterTimer = QtCore.QTimer(self)
         self.recenterTimer.timeout.connect(self._on_recenter_tick)
+        
+        # Timer for checking window focus changes
+        self.windowFocusTimer = QtCore.QTimer(self)
+        self.windowFocusTimer.timeout.connect(self._check_window_focus)
+        self.windowFocusTimer.start(500)  # Check every 500ms
 
         # Set window icon (prefer external, fallback to built-in) and apply globally
         win_icon = self._load_external_icon()
@@ -241,38 +289,76 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- Styling ---
     def _apply_theme(self):
         QtWidgets.QApplication.setStyle("Fusion")
-        palette = QtGui.QPalette()
+        
+        # Get theme setting, default to dark
+        theme = self.settings.data.get("theme", "dark")
+        
+        if theme == "light":
+            # Light theme colors
+            base = QtGui.QColor(242, 242, 247)
+            alt = QtGui.QColor(255, 255, 255)
+            text = QtGui.QColor(20, 20, 25)
+            hint = QtGui.QColor(142, 142, 147)
+            accent = QtGui.QColor(10, 132, 255)
 
-        base = QtGui.QColor(28, 28, 30)
-        alt = QtGui.QColor(44, 44, 46)
-        text = QtGui.QColor(235, 235, 245)
-        hint = QtGui.QColor(142, 142, 147)
-        accent = QtGui.QColor(10, 132, 255)
+            palette = QtGui.QPalette()
+            palette.setColor(QtGui.QPalette.Window, base)
+            palette.setColor(QtGui.QPalette.Base, alt)
+            palette.setColor(QtGui.QPalette.AlternateBase, base)
+            palette.setColor(QtGui.QPalette.Button, alt)
+            palette.setColor(QtGui.QPalette.ButtonText, text)
+            palette.setColor(QtGui.QPalette.Text, text)
+            palette.setColor(QtGui.QPalette.WindowText, text)
+            palette.setColor(QtGui.QPalette.ToolTipBase, alt)
+            palette.setColor(QtGui.QPalette.ToolTipText, text)
+            palette.setColor(QtGui.QPalette.Highlight, accent)
+            palette.setColor(QtGui.QPalette.BrightText, text)
+            palette.setColor(QtGui.QPalette.PlaceholderText, hint)
+            QtWidgets.QApplication.setPalette(palette)
 
-        palette.setColor(QtGui.QPalette.Window, base)
-        palette.setColor(QtGui.QPalette.Base, alt)
-        palette.setColor(QtGui.QPalette.AlternateBase, base)
-        palette.setColor(QtGui.QPalette.Button, alt)
-        palette.setColor(QtGui.QPalette.ButtonText, text)
-        palette.setColor(QtGui.QPalette.Text, text)
-        palette.setColor(QtGui.QPalette.WindowText, text)
-        palette.setColor(QtGui.QPalette.ToolTipBase, alt)
-        palette.setColor(QtGui.QPalette.ToolTipText, text)
-        palette.setColor(QtGui.QPalette.Highlight, accent)
-        palette.setColor(QtGui.QPalette.BrightText, text)
-        palette.setColor(QtGui.QPalette.PlaceholderText, hint)
-        QtWidgets.QApplication.setPalette(palette)
+            self.setStyleSheet(
+                """
+                QMainWindow { background: #f2f2f7; }
+                QWidget { color: #141419; font-size: 14px; }
+                QPushButton { background: #0a84ff; border: none; border-radius: 10px; padding: 8px 14px; color: white; }
+                QPushButton:hover { background: #2b95ff; }
+                QPushButton:pressed { background: #0671dd; }
+                QLabel { font-size: 13px; }
+                """
+            )
+        else:
+            # Dark theme colors
+            base = QtGui.QColor(28, 28, 30)
+            alt = QtGui.QColor(44, 44, 46)
+            text = QtGui.QColor(235, 235, 245)
+            hint = QtGui.QColor(142, 142, 147)
+            accent = QtGui.QColor(10, 132, 255)
 
-        self.setStyleSheet(
-            """
-            QMainWindow { background: #1c1c1e; }
-            QWidget { color: #ebebf5; font-size: 14px; }
-            QPushButton { background: #0a84ff; border: none; border-radius: 10px; padding: 8px 14px; }
-            QPushButton:hover { background: #2b95ff; }
-            QPushButton:pressed { background: #0671dd; }
-            QLabel { font-size: 13px; }
-            """
-        )
+            palette = QtGui.QPalette()
+            palette.setColor(QtGui.QPalette.Window, base)
+            palette.setColor(QtGui.QPalette.Base, alt)
+            palette.setColor(QtGui.QPalette.AlternateBase, base)
+            palette.setColor(QtGui.QPalette.Button, alt)
+            palette.setColor(QtGui.QPalette.ButtonText, text)
+            palette.setColor(QtGui.QPalette.Text, text)
+            palette.setColor(QtGui.QPalette.WindowText, text)
+            palette.setColor(QtGui.QPalette.ToolTipBase, alt)
+            palette.setColor(QtGui.QPalette.ToolTipText, text)
+            palette.setColor(QtGui.QPalette.Highlight, accent)
+            palette.setColor(QtGui.QPalette.BrightText, text)
+            palette.setColor(QtGui.QPalette.PlaceholderText, hint)
+            QtWidgets.QApplication.setPalette(palette)
+
+            self.setStyleSheet(
+                """
+                QMainWindow { background: #1c1c1e; }
+                QWidget { color: #ebebf5; font-size: 14px; }
+                QPushButton { background: #0a84ff; border: none; border-radius: 10px; padding: 8px 14px; }
+                QPushButton:hover { background: #2b95ff; }
+                QPushButton:pressed { background: #0671dd; }
+                QLabel { font-size: 13px; }
+                """
+            )
 
     def _badge_style(self, locked):
         if locked:
@@ -372,8 +458,29 @@ class MainWindow(QtWidgets.QMainWindow):
                     continue
         return None
 
+    def _should_perform_window_specific_locking(self):
+        """
+        Check if window-specific locking is enabled and if the current window matches the target.
+        Returns True if locking should proceed, False otherwise.
+        """
+        window_specific_enabled = self.settings.data.get("windowSpecific", {}).get("enabled", False)
+        if not window_specific_enabled:
+            # If window-specific locking is not enabled, proceed with locking
+            return True
+            
+        # Get the active window
+        hwnd, title = get_active_window_info()
+        target_window = self.settings.data.get("windowSpecific", {}).get("targetWindow", "")
+        
+        # Only proceed with locking if the active window matches the target window
+        return title == target_window
+
     # --- Lock logic ---
     def lock(self):
+        # Check if we should perform locking based on window-specific settings
+        if not self._should_perform_window_specific_locking():
+            return
+        
         if self.locked:
             return
         try:
@@ -386,11 +493,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self._update_toggle_button()
             if self._customIcon is None:
                 self.tray.setIcon(self._make_tray_icon(True))
-            self.tray.showMessage("Mouse Center Lock", "已锁定到屏幕中心", QtWidgets.QSystemTrayIcon.Information, 1500)
+            self.tray.showMessage(
+                self.i18n.t("app.title", "Mouse Center Lock"), 
+                self.i18n.t("locked.message", "Locked to screen center"), 
+                QtWidgets.QSystemTrayIcon.Information, 1500
+            )
             self._apply_recenter_timer()
             self._update_tray_meta()
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "锁定失败", str(e))
+            QtWidgets.QMessageBox.critical(
+                self, 
+                self.i18n.t("error", "Error"), 
+                self.i18n.t("lock.failed", "Failed to lock: {}").format(str(e))
+            )
 
     def unlock(self):
         if not self.locked:
@@ -403,11 +518,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self._update_toggle_button()
             if self._customIcon is None:
                 self.tray.setIcon(self._make_tray_icon(False))
-            self.tray.showMessage("Mouse Center Lock", "已解除锁定", QtWidgets.QSystemTrayIcon.Information, 1500)
+            self.tray.showMessage(
+                self.i18n.t("app.title", "Mouse Center Lock"), 
+                self.i18n.t("unlocked.message", "Unlocked from screen center"), 
+                QtWidgets.QSystemTrayIcon.Information, 1500
+            )
             self._apply_recenter_timer()
             self._update_tray_meta()
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "解锁失败", str(e))
+            QtWidgets.QMessageBox.critical(
+                self, 
+                self.i18n.t("error", "Error"), 
+                self.i18n.t("unlock.failed", "Failed to unlock: {}").format(str(e))
+            )
 
     def toggle_lock(self):
         if self.locked:
@@ -548,6 +671,37 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(recenterSpin, row, 3)
         row += 1
 
+        # Add window-specific locking controls
+        windowSpecificEnabled = QtWidgets.QCheckBox("")
+        windowSpecificEnabled.setChecked(bool(self.settings.data["windowSpecific"].get("enabled", False)))
+        grid.addWidget(windowSpecificEnabled, row, 0, 1, 2)
+        row += 1
+
+        windowSpecificLabel = QtWidgets.QLabel("")
+        windowSpecificCombo = QtWidgets.QComboBox()
+        windowSpecificCombo.setEditable(True)
+        # Populate with currently active window as default option
+        # We'll populate this when the dialog is actually shown, not when it's created
+        windowSpecificCombo.setCurrentText(self.settings.data["windowSpecific"].get("targetWindow", ""))
+        grid.addWidget(windowSpecificLabel, row, 0)
+        grid.addWidget(windowSpecificCombo, row, 1, 1, 3)
+        
+        # Add refresh button to update window list
+        refreshWindowsBtn = QtWidgets.QPushButton("")
+        grid.addWidget(refreshWindowsBtn, row, 4)
+        row += 1
+
+        # Add process picker button similar to Cheat Engine
+        pickProcessBtn = QtWidgets.QPushButton("")
+        grid.addWidget(pickProcessBtn, row, 4)
+        row += 1
+        
+        # Add auto-lock checkbox for window-specific locking
+        autoLockWindowCheckbox = QtWidgets.QCheckBox("")
+        autoLockWindowCheckbox.setChecked(bool(self.settings.data["windowSpecific"].get("autoLockOnWindowFocus", False)))
+        grid.addWidget(autoLockWindowCheckbox, row, 0, 1, 2)
+        row += 1
+
         posLabel = QtWidgets.QLabel("")
         posCombo = QtWidgets.QComboBox()
         posCombo.addItem("", "virtualCenter")
@@ -586,6 +740,19 @@ class MainWindow(QtWidgets.QMainWindow):
         grid.addWidget(langLabel, row, 0)
         grid.addWidget(langCombo, row, 1)
         row += 1
+        
+        # Add theme selection
+        themeLabel = QtWidgets.QLabel("")
+        themeCombo = QtWidgets.QComboBox()
+        themeCombo.addItem("Dark", "dark")
+        themeCombo.addItem("Light", "light")
+        current_theme = self.settings.data.get("theme", "dark")
+        themes = [themeCombo.itemData(i) for i in range(themeCombo.count())]
+        if current_theme in themes:
+            themeCombo.setCurrentIndex(themes.index(current_theme))
+        grid.addWidget(themeLabel, row, 0)
+        grid.addWidget(themeCombo, row, 1)
+        row += 1
 
         applyBtn = QtWidgets.QPushButton("")
         applyBtn.setFixedHeight(36)
@@ -599,12 +766,40 @@ class MainWindow(QtWidgets.QMainWindow):
         behaviorLabel.setText(self.i18n.t("section.behavior", "Behavior"))
         recenterEnabled.setText(self.i18n.t("recenter.enabled", "Enable recentering"))
         recenterLabel.setText(self.i18n.t("recenter.interval", "Recenter interval (ms)"))
+        windowSpecificEnabled.setText(self.i18n.t("window.specific.enabled", "Enable window-specific locking"))
+        windowSpecificLabel.setText(self.i18n.t("window.specific.title", "Target window"))
+        refreshWindowsBtn.setText(self.i18n.t("window.specific.refresh", "Refresh"))
+        pickProcessBtn.setText(self.i18n.t("window.specific.pick", "Pick Process"))
+        autoLockWindowCheckbox.setText(self.i18n.t("window.specific.autoLock", "Auto lock/unlock on window switch"))
         posLabel.setText(self.i18n.t("position.title", "Target position"))
         posCombo.setItemText(0, self.i18n.t("position.virtualCenter", "Virtual screen center"))
         posCombo.setItemText(1, self.i18n.t("position.primaryCenter", "Primary screen center"))
         posCombo.setItemText(2, self.i18n.t("position.custom", "Custom"))
         langLabel.setText(self.i18n.t("language.title", "Language"))
+        themeLabel.setText(self.i18n.t("theme.title", "Theme"))
         applyBtn.setText(self.i18n.t("apply", "Apply"))
+
+        def refresh_windows_list():
+            """Refresh the list of available windows."""
+            # Clear current items
+            windowSpecificCombo.clear()
+            
+            # Add currently active window
+            hwnd, title = get_active_window_info()
+            if title:
+                windowSpecificCombo.addItem(title, hwnd)
+                
+            # Set current value
+            current_text = self.settings.data["windowSpecific"].get("targetWindow", "")
+            windowSpecificCombo.setCurrentText(current_text)
+
+        def pick_process():
+            """Open process picker dialog similar to Cheat Engine."""
+            dialog = ProcessPickerDialog(self)
+            if dialog.exec() == QtWidgets.QDialog.Accepted:
+                selected_process = dialog.get_selected_process()
+                if selected_process:
+                    windowSpecificCombo.setCurrentText(selected_process)
 
         def on_apply():
             hk = self.settings.data["hotkeys"]
@@ -614,10 +809,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.settings.data["recenter"]["enabled"] = recenterEnabled.isChecked()
             self.settings.data["recenter"]["intervalMs"] = int(recenterSpin.value())
+            
+            # Save window-specific settings
+            self.settings.data["windowSpecific"]["enabled"] = windowSpecificEnabled.isChecked()
+            self.settings.data["windowSpecific"]["targetWindow"] = windowSpecificCombo.currentText()
+            # Save handle data if item has userData (handle)
+            current_index = windowSpecificCombo.currentIndex()
+            if current_index >= 0 and windowSpecificCombo.itemData(current_index) is not None:
+                self.settings.data["windowSpecific"]["targetWindowHandle"] = windowSpecificCombo.itemData(current_index)
+            
+            # Add auto-lock setting
+            self.settings.data["windowSpecific"]["autoLockOnWindowFocus"] = autoLockWindowCheckbox.isChecked()
+            
             self.settings.data["position"]["mode"] = posCombo.currentData()
             self.settings.data["position"]["customX"] = int(xSpin.value())
             self.settings.data["position"]["customY"] = int(ySpin.value())
             self.settings.data["language"] = langCombo.currentData()
+            self.settings.data["theme"] = themeCombo.currentData()
 
             self.settings.save()
 
@@ -629,8 +837,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self._update_toggle_button()
             self._update_tray_meta()
+            self._apply_theme()  # Apply theme changes
             QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), self.i18n.t("saved", "Saved"), page)
 
+        # Connect refresh button
+        refreshWindowsBtn.clicked.connect(refresh_windows_list)
+        
+        # Connect process picker button
+        pickProcessBtn.clicked.connect(pick_process)
+        
         applyBtn.clicked.connect(on_apply)
 
         return page
@@ -662,12 +877,64 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_recenter_tick(self):
         if not self.locked:
             return
+            
+        # Check if we should still keep the mouse locked based on window-specific settings
+        if not self._should_perform_window_specific_locking():
+            self.unlock()
+            return
+                
         cx, cy = self._resolve_target_position()
         set_cursor_to(cx, cy)
         try:
             clip_cursor_to_point(cx, cy)
         except Exception:
             pass
+
+    def _check_window_focus(self):
+        """Check if window focus has changed and handle auto-locking if enabled."""
+        # Check if window-specific locking is enabled
+        window_specific_enabled = self.settings.data.get("windowSpecific", {}).get("enabled", False)
+        auto_lock_enabled = self.settings.data.get("windowSpecific", {}).get("autoLockOnWindowFocus", False)
+        
+        if not window_specific_enabled or not auto_lock_enabled:
+            return
+            
+        # Get current active window
+        hwnd, title = get_active_window_info()
+        
+        if title is None:
+            return
+            
+        # Check if the active window has changed
+        if title != self.lastActiveWindowTitle:
+            self.lastActiveWindowTitle = title
+            
+            # Get target window from settings
+            target_window = self.settings.data.get("windowSpecific", {}).get("targetWindow", "")
+            
+            # If we were locked and the window changed, unlock
+            if self.locked and title != target_window:
+                self.unlock()
+            # If we weren't locked and switched to target window, lock
+            elif not self.locked and title == target_window:
+                self.lock()
+
+    def _should_perform_window_specific_locking(self):
+        """
+        Check if window-specific locking is enabled and if the current window matches the target.
+        Returns True if locking should proceed, False otherwise.
+        """
+        window_specific_enabled = self.settings.data.get("windowSpecific", {}).get("enabled", False)
+        if not window_specific_enabled:
+            # If window-specific locking is not enabled, proceed with locking
+            return True
+            
+        # Get the active window
+        hwnd, title = get_active_window_info()
+        target_window = self.settings.data.get("windowSpecific", {}).get("targetWindow", "")
+        
+        # Only proceed with locking if the active window matches the target window
+        return title == target_window
 
     def _update_toggle_button(self):
         hk = self.settings.data["hotkeys"]
@@ -697,6 +964,118 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hkLockAction.setText(f"{self.i18n.t('hotkey.lock','Lock hotkey')}: {fmt(hk['lock'])}")
             self.hkUnlockAction.setText(f"{self.i18n.t('hotkey.unlock','Unlock hotkey')}: {fmt(hk['unlock'])}")
             self.hkToggleAction.setText(f"{self.i18n.t('hotkey.toggle','Toggle hotkey')}: {fmt(hk['toggle'])}")
+
+
+# Add Process Picker Dialog similar to Cheat Engine
+class ProcessPickerDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select Process")
+        self.setGeometry(100, 100, 400, 300)
+        self.selected_process = None
+        
+        layout = QtWidgets.QVBoxLayout()
+        
+        # Add label
+        label = QtWidgets.QLabel("Select a process to lock the mouse to:")
+        layout.addWidget(label)
+        
+        # Add list widget for processes
+        self.processList = QtWidgets.QListWidget()
+        self.processList.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self.processList)
+        
+        # Add buttons
+        buttonLayout = QtWidgets.QHBoxLayout()
+        refreshBtn = QtWidgets.QPushButton("Refresh")
+        refreshBtn.clicked.connect(self.refresh_processes)
+        okBtn = QtWidgets.QPushButton("OK")
+        okBtn.clicked.connect(self.accept)
+        cancelBtn = QtWidgets.QPushButton("Cancel")
+        cancelBtn.clicked.connect(self.reject)
+        
+        buttonLayout.addWidget(refreshBtn)
+        buttonLayout.addStretch()
+        buttonLayout.addWidget(okBtn)
+        buttonLayout.addWidget(cancelBtn)
+        
+        layout.addLayout(buttonLayout)
+        self.setLayout(layout)
+        
+        # Load processes
+        self.refresh_processes()
+
+    def refresh_processes(self):
+        """Refresh the list of running processes."""
+        self.processList.clear()
+        
+        # Get list of running processes
+        processes = self._get_running_processes()
+        for proc_name, proc_title in processes:
+            item = QtWidgets.QListWidgetItem(f"{proc_title} ({proc_name})")
+            item.setData(QtCore.Qt.UserRole, proc_title)
+            self.processList.addItem(item)
+
+    def _get_running_processes(self):
+        """Get list of running processes with their window titles."""
+        processes = []
+        
+        # Use EnumWindows to enumerate all top-level windows
+        def enum_windows_proc(hwnd, lParam):
+            # Check if window is visible
+            if user32.IsWindowVisible(hwnd):
+                # Get window title
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buffer = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buffer, length + 1)
+                    title = buffer.value
+                    
+                    # Get process ID
+                    pid = wintypes.DWORD()
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    
+                    # Get process name
+                    try:
+                        PROCESS_QUERY_INFORMATION = 0x0400
+                        PROCESS_VM_READ = 0x0010
+                        handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid)
+                        if handle:
+                            filename_buffer = ctypes.create_unicode_buffer(260)
+                            kernel32.QueryFullProcessImageNameW(handle, 0, filename_buffer, ctypes.byref(wintypes.DWORD(260)))
+                            kernel32.CloseHandle(handle)
+                            
+                            # Extract process name from full path
+                            proc_name = os.path.basename(filename_buffer.value)
+                            processes.append((proc_name, title))
+                    except Exception:
+                        # Fallback if we can't get process name
+                        processes.append(("unknown.exe", title))
+            return True
+        
+        # Define enum windows callback type
+        enum_windows_proc_t = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        callback = enum_windows_proc_t(enum_windows_proc)
+        
+        # Enumerate windows
+        user32.EnumWindows(callback, 0)
+        
+        # Sort by title
+        processes.sort(key=lambda x: x[1].lower())
+        return processes
+
+    def get_selected_process(self):
+        """Return the selected process title."""
+        current_item = self.processList.currentItem()
+        if current_item:
+            return current_item.data(QtCore.Qt.UserRole)
+        return None
+
+    def accept(self):
+        """Handle OK button or double-click."""
+        self.selected_process = self.get_selected_process()
+        if self.selected_process:
+            super().accept()
 
 
 def main():

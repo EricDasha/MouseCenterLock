@@ -21,6 +21,11 @@
   "section.behavior": "Behavior settings",
   "recenter.enabled": "Enable periodic recentering",
   "recenter.interval": "Recenter interval (ms)",
+  "window.specific.enabled": "Enable window-specific locking",
+  "window.specific.title": "Target window",
+  "window.specific.refresh": "Refresh",
+  "window.specific.pick": "Pick Process",
+  "window.specific.autoLock": "Auto lock/unlock on window switch",
   "position.title": "Target position",
   "position.virtualCenter": "Virtual screen center",
   "position.primaryCenter": "Primary screen center",
@@ -28,10 +33,14 @@
   "position.x": "X",
   "position.y": "Y",
   "language.title": "Language",
+  "theme.title": "Theme",
   "apply": "Apply",
   "saved": "Settings saved",
   "error": "Error",
+  "lock.failed": "Failed to lock: {}",
+  "unlock.failed": "Failed to unlock: {}",
+  "locked.message": "Locked to screen center",
+  "unlocked.message": "Unlocked from screen center",
   "hotkey.register.fail": "Failed to register hotkeys. Possibly conflicting app",
   "tray.minimized": "Minimized to system tray. Right-click tray icon to quit (hold Shift while closing to quit immediately)"
 }
-
