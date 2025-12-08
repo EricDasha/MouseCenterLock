@@ -1,28 +1,38 @@
-**언어 / Language / 语言**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
+**Language / 语言 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
 
 ---
 
 # 마우스 중앙 잠금
 
-비디오를 시청하거나 게임 중 멀티태스킹할 때 마우스 커서를 화면 중앙에 고정하는 Windows 유틸리티입니다. 전역 단축키, 트레이 메뉴, 간단/고급 UI, 다국어 지원 및 재중앙화 빈도/위치 설정이 가능합니다.
+동영상 시청이나 게임 중 멀티태스킹 시 마우스 커서를 화면 중앙에 고정하는 Windows 유틸리티입니다. 전역 단축키, 트레이 메뉴, 간단/고급 UI, 다국어 지원, 재설정 주기/위치 설정을 지원합니다.
 
 ## 기능
-- 전역 단축키 (사용자 정의 가능): 잠금 / 잠금 해제 / 토글
-- 트레이 아이콘 및 메뉴; 트레이로 닫기; Shift+닫기로 종료
+
+- 전역 단축키 (사용자 정의): 잠금 / 잠금 해제 / 전환
+- Minecraft 스타일 단축키 설정: 클릭 후 키 조합 직접 입력
+- 트레이 아이콘 및 메뉴; 트레이로 최소화; Shift+닫기로 종료
 - 간단/고급 모드
-  - 고급: 단축키, 재중앙화 간격, 대상 위치 (가상 중앙, 주 화면 중앙, 사용자 정의), 언어 사용자 정의
-- 다국어 지원: English, 简体中文, 繁體中文, 日本語, 한국어
+  - 고급: 단축키, 재설정 주기, 대상 위치 (가상 중앙, 기본 화면 중앙, 사용자 정의), 언어, 테마 설정
+- 창 특정 잠금: 지정된 창이 활성화될 때만 잠금
+- 창 전환 시 자동 잠금/해제
+- 단일 인스턴스 감지: 중복 실행 방지
+- 시작 시 실행
+- 다국어: English, 简体中文, 繁體中文, 日本語, 한국어
+- 라이트/다크 테마
 - 다중 모니터 지원
 
 ## 프로젝트 구조
+
 - `mouse_center_lock_gui.py` – GUI 앱 (PySide6)
-- `mouse_center_lock.py` – CLI/기본 버전 (선택 사항)
+- `win_api.py` – Windows API 래퍼 모듈
+- `widgets.py` – 커스텀 UI 위젯 (단축키 캡처, 프로세스 선택기)
+- `mouse_center_lock.py` – CLI/기본 버전 (선택사항)
 - `pythonProject/i18n/` – 언어 파일
-- `pythonProject/assets/` – 아이콘 및 리소스 (`app.ico`를 여기에 배치)
-- `config.json` – 기본 설정 (사용자 설정은 exe 옆에 기록됨)
-- `pythonProject/create_icon.py` – 이미지에서 다중 크기 `.ico`를 생성하는 도우미 (Pillow)
+- `pythonProject/assets/` – 아이콘 및 리소스
+- `config.json` – 기본 설정
 
 ## 요구 사항
+
 - Windows 10+
 - Python 3.9+
 - 종속성: `requirements.txt` 참조
@@ -38,7 +48,8 @@ python mouse_center_lock_gui.py
 ```
 
 ## 빌드 (PyInstaller)
-가상 환경을 생성하고 (권장) 창 모드 exe를 빌드합니다:
+
+가상 환경 생성 (권장) 후 윈도우 exe 빌드:
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
   --name MouseCenterLock \
@@ -46,18 +57,26 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "config.json;." \
   --add-data "pythonProject/assets;assets" \
+  --hidden-import win_api \
+  --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
 exe 파일은 `dist/MouseCenterLock.exe`에 생성됩니다.
 
-## 사용자 정의 아이콘
-다중 크기 `app.ico`를 `pythonProject/assets/`에 배치하세요. 앱과 트레이가 자동으로 사용합니다. 없으면 내장 벡터 아이콘이 사용됩니다.
+## 변경 기록
 
-PNG/JPG에서 `app.ico` 생성:
-```bash
-python pythonProject/create_icon.py <input_image> pythonProject/assets/app.ico
-```
+### v1.0.3
+- Minecraft 스타일 단축키 설정: 입력 필드 클릭 후 키 조합 입력
+- 단일 인스턴스 감지: 중복 실행 방지
+- 시작 시 실행 옵션
+- 프로세스 선택기에 검색 필터 추가
+- 단축키 충돌 감지 및 경고
+- 모듈화 아키텍처로 코드 리팩토링
+
+### v1.0.2
+- 라이트 테마 추가
+- 창 전환 시 자동 잠금/해제
 
 ## 라이선스
-MIT
 
+MIT
