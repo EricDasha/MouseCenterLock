@@ -164,6 +164,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.i18n = i18n
         
         self._locked = False
+        self._auto_lock_suspended = False
+        self._force_lock = False
         self._last_active_window = ""
         self._custom_icon: Optional[QtGui.QIcon] = None
         
@@ -231,29 +233,53 @@ class MainWindow(QtWidgets.QMainWindow):
         page = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(8, 16, 8, 16)
-        layout.setSpacing(20)
+        layout.setSpacing(16)
         
         # Status badge
         self.statusBadge = QtWidgets.QLabel()
         self.statusBadge.setAlignment(QtCore.Qt.AlignCenter)
-        self.statusBadge.setFixedHeight(48)
+        self.statusBadge.setFixedHeight(56)
         self._update_status_badge()
         layout.addWidget(self.statusBadge)
+
+        # Configuration card
+        self.configCard = self._build_info_card(
+            self.i18n.t("simple.config.title", "Current Configuration")
+        )
+        self.configLabel = QtWidgets.QLabel()
+        self.configLabel.setWordWrap(True)
+        self.configLabel.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        self.configLabel.setStyleSheet("color: rgba(235, 235, 245, 0.90); font-size: 13px; line-height: 1.6;")
+        self.configCard.layout().addWidget(self.configLabel)
+        layout.addWidget(self.configCard)
+
+        # Hotkeys card
+        self.hotkeysCard = self._build_info_card(
+            self.i18n.t("simple.hotkeys.title", "Hotkeys")
+        )
+        self.hotkeysLabel = QtWidgets.QLabel()
+        self.hotkeysLabel.setWordWrap(True)
+        self.hotkeysLabel.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        self.hotkeysLabel.setStyleSheet("color: rgba(235, 235, 245, 0.90); font-size: 13px; font-family: 'Consolas', 'Courier New', monospace; line-height: 1.8;")
+        self.hotkeysCard.layout().addWidget(self.hotkeysLabel)
+        layout.addWidget(self.hotkeysCard)
+        
+        self._update_simple_info()
         
         layout.addStretch(1)
         
         # Toggle button
         self.toggleBtn = QtWidgets.QPushButton()
-        self.toggleBtn.setFixedHeight(50)
+        self.toggleBtn.setFixedHeight(56)
         self.toggleBtn.setCursor(QtCore.Qt.PointingHandCursor)
         self.toggleBtn.clicked.connect(self.toggle_lock)
         self._update_toggle_button()
         layout.addWidget(self.toggleBtn)
         
         # Hint
-        hint = QtWidgets.QLabel(self.i18n.t("simple.hint", "Use hotkeys for quick access"))
+        hint = QtWidgets.QLabel(self.i18n.t("simple.hint", "Use hotkeys for quick access ⌨️"))
         hint.setAlignment(QtCore.Qt.AlignCenter)
-        hint.setStyleSheet("color: #8e8e93; font-size: 12px;")
+        hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
         layout.addWidget(hint)
         
         return page
@@ -445,6 +471,27 @@ class MainWindow(QtWidgets.QMainWindow):
         label.setStyleSheet("font-weight: 600; font-size: 15px; margin-top: 8px;")
         return label
     
+    def _build_info_card(self, title: str) -> QtWidgets.QFrame:
+        """Create a styled information card with title."""
+        card = QtWidgets.QFrame()
+        card.setFrameShape(QtWidgets.QFrame.NoFrame)
+        card.setStyleSheet("""
+            QFrame {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+            }
+        """)
+        card_layout = QtWidgets.QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 14, 16, 14)
+        card_layout.setSpacing(10)
+        
+        title_label = QtWidgets.QLabel(title)
+        title_label.setStyleSheet("font-weight: 600; font-size: 14px; color: rgba(10, 132, 255, 1.0);")
+        card_layout.addWidget(title_label)
+        
+        return card
+    
     def _pick_process(self):
         """Open process picker dialog."""
         dialog = ProcessPickerDialog(self, self.i18n)
@@ -480,6 +527,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Handle startup
         set_startup_enabled(self.startupCheck.isChecked())
+        self.settings.data.setdefault("startup", {})
+        self.settings.data["startup"]["launchOnBoot"] = self.startupCheck.isChecked()
         
         self.settings.save()
         
@@ -497,6 +546,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Apply theme and update UI
         self._apply_theme()
         self._update_toggle_button()
+        self._update_simple_info()
         self._update_tray_meta()
         
         # Show confirmation
@@ -511,13 +561,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stack.setCurrentIndex(idx)
     
     # --- Lock/Unlock Logic ---
-    def lock(self):
+    def lock(self, manual: bool = False):
         """Lock the cursor to target position."""
         if self._locked:
             return
-        
-        if not self._should_lock_for_window():
-            return
+
+        if manual:
+            self._auto_lock_suspended = False
+            self._force_lock = True
+        else:
+            self._force_lock = False
+            if not self._should_lock_for_window():
+                return
         
         try:
             cx, cy = self._get_target_position()
@@ -537,11 +592,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.i18n.t("error", "Error"),
                 self.i18n.t("lock.failed", "Failed to lock: {}").format(str(e))
             )
-    
-    def unlock(self):
+
+    def unlock(self, manual: bool = False):
         """Unlock the cursor."""
         if not self._locked:
             return
+
+        if manual and self.settings.data.get("windowSpecific", {}).get("autoLockOnWindowFocus", False):
+            self._auto_lock_suspended = True
+        if manual:
+            self._force_lock = False
         
         try:
             unclip_cursor()
@@ -563,12 +623,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def toggle_lock(self):
         """Toggle lock state."""
         if self._locked:
-            self.unlock()
+            self.unlock(manual=True)
         else:
-            self.lock()
+            self.lock(manual=True)
     
     def _should_lock_for_window(self) -> bool:
         """Check if locking should proceed based on window-specific settings."""
+        if self._force_lock:
+            return True
         if not self.settings.data["windowSpecific"].get("enabled", False):
             return True
         
@@ -592,6 +654,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_lock_state_changed(self):
         """Called when lock state changes."""
         self._update_status_badge()
+        self._update_simple_info()
         self._update_toggle_button()
         self._update_tray_icon()
         self._update_tray_meta()
@@ -611,7 +674,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         
         if not self._should_lock_for_window():
-            self.unlock()
+            self.unlock(manual=False)
             return
         
         cx, cy = self._get_target_position()
@@ -635,32 +698,139 @@ class MainWindow(QtWidgets.QMainWindow):
             self._last_active_window = title
             target = ws.get("targetWindow", "")
             
-            if self._locked and title != target:
-                self.unlock()
-            elif not self._locked and title == target:
-                self.lock()
+            if self._locked and title != target and not self._force_lock:
+                self.unlock(manual=False)
+            elif not self._locked and title == target and not self._auto_lock_suspended:
+                self.lock(manual=False)
+            self._update_simple_info()
     
     # --- UI Updates ---
     def _update_status_badge(self):
         """Update the status badge appearance."""
         if self._locked:
-            self.statusBadge.setText(self.i18n.t("status.locked", "Locked"))
+            # Locked state - green
+            if self._force_lock:
+                text = self.i18n.t("status.locked.manual", "LOCKED (Manual)")
+            else:
+                text = self.i18n.t("status.locked.auto", "LOCKED (Auto)")
+            self.statusBadge.setText(text)
             self.statusBadge.setStyleSheet("""
-                background: #1e5631;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #1e5631, stop:1 #2d7a4a);
                 color: #c8facc;
-                border-radius: 12px;
+                border: 1px solid #2d7a4a;
+                border-radius: 14px;
                 font-weight: 600;
                 font-size: 16px;
+                padding: 4px;
             """)
         else:
-            self.statusBadge.setText(self.i18n.t("status.unlocked", "Unlocked"))
-            self.statusBadge.setStyleSheet("""
-                background: #5c1e1e;
-                color: #ffdede;
-                border-radius: 12px;
-                font-weight: 600;
-                font-size: 16px;
-            """)
+            # Unlocked state - check if waiting for auto-lock
+            ws = self.settings.data.get("windowSpecific", {})
+            is_auto_enabled = ws.get("enabled", False) and ws.get("autoLockOnWindowFocus", False)
+            
+            if is_auto_enabled and not self._auto_lock_suspended:
+                # Waiting for window switch - yellow/orange
+                text = self.i18n.t("status.waiting", "WAITING (Auto-lock enabled)")
+                self.statusBadge.setText(text)
+                self.statusBadge.setStyleSheet("""
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #8a6d3b, stop:1 #c9a961);
+                    color: #fff8e1;
+                    border: 1px solid #c9a961;
+                    border-radius: 14px;
+                    font-weight: 600;
+                    font-size: 16px;
+                    padding: 4px;
+                """)
+            elif self._auto_lock_suspended:
+                # Auto-lock paused - red
+                text = self.i18n.t("status.unlocked.suspended", "UNLOCKED (Auto-lock paused)")
+                self.statusBadge.setText(text)
+                self.statusBadge.setStyleSheet("""
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #5c1e1e, stop:1 #8a2929);
+                    color: #ffdede;
+                    border: 1px solid #8a2929;
+                    border-radius: 14px;
+                    font-weight: 600;
+                    font-size: 16px;
+                    padding: 4px;
+                """)
+            else:
+                # Normal unlocked - red
+                text = self.i18n.t("status.unlocked", "UNLOCKED")
+                self.statusBadge.setText(text)
+                self.statusBadge.setStyleSheet("""
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                        stop:0 #5c1e1e, stop:1 #8a2929);
+                    color: #ffdede;
+                    border: 1px solid #8a2929;
+                    border-radius: 14px;
+                    font-weight: 600;
+                    font-size: 16px;
+                    padding: 4px;
+                """)
+
+    def _update_simple_info(self):
+        """Update simple mode information cards."""
+        if not hasattr(self, "configLabel") or not hasattr(self, "hotkeysLabel"):
+            return
+
+        # Get settings
+        rec = self.settings.data.get("recenter", {})
+        pos = self.settings.data.get("position", {})
+        ws = self.settings.data.get("windowSpecific", {})
+        hk = self.settings.data.get("hotkeys", {})
+
+        # Build configuration information
+        config_parts = []
+        
+        # Position
+        mode = pos.get("mode", "virtualCenter")
+        if mode == "primaryCenter":
+            pos_text = self.i18n.t("position.primaryCenter", "Primary screen center")
+        elif mode == "custom":
+            pos_text = f"{self.i18n.t('position.custom', 'Custom')} ({pos.get('customX', 0)}, {pos.get('customY', 0)})"
+        else:
+            pos_text = self.i18n.t("position.virtualCenter", "Virtual screen center")
+        config_parts.append(f"{self.i18n.t('simple.position', 'Position')}: {pos_text}")
+        
+        # Recenter
+        rec_enabled = bool(rec.get("enabled", True))
+        interval = int(rec.get("intervalMs", 250))
+        rec_status = self.i18n.t('simple.enabled', 'Enabled') if rec_enabled else self.i18n.t('simple.disabled', 'Disabled')
+        rec_text = f"{self.i18n.t('simple.recenter', 'Auto-Recenter')}: {rec_status}"
+        if rec_enabled:
+            rec_text += f" ({interval}ms)"
+        config_parts.append(rec_text)
+        
+        # Window specific
+        ws_enabled = bool(ws.get("enabled", False))
+        ws_status = self.i18n.t('simple.enabled', 'Enabled') if ws_enabled else self.i18n.t('simple.disabled', 'Disabled')
+        ws_text = f"{self.i18n.t('simple.window', 'Window Lock')}: {ws_status}"
+        if ws_enabled:
+            target = ws.get("targetWindow", "")
+            auto_focus = bool(ws.get("autoLockOnWindowFocus", False))
+            if target:
+                ws_text += f"\n  Target: {target}"
+            if auto_focus:
+                ws_text += f" ({self.i18n.t('window.specific.autoLock', 'Auto')})"
+        config_parts.append(ws_text)
+        
+        self.configLabel.setText("\n".join(config_parts))
+        
+        # Build hotkey information
+        hk_parts = []
+        lock_key = format_hotkey_display(hk.get('lock', {}))
+        unlock_key = format_hotkey_display(hk.get('unlock', {}))
+        toggle_key = format_hotkey_display(hk.get('toggle', {}))
+        
+        hk_parts.append(f"{self.i18n.t('hotkey.lock', 'Lock')}: {lock_key}")
+        hk_parts.append(f"{self.i18n.t('hotkey.unlock', 'Unlock')}: {unlock_key}")
+        hk_parts.append(f"{self.i18n.t('hotkey.toggle', 'Toggle')}: {toggle_key}")
+        
+        self.hotkeysLabel.setText("\n".join(hk_parts))
     
     def _update_toggle_button(self):
         """Update the toggle button text."""
@@ -724,19 +894,30 @@ class MainWindow(QtWidgets.QMainWindow):
             QMainWindow { background: #1c1c1e; }
             QWidget { color: #ebebf5; font-size: 14px; }
             QPushButton {
-                background: #0a84ff;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #0a84ff, stop:1 #0671dd);
                 border: none;
                 border-radius: 10px;
                 padding: 8px 14px;
                 color: white;
+                font-weight: 500;
             }
-            QPushButton:hover { background: #2b95ff; }
-            QPushButton:pressed { background: #0671dd; }
+            QPushButton:hover { 
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #2b95ff, stop:1 #1982ee); 
+            }
+            QPushButton:pressed { 
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #0671dd, stop:1 #0558bb); 
+            }
             QComboBox, QSpinBox, QLineEdit {
                 background: #2c2c2e;
                 border: 1px solid #48484a;
                 border-radius: 6px;
                 padding: 6px;
+            }
+            QComboBox:focus, QSpinBox:focus, QLineEdit:focus {
+                border: 1px solid #0a84ff;
             }
             QCheckBox { spacing: 8px; }
             QScrollArea { border: none; }
@@ -747,19 +928,30 @@ class MainWindow(QtWidgets.QMainWindow):
             QMainWindow { background: #f2f2f7; }
             QWidget { color: #141419; font-size: 14px; }
             QPushButton {
-                background: #0a84ff;
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #0a84ff, stop:1 #0671dd);
                 border: none;
                 border-radius: 10px;
                 padding: 8px 14px;
                 color: white;
+                font-weight: 500;
             }
-            QPushButton:hover { background: #2b95ff; }
-            QPushButton:pressed { background: #0671dd; }
+            QPushButton:hover { 
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #2b95ff, stop:1 #1982ee); 
+            }
+            QPushButton:pressed { 
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
+                    stop:0 #0671dd, stop:1 #0558bb); 
+            }
             QComboBox, QSpinBox, QLineEdit {
                 background: #ffffff;
                 border: 1px solid #d1d1d6;
                 border-radius: 6px;
                 padding: 6px;
+            }
+            QComboBox:focus, QSpinBox:focus, QLineEdit:focus {
+                border: 1px solid #0a84ff;
             }
             QCheckBox { spacing: 8px; }
             QScrollArea { border: none; }
@@ -784,8 +976,8 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Actions
         menu.addAction(self.i18n.t("menu.toggle", "Toggle Lock")).triggered.connect(self.toggle_lock)
-        menu.addAction(self.i18n.t("menu.lock", "Lock")).triggered.connect(self.lock)
-        menu.addAction(self.i18n.t("menu.unlock", "Unlock")).triggered.connect(self.unlock)
+        menu.addAction(self.i18n.t("menu.lock", "Lock")).triggered.connect(lambda: self.lock(manual=True))
+        menu.addAction(self.i18n.t("menu.unlock", "Unlock")).triggered.connect(lambda: self.unlock(manual=True))
         menu.addSeparator()
         menu.addAction(self.i18n.t("menu.show", "Show Window")).triggered.connect(self._show_from_tray)
         menu.addAction(self.i18n.t("menu.quit", "Quit")).triggered.connect(self._quit)
@@ -932,9 +1124,9 @@ def main() -> int:
     
     def on_hotkey(hid: int):
         if hid == HOTKEY_ID_LOCK:
-            window.lock()
+            window.lock(manual=True)
         elif hid == HOTKEY_ID_UNLOCK:
-            window.unlock()
+            window.unlock(manual=True)
         elif hid == HOTKEY_ID_TOGGLE:
             window.toggle_lock()
     
