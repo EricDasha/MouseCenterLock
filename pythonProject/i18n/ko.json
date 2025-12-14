@@ -67,11 +67,20 @@
   "unlock.failed": "잠금 해제 실패: {}",
   "locked.message": "화면 중앙에 잠금",
   "unlocked.message": "잠금 해제됨",
-  "tray.minimized": "트레이로 최소화 (Shift+닫기로 종료)",
+  "close.dialog.title": "애플리케이션 종료",
+  "close.dialog.message": "애플리케이션을 어떻게 하시겠습니까?",
+  "close.dialog.minimize": "트레이로 최소화",
+  "close.dialog.quit": "종료",
+  "close.dialog.dontask": "다시 묻지 않음",
+  "close.action.title": "종료 동작",
+  "close.action.reset": "'다시 묻지 않음' 초기화",
+  "close.action.reset.done": "종료 동작이 '항상 묻기'로 초기화되었습니다.",
+  "tray.minimized": "트레이로 최소화됨.",
   "process.picker.title": "프로세스 선택",
   "process.picker.label": "마우스를 잠글 프로세스 선택:",
   "process.picker.search": "검색...",
   "process.picker.refresh": "새로고침",
   "process.picker.ok": "확인",
-  "process.picker.cancel": "취소"
+  "process.picker.cancel": "취소",
+  "settings.reset": "설정 초기화"
 }

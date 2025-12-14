@@ -67,11 +67,20 @@
   "unlock.failed": "解锁失败: {}",
   "locked.message": "已锁定到屏幕中心",
   "unlocked.message": "已解除锁定",
-  "tray.minimized": "已最小化到系统托盘（按住 Shift 点击关闭可完全退出）",
+  "close.dialog.title": "关闭应用",
+  "close.dialog.message": "您希望如何处理关闭操作？",
+  "close.dialog.minimize": "最小化到托盘",
+  "close.dialog.quit": "退出程序",
+  "close.dialog.dontask": "不再询问",
+  "close.action.title": "关闭行为",
+  "close.action.reset": "重置“不再询问”",
+  "close.action.reset.done": "关闭行为已重置为“每次询问”。",
+  "tray.minimized": "已最小化到托盘。",
   "process.picker.title": "选择进程",
   "process.picker.label": "选择要锁定鼠标的进程：",
   "process.picker.search": "搜索...",
   "process.picker.refresh": "刷新",
   "process.picker.ok": "确定",
-  "process.picker.cancel": "取消"
+  "process.picker.cancel": "取消",
+  "settings.reset": "设置已重置"
 }

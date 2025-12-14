@@ -22,7 +22,7 @@ from win_api import (
     register_hotkeys, unregister_hotkeys,
     is_startup_enabled, set_startup_enabled, user32
 )
-from widgets import HotkeyCapture, ProcessPickerDialog
+from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog
 
 
 # --- Configuration & i18n Paths ---
@@ -98,6 +98,7 @@ class SettingsManager:
             "autoLockOnWindowFocus": False
         })
         self.data.setdefault("startup", {"launchOnBoot": False})
+        self.data.setdefault("closeAction", "ask")  # ask, minimize, quit
     
     def save(self) -> bool:
         """Save settings to file. Returns True if successful."""
@@ -442,6 +443,15 @@ class MainWindow(QtWidgets.QMainWindow):
         theme_layout.addStretch()
         layout.addLayout(theme_layout)
         
+        # Close Action Reset
+        close_action_layout = QtWidgets.QHBoxLayout()
+        close_action_layout.addWidget(QtWidgets.QLabel(self.i18n.t("close.action.title", "Close Behavior")))
+        self.resetCloseActionBtn = QtWidgets.QPushButton(self.i18n.t("close.action.reset", "Reset 'Don't ask again'"))
+        self.resetCloseActionBtn.clicked.connect(self._reset_close_action)
+        close_action_layout.addWidget(self.resetCloseActionBtn)
+        close_action_layout.addStretch()
+        layout.addLayout(close_action_layout)
+        
         # Startup
         self.startupCheck = QtWidgets.QCheckBox(
             self.i18n.t("startup.autostart", "Launch on system startup")
@@ -629,14 +639,17 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _should_lock_for_window(self) -> bool:
         """Check if locking should proceed based on window-specific settings."""
-        if self._force_lock:
-            return True
-        if not self.settings.data["windowSpecific"].get("enabled", False):
-            return True
-        
-        _, title = get_active_window_info()
-        target = self.settings.data["windowSpecific"].get("targetWindow", "")
-        return title == target
+        # If specific window locking is enabled, it takes precedence over manual lock
+        if self.settings.data["windowSpecific"].get("enabled", False):
+            hwnd, title = get_active_window_info()
+            target = self.settings.data["windowSpecific"].get("targetWindow", "")
+            match = (title == target)
+            print(f"[DEBUG] Lock Check - Title: '{title}' | Target: '{target}' | Match: {match}")
+            return match
+            
+        # If not enabled, we allow locking (force_lock is irrelevant here as this function 
+        # is essentially answering 'Is the current window valid for locking?')
+        return True
     
     def _get_target_position(self) -> tuple:
         """Get the target lock position based on settings."""
@@ -698,7 +711,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._last_active_window = title
             target = ws.get("targetWindow", "")
             
-            if self._locked and title != target and not self._force_lock:
+            if self._locked and title != target:
                 self.unlock(manual=False)
             elif not self._locked and title == target and not self._auto_lock_suspended:
                 self.lock(manual=False)
@@ -1068,19 +1081,53 @@ class MainWindow(QtWidgets.QMainWindow):
             release_single_instance()
             QtWidgets.QApplication.quit()
     
+    def _reset_close_action(self):
+        """Reset the close action to 'ask'."""
+        self.settings.data["closeAction"] = "ask"
+        self.settings.save()
+        QtWidgets.QMessageBox.information(
+            self,
+            self.i18n.t("settings.reset", "Settings Reset"),
+            self.i18n.t("close.action.reset.done", "Close behavior has been reset to 'Ask every time'.")
+        )
+
     def closeEvent(self, event):
         """Handle window close - minimize to tray or quit."""
+        # Shift+Close always quits
         if QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
             event.accept()
             self._quit()
-        else:
+            return
+
+        action = self.settings.data.get("closeAction", "ask")
+        
+        if action == "ask":
+            dialog = CloseActionDialog(self, self.i18n)
+            if dialog.exec() == QtWidgets.QDialog.Accepted:
+                if dialog.action == "minimize":
+                    event.ignore()
+                    self.hide()
+                    self.tray.showMessage(
+                        self.i18n.t("app.title", "Mouse Center Lock"),
+                        self.i18n.t("tray.minimized", "Minimized to tray."),
+                        QtWidgets.QSystemTrayIcon.Information, 2000
+                    )
+                elif dialog.action == "quit":
+                    event.accept()
+                    self._quit()
+                
+                if dialog.dont_ask_again and dialog.action:
+                    self.settings.data["closeAction"] = dialog.action
+                    self.settings.save()
+            else:
+                # Cancelled
+                event.ignore()
+        elif action == "minimize":
             event.ignore()
             self.hide()
-            self.tray.showMessage(
-                self.i18n.t("app.title", "Mouse Center Lock"),
-                self.i18n.t("tray.minimized", "Minimized to tray. Shift+Close to quit."),
-                QtWidgets.QSystemTrayIcon.Information, 2000
-            )
+        elif action == "quit":
+            event.accept()
+            self._quit()
 
 
 def main() -> int:

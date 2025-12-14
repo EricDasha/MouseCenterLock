@@ -73,5 +73,6 @@
   "process.picker.search": "搜尋...",
   "process.picker.refresh": "重新整理",
   "process.picker.ok": "確定",
-  "process.picker.cancel": "取消"
+  "process.picker.cancel": "取消",
+  "settings.reset": "設定已重設"
 }

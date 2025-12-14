@@ -1,9 +1,27 @@
 {
   "language": "zh-Hans",
   "hotkeys": {
-    "lock": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "L" },
-    "unlock": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "U" },
-    "toggle": { "modCtrl": true, "modAlt": true, "modShift": false, "key": "K" }
+    "lock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "modWin": false,
+      "key": "L"
+    },
+    "unlock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "modWin": false,
+      "key": "U"
+    },
+    "toggle": {
+      "modCtrl": false,
+      "modAlt": false,
+      "modShift": false,
+      "modWin": false,
+      "key": "F1"
+    }
   },
   "recenter": {
     "enabled": true,
@@ -13,6 +31,16 @@
     "mode": "virtualCenter",
     "customX": 0,
     "customY": 0
-  }
+  },
+  "theme": "dark",
+  "windowSpecific": {
+    "enabled": true,
+    "targetWindow": "QQ",
+    "targetWindowHandle": 0,
+    "autoLockOnWindowFocus": true
+  },
+  "startup": {
+    "launchOnBoot": false
+  },
+  "closeAction": "minimize"
 }
-

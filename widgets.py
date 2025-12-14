@@ -429,3 +429,89 @@ class ProcessPickerDialog(QtWidgets.QDialog):
         self.selected_process = self.get_selected_process()
         if self.selected_process:
             super().accept()
+
+
+class CloseActionDialog(QtWidgets.QDialog):
+    """
+    Dialog to ask user whether to minimize to tray or quit.
+    """
+    
+    def __init__(self, parent=None, i18n=None):
+        super().__init__(parent)
+        self.i18n = i18n
+        self.action = None  # "minimize" or "quit"
+        self.dont_ask_again = False
+        
+        self._setup_ui()
+        self._apply_style()
+    
+    def _t(self, key: str, fallback: str) -> str:
+        """Get translated text."""
+        if self.i18n:
+            return self.i18n.t(key, fallback)
+        return fallback
+    
+    def _setup_ui(self):
+        self.setWindowTitle(self._t("close.dialog.title", "Close Application"))
+        self.setFixedSize(400, 200)
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(20)
+        
+        # Message
+        msg_label = QtWidgets.QLabel(self._t("close.dialog.message", "How do you want to close the application?"))
+        msg_label.setWordWrap(True)
+        msg_label.setStyleSheet("font-size: 14px; color: #ebebf5;")
+        layout.addWidget(msg_label)
+        
+        # Options
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.setSpacing(12)
+        
+        self.minimizeBtn = QtWidgets.QPushButton(self._t("close.dialog.minimize", "Minimize to Tray"))
+        self.minimizeBtn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.minimizeBtn.clicked.connect(self._on_minimize)
+        
+        self.quitBtn = QtWidgets.QPushButton(self._t("close.dialog.quit", "Quit Application"))
+        self.quitBtn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.quitBtn.setStyleSheet("background: #ff453a; color: white;")
+        self.quitBtn.clicked.connect(self._on_quit)
+        
+        btn_layout.addWidget(self.minimizeBtn)
+        btn_layout.addWidget(self.quitBtn)
+        layout.addLayout(btn_layout)
+        
+        # Checkbox
+        self.dontAskCheck = QtWidgets.QCheckBox(self._t("close.dialog.dontask", "Don't ask again"))
+        self.dontAskCheck.setStyleSheet("color: #aeaeb2;")
+        layout.addWidget(self.dontAskCheck)
+        
+    def _apply_style(self):
+        self.setStyleSheet("""
+            QDialog {
+                background: #1c1c1e;
+            }
+            QPushButton {
+                background: #3a3a3c;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                color: white;
+                font-weight: 500;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #48484a;
+            }
+        """)
+
+    def _on_minimize(self):
+        self.action = "minimize"
+        self.dont_ask_again = self.dontAskCheck.isChecked()
+        self.accept()
+        
+    def _on_quit(self):
+        self.action = "quit"
+        self.dont_ask_again = self.dontAskCheck.isChecked()
+        self.accept()

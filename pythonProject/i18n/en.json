@@ -67,11 +67,20 @@
   "unlock.failed": "Failed to unlock: {}",
   "locked.message": "Locked to screen center",
   "unlocked.message": "Unlocked",
-  "tray.minimized": "Minimized to tray. Shift+Close to quit.",
+  "close.dialog.title": "Close Application",
+  "close.dialog.message": "How do you want to close the application?",
+  "close.dialog.minimize": "Minimize to Tray",
+  "close.dialog.quit": "Quit Application",
+  "close.dialog.dontask": "Don't ask again",
+  "close.action.title": "Close Behavior",
+  "close.action.reset": "Reset 'Don't ask again'",
+  "close.action.reset.done": "Close behavior has been reset to 'Ask every time'.",
+  "tray.minimized": "Minimized to tray.",
   "process.picker.title": "Select Process",
   "process.picker.label": "Select a process to lock the mouse to:",
   "process.picker.search": "Search...",
   "process.picker.refresh": "Refresh",
   "process.picker.ok": "OK",
-  "process.picker.cancel": "Cancel"
+  "process.picker.cancel": "Cancel",
+  "settings.reset": "Settings Reset"
 }

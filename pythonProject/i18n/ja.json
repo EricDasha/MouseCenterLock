@@ -67,11 +67,20 @@
   "unlock.failed": "ロック解除失敗: {}",
   "locked.message": "画面中央にロックしました",
   "unlocked.message": "ロックを解除しました",
-  "tray.minimized": "トレイに最小化しました（Shift+閉じるで終了）",
+  "close.dialog.title": "アプリケーションを閉じる",
+  "close.dialog.message": "アプリケーションを終了しますか？",
+  "close.dialog.minimize": "トレイに最小化",
+  "close.dialog.quit": "終了する",
+  "close.dialog.dontask": "次回から表示しない",
+  "close.action.title": "閉じる時の動作",
+  "close.action.reset": "「次回から表示しない」をリセット",
+  "close.action.reset.done": "閉じる時の動作を「毎回確認」にリセットしました。",
+  "tray.minimized": "トレイに最小化しました。",
   "process.picker.title": "プロセス選択",
   "process.picker.label": "マウスをロックするプロセスを選択：",
   "process.picker.search": "検索...",
   "process.picker.refresh": "更新",
   "process.picker.ok": "OK",
-  "process.picker.cancel": "キャンセル"
+  "process.picker.cancel": "キャンセル",
+  "settings.reset": "設定リセット"
 }

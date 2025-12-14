@@ -65,6 +65,15 @@ The exe will be in `dist/MouseCenterLock.exe`.
 
 ## Changelog
 
+### v1.0.5
+- New: Ask for action when closing window (Minimize/Quit), with "Don't ask again" option
+- Improved: Added option to reset close behavior in settings
+- Debug: Added debug logs for window locking logic
+
+### v1.0.4
+- Fixed BUG: Manual lock (hotkey) bypasses window restriction when "Window-Specific Locking" is enabled
+- Improved: Strict window matching when window-specific locking is active
+
 ### v1.0.3
 - Minecraft-style hotkey capture: click input and press key combination
 - Single instance detection: prevents duplicate launches
