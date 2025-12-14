@@ -19,7 +19,7 @@ from win_api import (
     get_virtual_screen_center, get_primary_screen_center,
     set_cursor_to, clip_cursor_to_point, unclip_cursor,
     get_active_window_info, format_hotkey_display,
-    register_hotkeys, unregister_hotkeys,
+    register_hotkeys, unregister_hotkeys, get_window_center,
     is_startup_enabled, set_startup_enabled, user32
 )
 from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog
@@ -576,13 +576,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._locked:
             return
 
+        # Enforce window check even for manual lock if specific window locking is enabled
+        if not self._should_lock_for_window():
+            return
+
         if manual:
             self._auto_lock_suspended = False
             self._force_lock = True
         else:
             self._force_lock = False
-            if not self._should_lock_for_window():
-                return
         
         try:
             cx, cy = self._get_target_position()
@@ -653,6 +655,17 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _get_target_position(self) -> tuple:
         """Get the target lock position based on settings."""
+        # 1. Check for Window-Specific Locking
+        if self.settings.data["windowSpecific"].get("enabled", False):
+            hwnd, title = get_active_window_info()
+            target = self.settings.data["windowSpecific"].get("targetWindow", "")
+            if title == target and hwnd:
+                center = get_window_center(hwnd)
+                if center:
+                    print(f"[DEBUG] Target Position: Window Center {center}")
+                    return center
+
+        # 2. Fallback to global positioning settings
         mode = self.settings.data["position"].get("mode", "virtualCenter")
         
         if mode == "primaryCenter":

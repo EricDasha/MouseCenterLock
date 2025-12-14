@@ -65,6 +65,11 @@ The exe will be in `dist/MouseCenterLock.exe`.
 
 ## Changelog
 
+### v1.0.6
+- Fixed BUG: Shortcuts would still move/lock the cursor in non-target windows when window-specific locking was enabled.
+- Improved: Window-specific locking now locks to the center of the target window instead of screen center.
+- Debug: Added more debug logs for lock positioning.
+
 ### v1.0.5
 - New: Ask for action when closing window (Minimize/Quit), with "Don't ask again" option
 - Improved: Added option to reset close behavior in settings

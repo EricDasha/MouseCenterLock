@@ -167,6 +167,22 @@ def get_active_window_info() -> Tuple[Optional[int], Optional[str]]:
     return hwnd, buffer.value
 
 
+def get_window_center(hwnd: int) -> Optional[Tuple[int, int]]:
+    """
+    Get the center coordinates (x, y) of a specific window.
+    Returns None if window handle is invalid or rect cannot be retrieved.
+    """
+    if not hwnd:
+        return None
+        
+    rect = RECT()
+    if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        center_x = rect.left + (rect.right - rect.left) // 2
+        center_y = rect.top + (rect.bottom - rect.top) // 2
+        return center_x, center_y
+    return None
+
+
 def get_window_process_name(hwnd: int) -> Optional[str]:
     """Get the process name for a given window handle."""
     pid = wintypes.DWORD()
