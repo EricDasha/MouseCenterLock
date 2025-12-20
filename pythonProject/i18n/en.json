@@ -52,6 +52,7 @@
   "window.specific.placeholder": "Target window title",
   "window.specific.pick": "Pick",
   "window.specific.autoLock": "Auto lock/unlock on window switch",
+  "window.specific.resumeAfterSwitch": "Auto re-lock after leaving and re-entering target window (for manual unlock)",
   "language.title": "Language",
   "language": "Language",
   "theme.title": "Theme",

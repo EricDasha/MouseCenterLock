@@ -95,7 +95,8 @@ class SettingsManager:
             "enabled": False,
             "targetWindow": "",
             "targetWindowHandle": 0,
-            "autoLockOnWindowFocus": False
+            "autoLockOnWindowFocus": False,
+            "resumeAfterWindowSwitch": False
         })
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")  # ask, minimize, quit
@@ -404,6 +405,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.settings.data["windowSpecific"].get("autoLockOnWindowFocus", False)
         )
         layout.addWidget(self.autoLockCheck)
+
+        self.resumeAfterSwitchCheck = QtWidgets.QCheckBox(
+            self.i18n.t("window.specific.resumeAfterSwitch", "Auto re-lock after leaving and re-entering target window (for manual unlock)")
+        )
+        self.resumeAfterSwitchCheck.setChecked(
+            self.settings.data["windowSpecific"].get("resumeAfterWindowSwitch", False)
+        )
+        layout.addWidget(self.resumeAfterSwitchCheck)
         
         # --- Settings Section ---
         layout.addWidget(self._section_label(self.i18n.t("section.settings", "Settings")))
@@ -530,6 +539,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.data["windowSpecific"]["enabled"] = self.windowSpecificCheck.isChecked()
         self.settings.data["windowSpecific"]["targetWindow"] = self.targetWindowEdit.text()
         self.settings.data["windowSpecific"]["autoLockOnWindowFocus"] = self.autoLockCheck.isChecked()
+        self.settings.data["windowSpecific"]["resumeAfterWindowSwitch"] = self.resumeAfterSwitchCheck.isChecked()
         
         # Save language and theme
         self.settings.data["language"] = self.langCombo.currentData()
@@ -721,8 +731,12 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         
         if title != self._last_active_window:
+            prev_title = self._last_active_window
             self._last_active_window = title
             target = ws.get("targetWindow", "")
+
+            if ws.get("resumeAfterWindowSwitch", False) and prev_title == target and title != target and self._auto_lock_suspended:
+                self._auto_lock_suspended = False
             
             if self._locked and title != target:
                 self.unlock(manual=False)
@@ -838,10 +852,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if ws_enabled:
             target = ws.get("targetWindow", "")
             auto_focus = bool(ws.get("autoLockOnWindowFocus", False))
+            resume_after = bool(ws.get("resumeAfterWindowSwitch", False))
             if target:
                 ws_text += f"\n  Target: {target}"
             if auto_focus:
                 ws_text += f" ({self.i18n.t('window.specific.autoLock', 'Auto')})"
+            if auto_focus and resume_after:
+                ws_text += f"\n  {self.i18n.t('window.specific.resumeAfterSwitch', 'Auto re-lock after window switch')}"
         config_parts.append(ws_text)
         
         self.configLabel.setText("\n".join(config_parts))

@@ -52,6 +52,7 @@
   "window.specific.placeholder": "目標視窗標題",
   "window.specific.pick": "選擇",
   "window.specific.autoLock": "視窗切換時自動鎖定/解鎖",
+  "window.specific.resumeAfterSwitch": "手動解鎖後，切換回目標視窗時重新自動鎖定",
   "language.title": "語言",
   "language": "語言",
   "theme.title": "主題",

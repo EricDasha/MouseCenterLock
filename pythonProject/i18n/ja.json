@@ -52,6 +52,7 @@
   "window.specific.placeholder": "対象ウィンドウタイトル",
   "window.specific.pick": "選択",
   "window.specific.autoLock": "ウィンドウ切り替え時に自動ロック/解除",
+  "window.specific.resumeAfterSwitch": "手動解除後、対象ウィンドウから離れて戻ったら自動で再ロック",
   "language.title": "言語",
   "language": "言語",
   "theme.title": "テーマ",

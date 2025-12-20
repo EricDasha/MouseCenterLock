@@ -52,6 +52,7 @@
   "window.specific.placeholder": "대상 창 제목",
   "window.specific.pick": "선택",
   "window.specific.autoLock": "창 전환 시 자동 잠금/해제",
+  "window.specific.resumeAfterSwitch": "수동으로 잠금 해제 후 대상 창을 떠났다 다시 돌아오면 자동으로 다시 잠금",
   "language.title": "언어",
   "language": "언어",
   "theme.title": "테마",
