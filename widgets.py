@@ -352,6 +352,18 @@ class ProcessPickerDialog(QtWidgets.QDialog):
             }
             QListWidget::item:selected {
                 background: #0a84ff;
+                color: white;
+            }
+            QListWidget::item:selected:!active {
+                background: #0a60bd; /* Slightly darker when not focused, but still visible */
+                color: white;
+            }
+            QListWidget::item:selected:active {
+                background: #0a84ff;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background: #3a3a3c;
             }
             QListWidget::item:alternate {
                 background: #252527;
@@ -389,8 +401,11 @@ class ProcessPickerDialog(QtWidgets.QDialog):
                 
                 item = QtWidgets.QListWidgetItem(f"{title}")
                 item.setToolTip(f"{proc_name}\n{title}")
-                item.setData(QtCore.Qt.UserRole, title)
-                item.setData(QtCore.Qt.UserRole + 1, hwnd)
+                # Store process name as the primary data (UserRole)
+                item.setData(QtCore.Qt.UserRole, proc_name)
+                # Store title as secondary data
+                item.setData(QtCore.Qt.UserRole + 1, title)
+                item.setData(QtCore.Qt.UserRole + 2, hwnd)
                 self.processList.addItem(item)
         except Exception as e:
             error_item = QtWidgets.QListWidgetItem(f"Error loading processes: {e}")
@@ -421,7 +436,7 @@ class ProcessPickerDialog(QtWidgets.QDialog):
         """Get the selected window handle."""
         item = self.processList.currentItem()
         if item:
-            return item.data(QtCore.Qt.UserRole + 1)
+            return item.data(QtCore.Qt.UserRole + 2)
         return None
     
     def accept(self):

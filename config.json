@@ -35,9 +35,12 @@
   "theme": "dark",
   "windowSpecific": {
     "enabled": true,
-    "targetWindow": "QQ",
     "targetWindowHandle": 0,
-    "autoLockOnWindowFocus": true
+    "autoLockOnWindowFocus": true,
+    "targetWindows": [
+      "QQ.exe"
+    ],
+    "resumeAfterWindowSwitch": false
   },
   "startup": {
     "launchOnBoot": false

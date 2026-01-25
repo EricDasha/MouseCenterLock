@@ -20,7 +20,8 @@ from win_api import (
     set_cursor_to, clip_cursor_to_point, unclip_cursor,
     get_active_window_info, format_hotkey_display,
     register_hotkeys, unregister_hotkeys, get_window_center,
-    is_startup_enabled, set_startup_enabled, user32
+    is_startup_enabled, set_startup_enabled, user32,
+    get_window_process_name
 )
 from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog
 
@@ -158,7 +159,7 @@ class NativeEventFilter(QtCore.QAbstractNativeEventFilter):
             msg = ctypes.cast(int(message), ctypes.POINTER(MSG)).contents
             if msg.message == WM_HOTKEY:
                 self._emitter.hotkeyPressed.emit(msg.wParam)
-        return False, 0
+        return False
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -689,6 +690,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if manual and self.settings.data.get("windowSpecific", {}).get("autoLockOnWindowFocus", False):
             self._auto_lock_suspended = True
+        
         if manual:
             self._force_lock = False
         
@@ -716,14 +718,41 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.lock(manual=True)
     
+    def _check_match(self, title: str, process: str, targets: list) -> bool:
+        """Check if current window matches any target (by title substring or process name)."""
+        if not title:
+            title = ""
+        if not process:
+            process = ""
+            
+        title_lower = title.lower()
+        process_lower = process.lower()
+        
+        for t in targets:
+            t_lower = t.lower()
+            if not t_lower:
+                continue
+            # Check 1: Exact process name match
+            if t_lower == process_lower:
+                return True
+            # Check 2: Title substring match
+            if t_lower in title_lower:
+                return True
+        
+        return False
+
     def _should_lock_for_window(self) -> bool:
         """Check if locking should proceed based on window-specific settings."""
         # If specific window locking is enabled, it takes precedence over manual lock
         if self.settings.data["windowSpecific"].get("enabled", False):
             hwnd, title = get_active_window_info()
             targets = self.settings.data["windowSpecific"].get("targetWindows", [])
-            match = (title in targets)
-            # print(f"[DEBUG] Lock Check - Title: '{title}' | Targets: {len(targets)} | Match: {match}")
+            
+            # Get process name for more robust matching
+            proc_name = get_window_process_name(hwnd) if hwnd else ""
+            
+            match = self._check_match(title, proc_name, targets)
+            # print(f"[DEBUG] Lock Check - Title: '{title}' | Proc: '{proc_name}' | Match: {match}")
             return match
             
         # If not enabled, we allow locking (force_lock is irrelevant here as this function 
@@ -735,12 +764,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # 1. Check for Window-Specific Locking
         if self.settings.data["windowSpecific"].get("enabled", False):
             hwnd, title = get_active_window_info()
-            target = self.settings.data["windowSpecific"].get("targetWindow", "")
-            if title == target and hwnd:
-                center = get_window_center(hwnd)
-                if center:
-                    print(f"[DEBUG] Target Position: Window Center {center}")
-                    return center
+            if hwnd:
+                proc_name = get_window_process_name(hwnd) or ""
+                targets = self.settings.data["windowSpecific"].get("targetWindows", [])
+                
+                if self._check_match(title, proc_name, targets):
+                    center = get_window_center(hwnd)
+                    if center:
+                        # log_debug(f"Target Position: Window Center {center}")
+                        return center
 
         # 2. Fallback to global positioning settings
         mode = self.settings.data["position"].get("mode", "virtualCenter")
@@ -793,24 +825,36 @@ class MainWindow(QtWidgets.QMainWindow):
         if not ws.get("enabled") or not ws.get("autoLockOnWindowFocus"):
             return
         
-        _, title = get_active_window_info()
+        hwnd, title = get_active_window_info()
         if title is None:
             return
+            
+        # Get process name for matching
+        proc_name = get_window_process_name(hwnd) if hwnd else ""
         
+        # Log active window info periodically or on change
         if title != self._last_active_window:
             prev_title = self._last_active_window
             self._last_active_window = title
             targets = ws.get("targetWindows", [])
-
-            # Resume logic: if leaving a target window and entering a non-target window, 
-            # and auto-lock is suspended, do nothing (wait for return).
-            # But if coming BACK to a target window from a non-target, we might need to resume (unlock manual override).
             
-            is_target = title in targets
-            was_target = prev_title in targets
+            # Resume logic: matching check
+            is_target = self._check_match(title, proc_name, targets)
             
-            if ws.get("resumeAfterWindowSwitch", False) and was_target and not is_target and self._auto_lock_suspended:
-                self._auto_lock_suspended = False
+            # We don't have previous process name easily, but resume logic is "was target" -> "now not target".
+            # The previous title check is weak if locking by process.
+            # Simplified: If we are leaving a state where we SHOULD match.
+            # But we can't easily check "was_target" without full history.
+            # Workaround: If we are UNLOCKING, we are leaving. 
+            
+            # Let's trust is_target.
+            
+            if ws.get("resumeAfterWindowSwitch", False) and not is_target and self._auto_lock_suspended:
+                 # If we are suspended (meaning we manually unlocked inside a target), and now we leave target...
+                 # We should clear suspended so when we return, it locks.
+                 # Wait, 'was_target' check was: "prev_title == target".
+                 # If we rely on _auto_lock_suspended being True, it IMPLIES we were in a target window and unlocked it.
+                 self._auto_lock_suspended = False
             
             # If currently locked but moved to a non-target window -> Unlock
             if self._locked and not is_target:
