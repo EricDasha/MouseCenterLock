@@ -65,6 +65,11 @@ The exe will be in `dist/MouseCenterLock.exe`.
 
 ## Changelog
 
+### v1.0.7
+- New: Window-specific locking now has an option "Auto re-lock after leaving and re-entering target window (for manual unlock)", so you can choose between keeping the old behavior or auto re-lock.
+- Improved: Simple mode "Current Configuration" now shows clearer status for window-specific locking and the auto re-lock behavior.
+- Build: Updated PyInstaller one-file build to produce a single `MouseCenterLock.exe` with icon in the `dist` directory.
+
 ### v1.0.6
 - Fixed BUG: Shortcuts would still move/lock the cursor in non-target windows when window-specific locking was enabled.
 - Improved: Window-specific locking now locks to the center of the target window instead of screen center.

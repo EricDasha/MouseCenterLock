@@ -5,14 +5,14 @@ a = Analysis(
     ['mouse_center_lock_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('pythonProject/i18n', 'i18n'), ('config.json', '.'), ('pythonProject/assets', 'assets')],
+    datas=[('pythonProject\\i18n', 'i18n'), ('pythonProject\\assets\\app.ico', 'assets'), ('config.json', '.')],
     hiddenimports=['win_api', 'widgets'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', 'matplotlib', 'numpy', 'scipy', 'pandas'],
     noarchive=False,
-    optimize=0,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    [],
+    [('O', None, 'OPTION'), ('O', None, 'OPTION')],
     name='MouseCenterLock',
     debug=False,
     bootloader_ignore_signals=False,

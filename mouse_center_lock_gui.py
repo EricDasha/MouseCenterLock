@@ -91,13 +91,17 @@ class SettingsManager:
         
         self.data.setdefault("recenter", {"enabled": True, "intervalMs": 250})
         self.data.setdefault("position", {"mode": "virtualCenter", "customX": 0, "customY": 0})
-        self.data.setdefault("windowSpecific", {
-            "enabled": False,
-            "targetWindow": "",
-            "targetWindowHandle": 0,
-            "autoLockOnWindowFocus": False,
-            "resumeAfterWindowSwitch": False
-        })
+        ws = self.data.setdefault("windowSpecific", {})
+        # Migration: targetWindow (str) -> targetWindows (list)
+        if "targetWindow" in ws and "targetWindows" not in ws:
+            val = ws.pop("targetWindow")
+            ws["targetWindows"] = [val] if val else []
+            
+        ws.setdefault("enabled", False)
+        ws.setdefault("targetWindows", [])
+        ws.setdefault("targetWindowHandle", 0)
+        ws.setdefault("autoLockOnWindowFocus", False)
+        ws.setdefault("resumeAfterWindowSwitch", False)
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")  # ask, minimize, quit
     
@@ -387,16 +391,56 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         layout.addWidget(self.windowSpecificCheck)
         
-        window_layout = QtWidgets.QHBoxLayout()
-        self.targetWindowEdit = QtWidgets.QLineEdit()
-        self.targetWindowEdit.setPlaceholderText(self.i18n.t("window.specific.placeholder", "Target window title"))
-        self.targetWindowEdit.setText(self.settings.data["windowSpecific"].get("targetWindow", ""))
-        window_layout.addWidget(self.targetWindowEdit)
+        # Target Windows List Management
+        list_layout = QtWidgets.QVBoxLayout()
+        list_layout.setSpacing(8)
         
-        self.pickProcessBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.pick", "Pick"))
+        # List widget
+        list_label = QtWidgets.QLabel(self.i18n.t("window.specific.listLabel", "Target Windows List"))
+        list_layout.addWidget(list_label)
+        
+        self.targetList = QtWidgets.QListWidget()
+        self.targetList.setFixedHeight(120)
+        self.targetList.setStyleSheet("""
+            QListWidget {
+                background: rgba(0, 0, 0, 0.2);
+                border: 1px solid rgba(128, 128, 128, 0.3);
+                border-radius: 6px;
+                padding: 4px;
+            }
+        """)
+        # Populate existing items
+        for win_title in self.settings.data["windowSpecific"].get("targetWindows", []):
+            self.targetList.addItem(win_title)
+        list_layout.addWidget(self.targetList)
+        
+        # Input controls
+        input_layout = QtWidgets.QHBoxLayout()
+        
+        self.manualInputEdit = QtWidgets.QLineEdit()
+        self.manualInputEdit.setPlaceholderText(self.i18n.t("window.specific.placeholder", "Target window title"))
+        input_layout.addWidget(self.manualInputEdit)
+        
+        self.pickProcessBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.pick", "Pick Process"))
         self.pickProcessBtn.clicked.connect(self._pick_process)
-        window_layout.addWidget(self.pickProcessBtn)
-        layout.addLayout(window_layout)
+        input_layout.addWidget(self.pickProcessBtn)
+        
+        list_layout.addLayout(input_layout)
+        
+        # Action buttons
+        btn_layout = QtWidgets.QHBoxLayout()
+        self.addBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.add", "Add"))
+        self.addBtn.clicked.connect(self._add_target_window)
+        btn_layout.addWidget(self.addBtn)
+        
+        self.removeBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.remove", "Remove"))
+        self.removeBtn.clicked.connect(self._remove_target_window)
+        btn_layout.addWidget(self.removeBtn)
+        
+        btn_layout.addStretch()
+        list_layout.addLayout(btn_layout)
+        
+        layout.addLayout(list_layout)
         
         self.autoLockCheck = QtWidgets.QCheckBox(
             self.i18n.t("window.specific.autoLock", "Auto lock/unlock on window switch")
@@ -517,7 +561,27 @@ class MainWindow(QtWidgets.QMainWindow):
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             selected = dialog.get_selected_process()
             if selected:
-                self.targetWindowEdit.setText(selected)
+                self.manualInputEdit.setText(selected)
+
+    def _add_target_window(self):
+        """Add current input to target list."""
+        text = self.manualInputEdit.text().strip()
+        if not text:
+            return
+            
+        # Check for duplicates
+        items = [self.targetList.item(i).text() for i in range(self.targetList.count())]
+        if text in items:
+            return
+            
+        self.targetList.addItem(text)
+        self.manualInputEdit.clear()
+
+    def _remove_target_window(self):
+        """Remove selected item from target list."""
+        row = self.targetList.currentRow()
+        if row >= 0:
+            self.targetList.takeItem(row)
     
     def _on_apply(self):
         """Apply and save settings."""
@@ -537,7 +601,10 @@ class MainWindow(QtWidgets.QMainWindow):
         
         # Save window specific
         self.settings.data["windowSpecific"]["enabled"] = self.windowSpecificCheck.isChecked()
-        self.settings.data["windowSpecific"]["targetWindow"] = self.targetWindowEdit.text()
+        # Save list items
+        items = [self.targetList.item(i).text() for i in range(self.targetList.count())]
+        self.settings.data["windowSpecific"]["targetWindows"] = items
+        
         self.settings.data["windowSpecific"]["autoLockOnWindowFocus"] = self.autoLockCheck.isChecked()
         self.settings.data["windowSpecific"]["resumeAfterWindowSwitch"] = self.resumeAfterSwitchCheck.isChecked()
         
@@ -654,9 +721,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # If specific window locking is enabled, it takes precedence over manual lock
         if self.settings.data["windowSpecific"].get("enabled", False):
             hwnd, title = get_active_window_info()
-            target = self.settings.data["windowSpecific"].get("targetWindow", "")
-            match = (title == target)
-            print(f"[DEBUG] Lock Check - Title: '{title}' | Target: '{target}' | Match: {match}")
+            targets = self.settings.data["windowSpecific"].get("targetWindows", [])
+            match = (title in targets)
+            # print(f"[DEBUG] Lock Check - Title: '{title}' | Targets: {len(targets)} | Match: {match}")
             return match
             
         # If not enabled, we allow locking (force_lock is irrelevant here as this function 
@@ -733,14 +800,23 @@ class MainWindow(QtWidgets.QMainWindow):
         if title != self._last_active_window:
             prev_title = self._last_active_window
             self._last_active_window = title
-            target = ws.get("targetWindow", "")
+            targets = ws.get("targetWindows", [])
 
-            if ws.get("resumeAfterWindowSwitch", False) and prev_title == target and title != target and self._auto_lock_suspended:
+            # Resume logic: if leaving a target window and entering a non-target window, 
+            # and auto-lock is suspended, do nothing (wait for return).
+            # But if coming BACK to a target window from a non-target, we might need to resume (unlock manual override).
+            
+            is_target = title in targets
+            was_target = prev_title in targets
+            
+            if ws.get("resumeAfterWindowSwitch", False) and was_target and not is_target and self._auto_lock_suspended:
                 self._auto_lock_suspended = False
             
-            if self._locked and title != target:
+            # If currently locked but moved to a non-target window -> Unlock
+            if self._locked and not is_target:
                 self.unlock(manual=False)
-            elif not self._locked and title == target and not self._auto_lock_suspended:
+            # If not locked, moved to a target window, and not manually paused -> Lock
+            elif not self._locked and is_target and not self._auto_lock_suspended:
                 self.lock(manual=False)
             self._update_simple_info()
     
@@ -850,14 +926,20 @@ class MainWindow(QtWidgets.QMainWindow):
         ws_status = self.i18n.t('simple.enabled', 'Enabled') if ws_enabled else self.i18n.t('simple.disabled', 'Disabled')
         ws_text = f"{self.i18n.t('simple.window', 'Window Lock')}: {ws_status}"
         if ws_enabled:
-            target = ws.get("targetWindow", "")
+            targets = ws.get("targetWindows", [])
             auto_focus = bool(ws.get("autoLockOnWindowFocus", False))
-            resume_after = bool(ws.get("resumeAfterWindowSwitch", False))
-            if target:
-                ws_text += f"\n  Target: {target}"
+            
+            if targets:
+                if len(targets) == 1:
+                    ws_text += f"\n  Target: {targets[0]}"
+                else:
+                    count_text = self.i18n.t("simple.window.count", "{0} windows").format(len(targets))
+                    ws_text += f"\n  Target: {count_text}"
+            
             if auto_focus:
                 ws_text += f" ({self.i18n.t('window.specific.autoLock', 'Auto')})"
-            if auto_focus and resume_after:
+            resume_after = bool(ws.get("resumeAfterWindowSwitch", False)) # Moved this line
+            if auto_focus and resume_after: # This block was missing in the provided snippet, re-added for correctness
                 ws_text += f"\n  {self.i18n.t('window.specific.resumeAfterSwitch', 'Auto re-lock after window switch')}"
         config_parts.append(ws_text)
         
