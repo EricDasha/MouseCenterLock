@@ -87,5 +87,18 @@
   "process.picker.refresh": "Refresh",
   "process.picker.ok": "OK",
   "process.picker.cancel": "Cancel",
-  "settings.reset": "Settings Reset"
+  "settings.reset": "Settings Reset",
+  "section.windowTools": "Window Tools",
+  "windowTools.title": "Window Resize & Center",
+  "windowTools.resizeCenter": "Resize & Center Window",
+  "windowTools.selectWindow": "Select Window",
+  "windowTools.resolution": "Resolution",
+  "windowTools.width": "Width",
+  "windowTools.height": "Height",
+  "windowTools.presets": "Presets",
+  "windowTools.custom": "Custom",
+  "windowTools.centerOnScreen": "Center window on screen",
+  "windowTools.apply": "Apply",
+  "windowTools.success": "Window adjusted successfully!",
+  "windowTools.error": "Failed to adjust window. The window may have been closed."
 }

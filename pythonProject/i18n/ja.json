@@ -87,5 +87,18 @@
   "process.picker.refresh": "更新",
   "process.picker.ok": "OK",
   "process.picker.cancel": "キャンセル",
-  "settings.reset": "設定リセット"
+  "settings.reset": "設定リセット",
+  "section.windowTools": "ウィンドウツール",
+  "windowTools.title": "ウィンドウのリサイズと中央配置",
+  "windowTools.resizeCenter": "リサイズ＆中央配置",
+  "windowTools.selectWindow": "ウィンドウを選択",
+  "windowTools.resolution": "解像度",
+  "windowTools.width": "幅",
+  "windowTools.height": "高さ",
+  "windowTools.presets": "プリセット",
+  "windowTools.custom": "カスタム",
+  "windowTools.centerOnScreen": "ウィンドウを画面中央に移動",
+  "windowTools.apply": "適用",
+  "windowTools.success": "ウィンドウの調整に成功しました！",
+  "windowTools.error": "ウィンドウの調整に失敗しました。ウィンドウが閉じられている可能性があります。"
 }

@@ -23,7 +23,7 @@ from win_api import (
     is_startup_enabled, set_startup_enabled, user32,
     get_window_process_name
 )
-from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog
+from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog, WindowResizeDialog
 
 
 # --- Configuration & i18n Paths ---
@@ -459,6 +459,17 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         layout.addWidget(self.resumeAfterSwitchCheck)
         
+        # --- Window Tools Section ---
+        layout.addWidget(self._section_label(self.i18n.t("section.windowTools", "Window Tools")))
+        
+        self.resizeCenterBtn = QtWidgets.QPushButton(
+            self.i18n.t("windowTools.resizeCenter", "Resize & Center Window")
+        )
+        self.resizeCenterBtn.setFixedHeight(40)
+        self.resizeCenterBtn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.resizeCenterBtn.clicked.connect(self._open_window_resize)
+        layout.addWidget(self.resizeCenterBtn)
+        
         # --- Settings Section ---
         layout.addWidget(self._section_label(self.i18n.t("section.settings", "Settings")))
         
@@ -563,6 +574,11 @@ class MainWindow(QtWidgets.QMainWindow):
             selected = dialog.get_selected_process()
             if selected:
                 self.manualInputEdit.setText(selected)
+
+    def _open_window_resize(self):
+        """Open window resize & center dialog."""
+        dialog = WindowResizeDialog(self, self.i18n)
+        dialog.exec()
 
     def _add_target_window(self):
         """Add current input to target list."""

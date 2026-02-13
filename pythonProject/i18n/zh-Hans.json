@@ -87,5 +87,18 @@
   "process.picker.refresh": "刷新",
   "process.picker.ok": "确定",
   "process.picker.cancel": "取消",
-  "settings.reset": "设置已重置"
+  "settings.reset": "设置已重置",
+  "section.windowTools": "窗口工具",
+  "windowTools.title": "调整窗口大小并居中",
+  "windowTools.resizeCenter": "调整大小并居中",
+  "windowTools.selectWindow": "选择窗口",
+  "windowTools.resolution": "分辨率",
+  "windowTools.width": "宽度",
+  "windowTools.height": "高度",
+  "windowTools.presets": "预设",
+  "windowTools.custom": "自定义",
+  "windowTools.centerOnScreen": "将窗口移至屏幕中心",
+  "windowTools.apply": "应用",
+  "windowTools.success": "窗口调整成功！",
+  "windowTools.error": "窗口调整失败，目标窗口可能已关闭。"
 }

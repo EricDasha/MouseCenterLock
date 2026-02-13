@@ -530,3 +530,281 @@ class CloseActionDialog(QtWidgets.QDialog):
         self.action = "quit"
         self.dont_ask_again = self.dontAskCheck.isChecked()
         self.accept()
+
+
+class WindowResizeDialog(QtWidgets.QDialog):
+    """Dialog for resizing a window and optionally centering it on screen."""
+
+    PRESETS = [
+        ("3840 × 2160  (4K)", 3840, 2160),
+        ("2560 × 1440  (2K)", 2560, 1440),
+        ("1920 × 1080  (Full HD)", 1920, 1080),
+        ("1600 × 900", 1600, 900),
+        ("1280 × 720   (HD)", 1280, 720),
+        ("1024 × 768", 1024, 768),
+        ("800 × 600", 800, 600),
+    ]
+
+    def __init__(self, parent=None, i18n=None):
+        super().__init__(parent)
+        self.i18n = i18n
+        self._selected_hwnd = None
+        self._windows = []  # list of (hwnd, title, proc_name)
+        self._setup_ui()
+        self._apply_style()
+        self._refresh_windows()
+
+    def _t(self, key: str, fallback: str) -> str:
+        """Get translated text."""
+        if self.i18n:
+            return self.i18n.t(key, fallback)
+        return fallback
+
+    def _setup_ui(self):
+        self.setWindowTitle(self._t("windowTools.title", "Window Resize & Center"))
+        self.setMinimumWidth(480)
+        self.setMinimumHeight(520)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        # --- Window Selection ---
+        layout.addWidget(QtWidgets.QLabel(self._t("windowTools.selectWindow", "Select Window")))
+
+        # Search box
+        self.searchEdit = QtWidgets.QLineEdit()
+        self.searchEdit.setPlaceholderText(self._t("process.picker.search", "Search..."))
+        self.searchEdit.textChanged.connect(self._filter_list)
+        layout.addWidget(self.searchEdit)
+
+        # Window list
+        self.windowList = QtWidgets.QListWidget()
+        self.windowList.setMinimumHeight(180)
+        self.windowList.currentRowChanged.connect(self._on_selection_changed)
+        layout.addWidget(self.windowList)
+
+        # Refresh button
+        self.refreshBtn = QtWidgets.QPushButton(self._t("process.picker.refresh", "Refresh"))
+        self.refreshBtn.clicked.connect(self._refresh_windows)
+        layout.addWidget(self.refreshBtn)
+
+        # --- Resolution ---
+        layout.addWidget(QtWidgets.QLabel(self._t("windowTools.resolution", "Resolution")))
+
+        # Presets combo
+        preset_layout = QtWidgets.QHBoxLayout()
+        preset_layout.addWidget(QtWidgets.QLabel(self._t("windowTools.presets", "Presets")))
+        self.presetCombo = QtWidgets.QComboBox()
+        self.presetCombo.addItem(self._t("windowTools.custom", "Custom"), None)
+        for label, w, h in self.PRESETS:
+            self.presetCombo.addItem(label, (w, h))
+        self.presetCombo.currentIndexChanged.connect(self._on_preset_changed)
+        preset_layout.addWidget(self.presetCombo, 1)
+        layout.addLayout(preset_layout)
+
+        # Custom size inputs
+        size_layout = QtWidgets.QHBoxLayout()
+        size_layout.addWidget(QtWidgets.QLabel(self._t("windowTools.width", "Width")))
+        self.widthSpin = QtWidgets.QSpinBox()
+        self.widthSpin.setRange(100, 7680)
+        self.widthSpin.setValue(1600)
+        self.widthSpin.setSuffix(" px")
+        size_layout.addWidget(self.widthSpin)
+
+        size_layout.addWidget(QtWidgets.QLabel("×"))
+
+        size_layout.addWidget(QtWidgets.QLabel(self._t("windowTools.height", "Height")))
+        self.heightSpin = QtWidgets.QSpinBox()
+        self.heightSpin.setRange(100, 4320)
+        self.heightSpin.setValue(900)
+        self.heightSpin.setSuffix(" px")
+        size_layout.addWidget(self.heightSpin)
+        layout.addLayout(size_layout)
+
+        # --- Center Option ---
+        self.centerCheck = QtWidgets.QCheckBox(
+            self._t("windowTools.centerOnScreen", "Center window on screen")
+        )
+        self.centerCheck.setChecked(True)
+        layout.addWidget(self.centerCheck)
+
+        layout.addStretch()
+
+        # --- Action Buttons ---
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+
+        self.cancelBtn = QtWidgets.QPushButton(self._t("process.picker.cancel", "Cancel"))
+        self.cancelBtn.clicked.connect(self.reject)
+        btn_layout.addWidget(self.cancelBtn)
+
+        self.applyBtn = QtWidgets.QPushButton(self._t("windowTools.apply", "Apply"))
+        self.applyBtn.clicked.connect(self._on_apply)
+        self.applyBtn.setEnabled(False)
+        btn_layout.addWidget(self.applyBtn)
+        layout.addLayout(btn_layout)
+
+    def _apply_style(self):
+        self.setStyleSheet("""
+            QDialog {
+                background: #1c1c1e;
+            }
+            QLabel {
+                color: #ebebf5;
+            }
+            QLineEdit, QSpinBox {
+                background: #2c2c2e;
+                border: 1px solid #48484a;
+                border-radius: 6px;
+                padding: 8px;
+                color: #ebebf5;
+            }
+            QLineEdit:focus, QSpinBox:focus {
+                border-color: #0a84ff;
+            }
+            QComboBox {
+                background: #2c2c2e;
+                border: 1px solid #48484a;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: #ebebf5;
+                min-height: 28px;
+            }
+            QComboBox:hover {
+                border-color: #636366;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 24px;
+            }
+            QComboBox QAbstractItemView {
+                background: #2c2c2e;
+                border: 1px solid #48484a;
+                color: #ebebf5;
+                selection-background-color: #0a84ff;
+            }
+            QListWidget {
+                background: #2c2c2e;
+                border: 1px solid #48484a;
+                border-radius: 6px;
+                color: #ebebf5;
+            }
+            QListWidget::item {
+                padding: 6px 8px;
+                border-bottom: 1px solid #3a3a3c;
+            }
+            QListWidget::item:selected {
+                background: #0a84ff;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background: #3a3a3c;
+            }
+            QCheckBox {
+                color: #ebebf5;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 1px solid #636366;
+                background: #2c2c2e;
+            }
+            QCheckBox::indicator:checked {
+                background: #0a84ff;
+                border-color: #0a84ff;
+            }
+            QPushButton {
+                background: #48484a;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+                color: white;
+            }
+            QPushButton:hover {
+                background: #636366;
+            }
+            QPushButton:pressed {
+                background: #3a3a3c;
+            }
+            QPushButton#applyBtn {
+                background: #0a84ff;
+            }
+            QPushButton#applyBtn:hover {
+                background: #2b95ff;
+            }
+            QPushButton#applyBtn:disabled {
+                background: #48484a;
+                color: #8e8e93;
+            }
+        """)
+        self.applyBtn.setObjectName("applyBtn")
+
+    def _refresh_windows(self):
+        from win_api import enumerate_visible_windows
+        self._windows = enumerate_visible_windows()
+        self._populate_list(self._windows)
+
+    def _populate_list(self, windows):
+        self.windowList.clear()
+        for hwnd, title, proc_name in windows:
+            display = f"[{proc_name}]  {title}"
+            item = QtWidgets.QListWidgetItem(display)
+            item.setData(QtCore.Qt.UserRole, hwnd)
+            self.windowList.addItem(item)
+
+    def _filter_list(self, text: str):
+        text = text.lower()
+        if not text:
+            self._populate_list(self._windows)
+        else:
+            filtered = [
+                (h, t, p) for h, t, p in self._windows
+                if text in t.lower() or text in p.lower()
+            ]
+            self._populate_list(filtered)
+
+    def _on_selection_changed(self, row):
+        if row >= 0:
+            item = self.windowList.item(row)
+            self._selected_hwnd = item.data(QtCore.Qt.UserRole) if item else None
+        else:
+            self._selected_hwnd = None
+        self.applyBtn.setEnabled(self._selected_hwnd is not None)
+
+    def _on_preset_changed(self, index):
+        data = self.presetCombo.itemData(index)
+        if data is not None:
+            w, h = data
+            self.widthSpin.setValue(w)
+            self.heightSpin.setValue(h)
+
+    def _on_apply(self):
+        if not self._selected_hwnd:
+            return
+
+        from win_api import resize_window, center_window_on_screen
+
+        width = self.widthSpin.value()
+        height = self.heightSpin.value()
+        center = self.centerCheck.isChecked()
+
+        success = resize_window(self._selected_hwnd, width, height)
+        if success and center:
+            center_window_on_screen(self._selected_hwnd)
+
+        if success:
+            QtWidgets.QMessageBox.information(
+                self,
+                self._t("windowTools.title", "Window Resize & Center"),
+                self._t("windowTools.success", "Window adjusted successfully!")
+            )
+            self.accept()
+        else:
+            QtWidgets.QMessageBox.warning(
+                self,
+                self._t("error", "Error"),
+                self._t("windowTools.error", "Failed to adjust window. The window may have been closed.")
+            )

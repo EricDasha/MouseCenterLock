@@ -38,6 +38,15 @@ SM_CYSCREEN = 1
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 
+# SetWindowPos flags
+SWP_NOZORDER = 0x0004
+SWP_NOACTIVATE = 0x0010
+SWP_NOMOVE = 0x0002
+SWP_NOSIZE = 0x0001
+
+# MonitorFromWindow flags
+MONITOR_DEFAULTTONEAREST = 2
+
 
 # --- Structures ---
 class RECT(ctypes.Structure):
@@ -59,6 +68,16 @@ class MSG(ctypes.Structure):
         ("lParam", wintypes.LPARAM),
         ("time", wintypes.DWORD),
         ("pt", wintypes.POINT),
+    ]
+
+
+class MONITORINFO(ctypes.Structure):
+    """Windows MONITORINFO structure for monitor information."""
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", RECT),
+        ("rcWork", RECT),
+        ("dwFlags", wintypes.DWORD),
     ]
 
 
@@ -402,3 +421,82 @@ def set_startup_enabled(enabled: bool) -> bool:
             winreg.CloseKey(key)
     except Exception:
         return False
+
+
+# --- Window Resize & Center ---
+
+def get_window_rect(hwnd: int) -> Optional[Tuple[int, int, int, int]]:
+    """
+    Get the bounding rectangle of a window.
+    Returns (left, top, right, bottom) or None if failed.
+    """
+    rect = RECT()
+    if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return rect.left, rect.top, rect.right, rect.bottom
+    return None
+
+
+def resize_window(hwnd: int, width: int, height: int, move_to: Optional[Tuple[int, int]] = None) -> bool:
+    """
+    Resize a window to the specified width and height.
+    If move_to is provided as (x, y), also move the window to that position.
+    Returns True if successful.
+    """
+    if not hwnd:
+        return False
+    
+    if move_to is not None:
+        x, y = move_to
+        return bool(user32.SetWindowPos(
+            hwnd, 0, x, y, width, height,
+            SWP_NOZORDER | SWP_NOACTIVATE
+        ))
+    else:
+        rect = get_window_rect(hwnd)
+        if rect is None:
+            return False
+        return bool(user32.SetWindowPos(
+            hwnd, 0, rect[0], rect[1], width, height,
+            SWP_NOZORDER | SWP_NOACTIVATE
+        ))
+
+
+def center_window_on_screen(hwnd: int) -> bool:
+    """
+    Center a window on the monitor it is currently on.
+    Uses the monitor's work area (excludes taskbar).
+    Returns True if successful.
+    """
+    if not hwnd:
+        return False
+    
+    # Get the monitor this window is on
+    hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+    if not hmon:
+        return False
+    
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+        return False
+    
+    # Get current window size
+    rect = get_window_rect(hwnd)
+    if rect is None:
+        return False
+    
+    win_w = rect[2] - rect[0]
+    win_h = rect[3] - rect[1]
+    
+    # Calculate centered position within the work area
+    work = mi.rcWork
+    work_w = work.right - work.left
+    work_h = work.bottom - work.top
+    
+    new_x = work.left + (work_w - win_w) // 2
+    new_y = work.top + (work_h - win_h) // 2
+    
+    return bool(user32.SetWindowPos(
+        hwnd, 0, new_x, new_y, 0, 0,
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE
+    ))

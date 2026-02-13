@@ -87,5 +87,18 @@
   "process.picker.refresh": "새로고침",
   "process.picker.ok": "확인",
   "process.picker.cancel": "취소",
-  "settings.reset": "설정 초기화"
+  "settings.reset": "설정 초기화",
+  "section.windowTools": "창 도구",
+  "windowTools.title": "창 크기 조정 및 중앙 배치",
+  "windowTools.resizeCenter": "크기 조정 및 중앙 배치",
+  "windowTools.selectWindow": "창 선택",
+  "windowTools.resolution": "해상도",
+  "windowTools.width": "너비",
+  "windowTools.height": "높이",
+  "windowTools.presets": "프리셋",
+  "windowTools.custom": "사용자 정의",
+  "windowTools.centerOnScreen": "창을 화면 중앙으로 이동",
+  "windowTools.apply": "적용",
+  "windowTools.success": "창 조정 완료!",
+  "windowTools.error": "창 조정 실패. 대상 창이 닫혔을 수 있습니다."
 }

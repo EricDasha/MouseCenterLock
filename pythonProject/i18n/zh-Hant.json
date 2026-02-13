@@ -79,5 +79,18 @@
   "process.picker.refresh": "重新整理",
   "process.picker.ok": "確定",
   "process.picker.cancel": "取消",
-  "settings.reset": "設定已重設"
+  "settings.reset": "設定已重設",
+  "section.windowTools": "視窗工具",
+  "windowTools.title": "調整視窗大小並置中",
+  "windowTools.resizeCenter": "調整大小並置中",
+  "windowTools.selectWindow": "選擇視窗",
+  "windowTools.resolution": "解析度",
+  "windowTools.width": "寬度",
+  "windowTools.height": "高度",
+  "windowTools.presets": "預設",
+  "windowTools.custom": "自訂",
+  "windowTools.centerOnScreen": "將視窗移至螢幕中心",
+  "windowTools.apply": "套用",
+  "windowTools.success": "視窗調整成功！",
+  "windowTools.error": "視窗調整失敗，目標視窗可能已關閉。"
 }
