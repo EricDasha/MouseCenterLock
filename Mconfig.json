@@ -1,0 +1,143 @@
+{
+  "language": "zh-Hans",
+  "theme": "dark",
+  "hotkeys": {
+    "lock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "modWin": false,
+      "key": "L"
+    },
+    "unlock": {
+      "modCtrl": true,
+      "modAlt": true,
+      "modShift": false,
+      "modWin": false,
+      "key": "U"
+    },
+    "toggle": {
+      "modCtrl": false,
+      "modAlt": false,
+      "modShift": false,
+      "modWin": false,
+      "key": "F1"
+    }
+  },
+  "recenter": {
+    "enabled": true,
+    "intervalMs": 250
+  },
+  "clickerProfiles": [
+    {
+      "id": "default",
+      "name": "默认方案",
+      "enabled": false,
+      "button": "left",
+      "intervalMs": 100,
+      "preset": "efficient",
+      "sound": {
+        "enabled": false,
+        "preset": "systemAsterisk",
+        "customFile": ""
+      },
+      "triggers": {
+        "mode": "toggle",
+        "toggleHotkey": {
+          "modCtrl": false,
+          "modAlt": false,
+          "modShift": false,
+          "modWin": false,
+          "key": "F6"
+        },
+        "holdKey": {
+          "modCtrl": false,
+          "modAlt": false,
+          "modShift": false,
+          "modWin": false,
+          "key": "F7"
+        },
+        "holdMouseButton": "middle"
+      }
+    }
+  ],
+  "activeClickerProfileId": "default",
+  "position": {
+    "mode": "virtualCenter",
+    "customX": 0,
+    "customY": 0
+  },
+  "windowSpecific": {
+    "enabled": false,
+    "targetWindowHandle": 0,
+    "autoLockOnWindowFocus": false,
+    "targetWindows": [],
+    "resumeAfterWindowSwitch": false
+  },
+  "startup": {
+    "launchOnBoot": false
+  },
+  "closeAction": "minimize",
+  "clickerActiveProfile": {
+    "id": "default",
+    "name": "默认方案",
+    "enabled": false,
+    "button": "left",
+    "intervalMs": 100,
+    "preset": "efficient",
+    "sound": {
+      "enabled": false,
+      "preset": "systemAsterisk",
+      "customFile": ""
+    },
+    "triggers": {
+      "mode": "toggle",
+      "toggleHotkey": {
+        "modCtrl": false,
+        "modAlt": false,
+        "modShift": false,
+        "modWin": false,
+        "key": "F6"
+      },
+      "holdKey": {
+        "modCtrl": false,
+        "modAlt": false,
+        "modShift": false,
+        "modWin": false,
+        "key": "F7"
+      },
+      "holdMouseButton": "middle"
+    }
+  },
+  "clicker": {
+    "id": "default",
+    "name": "默认方案",
+    "enabled": false,
+    "button": "left",
+    "intervalMs": 100,
+    "preset": "efficient",
+    "sound": {
+      "enabled": false,
+      "preset": "systemAsterisk",
+      "customFile": ""
+    },
+    "triggers": {
+      "mode": "toggle",
+      "toggleHotkey": {
+        "modCtrl": false,
+        "modAlt": false,
+        "modShift": false,
+        "modWin": false,
+        "key": "F6"
+      },
+      "holdKey": {
+        "modCtrl": false,
+        "modAlt": false,
+        "modShift": false,
+        "modWin": false,
+        "key": "F7"
+      },
+      "holdMouseButton": "middle"
+    }
+  }
+}
