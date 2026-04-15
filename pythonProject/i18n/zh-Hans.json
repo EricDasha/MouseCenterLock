@@ -21,6 +21,7 @@
   "hotkey.simple.message": "设置不含 Ctrl/Alt/Shift/Win 的快捷键可能会影响正常键盘使用。\n\n确定要使用此快捷键吗？",
   "hotkey.conflict": "快捷键冲突",
   "hotkey.register.fail": "部分快捷键注册失败：",
+  "hotkey.conflict.which": "当前发生冲突的快捷键如下：",
   "menu.toggle": "切换锁定",
   "menu.lock": "锁定",
   "menu.unlock": "解锁",

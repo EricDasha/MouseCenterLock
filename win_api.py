@@ -465,6 +465,44 @@ def try_register_hotkey(hotkey_id: int, mod_flags: int, vk: int) -> Tuple[bool, 
     return False, f"Failed to register hotkey (error {error_code})"
 
 
+def _resolve_active_clicker_profile(settings_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve the active clicker profile directly from stored profile data."""
+    active_id = settings_data.get("activeClickerProfileId")
+    profiles = settings_data.get("clickerProfiles", [])
+    if isinstance(profiles, list):
+        for profile in profiles:
+            if isinstance(profile, dict) and profile.get("id") == active_id:
+                return profile
+        for profile in profiles:
+            if isinstance(profile, dict):
+                return profile
+    active_profile = settings_data.get("clickerActiveProfile")
+    if isinstance(active_profile, dict):
+        return active_profile
+    clicker = settings_data.get("clicker")
+    if isinstance(clicker, dict):
+        return clicker
+    return {}
+
+
+def _detect_duplicate_hotkeys(specs: List[Tuple[int, Dict[str, Any]]]) -> List[str]:
+    """Detect duplicate hotkeys inside the app config before calling RegisterHotKey."""
+    seen: Dict[Tuple[int, int], str] = {}
+    errors: List[str] = []
+    for _hotkey_id, spec in specs:
+        mods = build_mod_flags(spec)
+        vk = key_to_vk(spec.get("key", ""))
+        if vk is None:
+            continue
+        combo = (mods, vk)
+        display = format_hotkey_display(spec)
+        if combo in seen:
+            errors.append(f"{display}: Duplicates another app hotkey setting ({seen[combo]})")
+            continue
+        seen[combo] = display
+    return errors
+
+
 def register_hotkeys(settings_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """
     Register all hotkeys from settings.
@@ -473,7 +511,7 @@ def register_hotkeys(settings_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     hk = settings_data.get("hotkeys", {})
     errors = []
     
-    active_profile = settings_data.get("clickerActiveProfile", settings_data.get("clicker", {}))
+    active_profile = _resolve_active_clicker_profile(settings_data)
     active_triggers = active_profile.get("triggers", {})
     clicker_toggle_spec = (
         active_triggers.get("toggleHotkey", active_profile.get("hotkeyToggle", {}))
@@ -486,6 +524,10 @@ def register_hotkeys(settings_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
         (HOTKEY_ID_TOGGLE, hk.get("toggle", {})),
         (HOTKEY_ID_CLICKER_TOGGLE, clicker_toggle_spec),
     ]
+
+    errors.extend(_detect_duplicate_hotkeys(specs))
+    if errors:
+        return False, errors
     
     for hotkey_id, spec in specs:
         mods = build_mod_flags(spec)

@@ -7,21 +7,21 @@
       "modAlt": true,
       "modShift": false,
       "modWin": false,
-      "key": "L"
+      "key": "F9"
     },
     "unlock": {
       "modCtrl": true,
       "modAlt": true,
       "modShift": false,
       "modWin": false,
-      "key": "U"
+      "key": "F10"
     },
     "toggle": {
-      "modCtrl": false,
-      "modAlt": false,
+      "modCtrl": true,
+      "modAlt": true,
       "modShift": false,
       "modWin": false,
-      "key": "F1"
+      "key": "K"
     }
   },
   "recenter": {

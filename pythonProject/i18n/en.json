@@ -21,6 +21,7 @@
   "hotkey.simple.message": "Setting a hotkey without Ctrl/Alt/Shift/Win may interfere with normal keyboard use.\n\nAre you sure you want to use this hotkey?",
   "hotkey.conflict": "Hotkey Conflict",
   "hotkey.register.fail": "Some hotkeys could not be registered:",
+  "hotkey.conflict.which": "The following hotkeys are conflicting:",
   "menu.toggle": "Toggle Lock",
   "menu.lock": "Lock",
   "menu.unlock": "Unlock",

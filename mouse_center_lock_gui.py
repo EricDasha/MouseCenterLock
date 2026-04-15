@@ -30,7 +30,7 @@ from win_api import (
     get_active_window_info, format_hotkey_display,
     register_hotkeys, unregister_hotkeys, get_window_center,
     is_startup_enabled, set_startup_enabled, user32,
-    get_window_process_name, click_mouse, GlobalInputListener
+    get_window_process_name, click_mouse, key_to_vk, enumerate_visible_windows
 )
 from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog, WindowResizeDialog
 
@@ -108,8 +108,8 @@ class SettingsManager:
     """Manages application settings including loading, validation, and saving."""
     
     DEFAULT_HOTKEYS = {
-        "lock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "L"},
-        "unlock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "U"},
+        "lock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "F9"},
+        "unlock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "F10"},
         "toggle": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "K"}
     }
     DEFAULT_CLICKER_HOTKEY = {
@@ -200,7 +200,11 @@ class SettingsManager:
         normalized["id"] = str(source.get("id") or f"profile-{index + 1}")
         normalized["name"] = str(source.get("name") or base["name"])
         normalized["enabled"] = bool(source.get("enabled", False))
-        normalized["button"] = source.get("button", "left") if source.get("button") in ("left", "right") else "left"
+        normalized["button"] = (
+            source.get("button", "left")
+            if source.get("button") in ("left", "right", "middle")
+            else "left"
+        )
         normalized["intervalMs"] = max(1, int(source.get("intervalMs", 100)))
         preset = source.get("preset")
         normalized["preset"] = preset if preset in CLICKER_PRESETS else self._resolve_preset(normalized["intervalMs"])
@@ -393,6 +397,7 @@ class NotificationManager:
     def __init__(self, tray: QtWidgets.QSystemTrayIcon, app_id: str = "MouseCenterLock"):
         self.tray = tray
         self.app_id = app_id
+        self._toast_processes = []
 
     def show(
         self,
@@ -406,7 +411,7 @@ class NotificationManager:
             self.tray.showMessage(title, message, icon, timeout_ms)
 
     def _show_windows_toast(self, title: str, message: str) -> bool:
-        """Best-effort native Windows toast via PowerShell WinRT APIs."""
+        """Best-effort native Windows toast via asynchronous PowerShell WinRT APIs."""
         if os.name != "nt":
             return False
 
@@ -426,12 +431,14 @@ class NotificationManager:
             "$notifier.Show($toast);"
         )
         try:
-            subprocess.run(
+            process = subprocess.Popen(
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-                check=True,
-                timeout=4,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            self._toast_processes.append(process)
+            self._toast_processes = [p for p in self._toast_processes if p.poll() is None]
             return True
         except Exception:
             return False
@@ -535,19 +542,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self._custom_icon: Optional[QtGui.QIcon] = None
         self._notification_manager: Optional[NotificationManager] = None
         self._sound_player = ClickerSoundPlayer(self)
-        self._input_listener = GlobalInputListener(
-            on_key_event=self._handle_global_key_event,
-            on_mouse_event=self._handle_global_mouse_event,
-        )
         self._selected_profile_id = self.settings.data.get("activeClickerProfileId", "default")
         self._profile_dirty = False
+        self._suspend_live_apply = 0
+        self._live_apply_timer = QtCore.QTimer(self)
+        self._live_apply_timer.setSingleShot(True)
+        self._live_apply_timer.timeout.connect(self._apply_live_settings)
         
         self._setup_window()
         self._setup_timers()
         self._build_ui()
         self._apply_theme()
         self._create_tray()
-        self._input_listener.start()
     
     @property
     def locked(self) -> bool:
@@ -568,6 +574,33 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings.data["clickerActiveProfile"] = deep_copy(profile)
         self.settings.data["clicker"] = deep_copy(profile)
         return profile
+
+    def _build_hotkey_conflict_details(self, errors: list[str]) -> str:
+        """Build a diagnostic message for hotkey registration conflicts."""
+        lines = [
+            self.i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:"),
+            self.i18n.t(
+                "hotkey.conflict.which",
+                "The following hotkeys are conflicting:"
+            ),
+        ]
+        lines.extend(errors)
+        lines.append("")
+        lines.append(self.i18n.t(
+            "hotkey.conflict.help",
+            "Windows cannot directly tell which app owns a conflicting global hotkey. The list below shows visible apps you can try closing or changing hotkeys for:"
+        ))
+
+        seen_processes = set()
+        for _hwnd, title, process_name in enumerate_visible_windows():
+            key = (process_name or "", title or "")
+            if key in seen_processes:
+                continue
+            seen_processes.add(key)
+            if len(seen_processes) > 30:
+                break
+            lines.append(f"- {process_name or 'unknown.exe'} | {title or '(untitled)'}")
+        return "\n".join(lines)
 
     def _notify(self, message: str, timeout_ms: int = 2000) -> None:
         """Show a Windows notification using the configured fallback chain."""
@@ -590,7 +623,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Configure window properties."""
         self.setWindowTitle(self.i18n.t("app.title", "Mouse Center Lock"))
         self.setMinimumSize(450, 500)
-        self.resize(550, 680)
+        self.resize(550, 700)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
         
         # Load window icon
@@ -606,10 +639,35 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.clickerTimer = QtCore.QTimer(self)
         self.clickerTimer.timeout.connect(self._on_clicker_tick)
+
+        self.holdStateTimer = QtCore.QTimer(self)
+        self.holdStateTimer.timeout.connect(self._poll_hold_trigger_state)
+        self.holdStateTimer.start(12)
         
         self.windowFocusTimer = QtCore.QTimer(self)
         self.windowFocusTimer.timeout.connect(self._check_window_focus)
         self.windowFocusTimer.start(500)
+
+    def _schedule_live_apply(self):
+        """Debounce settings persistence so advanced-page edits take effect immediately."""
+        if self._suspend_live_apply > 0:
+            return
+        self._live_apply_timer.start(120)
+
+    def _apply_live_settings(self):
+        """Apply settings after the debounce window."""
+        if self._suspend_live_apply > 0:
+            return
+        self._on_apply(show_feedback=False)
+
+    def _begin_form_update(self):
+        """Prevent live-apply recursion while populating widgets."""
+        self._suspend_live_apply += 1
+
+    def _end_form_update(self):
+        """Resume live apply after populating widgets."""
+        if self._suspend_live_apply > 0:
+            self._suspend_live_apply -= 1
     
     def _build_ui(self):
         """Build the main UI."""
@@ -720,18 +778,21 @@ class MainWindow(QtWidgets.QMainWindow):
         hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.lock", "Lock")), 0, 0)
         self.lockHotkeyCapture = HotkeyCapture(i18n=self.i18n)
         self.lockHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["lock"])
+        self.lockHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
         hotkey_grid.addWidget(self.lockHotkeyCapture, 0, 1)
         
         # Unlock hotkey
         hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.unlock", "Unlock")), 1, 0)
         self.unlockHotkeyCapture = HotkeyCapture(i18n=self.i18n)
         self.unlockHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["unlock"])
+        self.unlockHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
         hotkey_grid.addWidget(self.unlockHotkeyCapture, 1, 1)
         
         # Toggle hotkey
         hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.toggle", "Toggle")), 2, 0)
         self.toggleHotkeyCapture = HotkeyCapture(i18n=self.i18n)
         self.toggleHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["toggle"])
+        self.toggleHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
         hotkey_grid.addWidget(self.toggleHotkeyCapture, 2, 1)
 
         hotkey_hint = QtWidgets.QLabel(
@@ -749,6 +810,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Recenter enabled
         self.recenterCheck = QtWidgets.QCheckBox(self.i18n.t("recenter.enabled", "Enable periodic recentering"))
         self.recenterCheck.setChecked(self.settings.data["recenter"].get("enabled", True))
+        self.recenterCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.recenterCheck)
         
         # Recenter interval
@@ -758,6 +820,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recenterSpin.setRange(16, 5000)
         self.recenterSpin.setSingleStep(16)
         self.recenterSpin.setValue(self.settings.data["recenter"].get("intervalMs", 250))
+        self.recenterSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
         interval_layout.addWidget(self.recenterSpin)
         interval_layout.addStretch()
         layout.addLayout(interval_layout)
@@ -776,6 +839,7 @@ class MainWindow(QtWidgets.QMainWindow):
         profile_name_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.profile.name", "Profile Name")))
         self.clickerProfileNameEdit = QtWidgets.QLineEdit()
         self.clickerProfileNameEdit.setPlaceholderText(self.i18n.t("clicker.profile.placeholder", "Input a profile name"))
+        self.clickerProfileNameEdit.textChanged.connect(lambda _text: self._schedule_live_apply())
         profile_name_layout.addWidget(self.clickerProfileNameEdit)
         layout.addLayout(profile_name_layout)
 
@@ -793,6 +857,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addLayout(profile_btn_layout)
 
         self.clickerEnabledCheck = QtWidgets.QCheckBox(self.i18n.t("clicker.enabled", "Enable auto clicker"))
+        self.clickerEnabledCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.clickerEnabledCheck)
 
         clicker_button_layout = QtWidgets.QHBoxLayout()
@@ -801,6 +866,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.left", "Left Click"), "left")
         self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.right", "Right Click"), "right")
         self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.middle", "Middle Click"), "middle")
+        self.clickerButtonCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         clicker_button_layout.addWidget(self.clickerButtonCombo)
         clicker_button_layout.addStretch()
         layout.addLayout(clicker_button_layout)
@@ -828,6 +894,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerIntervalSpin.setRange(1, 5000)
         self.clickerIntervalSpin.setSingleStep(10)
         self.clickerIntervalSpin.setSuffix(" ms")
+        self.clickerIntervalSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
         clicker_interval_layout.addWidget(self.clickerIntervalSpin)
         clicker_interval_layout.addStretch()
         layout.addLayout(clicker_interval_layout)
@@ -839,6 +906,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerTriggerModeCombo.addItem(self.i18n.t("clicker.trigger.holdKey", "Hold Key"), "holdKey")
         self.clickerTriggerModeCombo.addItem(self.i18n.t("clicker.trigger.holdMouseButton", "Hold Mouse Button"), "holdMouseButton")
         self.clickerTriggerModeCombo.currentIndexChanged.connect(self._sync_clicker_trigger_controls)
+        self.clickerTriggerModeCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         trigger_mode_layout.addWidget(self.clickerTriggerModeCombo)
         trigger_mode_layout.addStretch()
         layout.addLayout(trigger_mode_layout)
@@ -847,6 +915,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerToggleHotkeyLabel = QtWidgets.QLabel(self.i18n.t("clicker.hotkey", "Auto Clicker Toggle"))
         toggle_hotkey_layout.addWidget(self.clickerToggleHotkeyLabel)
         self.clickerToggleHotkeyCapture = HotkeyCapture(i18n=self.i18n)
+        self.clickerToggleHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
         toggle_hotkey_layout.addWidget(self.clickerToggleHotkeyCapture)
         layout.addLayout(toggle_hotkey_layout)
 
@@ -854,6 +923,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerHoldKeyLabel = QtWidgets.QLabel(self.i18n.t("clicker.trigger.holdKey.input", "Hold Key"))
         hold_key_layout.addWidget(self.clickerHoldKeyLabel)
         self.clickerHoldKeyCapture = HotkeyCapture(i18n=self.i18n)
+        self.clickerHoldKeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
         hold_key_layout.addWidget(self.clickerHoldKeyCapture)
         layout.addLayout(hold_key_layout)
 
@@ -866,6 +936,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"), "x2")
         self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.left", "Left Button"), "left")
         self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.right", "Right Button"), "right")
+        self.clickerHoldMouseCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         hold_mouse_layout.addWidget(self.clickerHoldMouseCombo)
         hold_mouse_layout.addStretch()
         layout.addLayout(hold_mouse_layout)
@@ -873,6 +944,7 @@ class MainWindow(QtWidgets.QMainWindow):
         sound_enabled_layout = QtWidgets.QHBoxLayout()
         self.clickerSoundEnabledCheck = QtWidgets.QCheckBox(self.i18n.t("clicker.sound.enabled", "Play start sound"))
         self.clickerSoundEnabledCheck.toggled.connect(self._sync_clicker_sound_controls)
+        self.clickerSoundEnabledCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         sound_enabled_layout.addWidget(self.clickerSoundEnabledCheck)
         sound_enabled_layout.addStretch()
         layout.addLayout(sound_enabled_layout)
@@ -887,6 +959,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.systemHand", "System Hand"), "systemHand")
         self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.custom", "Custom File"), "custom")
         self.clickerSoundPresetCombo.currentIndexChanged.connect(self._sync_clicker_sound_controls)
+        self.clickerSoundPresetCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         sound_preset_layout.addWidget(self.clickerSoundPresetCombo)
         self.clickerSoundPreviewBtn = QtWidgets.QPushButton(self.i18n.t("clicker.sound.preview", "Preview"))
         self.clickerSoundPreviewBtn.clicked.connect(self._preview_clicker_sound)
@@ -897,6 +970,7 @@ class MainWindow(QtWidgets.QMainWindow):
         custom_sound_layout = QtWidgets.QHBoxLayout()
         self.clickerCustomSoundPathEdit = QtWidgets.QLineEdit()
         self.clickerCustomSoundPathEdit.setPlaceholderText(self.i18n.t("clicker.sound.path.placeholder", "Select a local audio file"))
+        self.clickerCustomSoundPathEdit.textChanged.connect(lambda _text: self._schedule_live_apply())
         custom_sound_layout.addWidget(self.clickerCustomSoundPathEdit)
         self.clickerCustomSoundBrowseBtn = QtWidgets.QPushButton(self.i18n.t("browse", "Browse"))
         self.clickerCustomSoundBrowseBtn.clicked.connect(self._browse_clicker_sound_file)
@@ -922,6 +996,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.posCombo.addItem(self.i18n.t("position.virtualCenter", "Virtual screen center"), "virtualCenter")
         self.posCombo.addItem(self.i18n.t("position.primaryCenter", "Primary screen center"), "primaryCenter")
         self.posCombo.addItem(self.i18n.t("position.custom", "Custom"), "custom")
+        self.posCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         
         current_mode = self.settings.data["position"].get("mode", "virtualCenter")
         for i in range(self.posCombo.count()):
@@ -937,11 +1012,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.customXSpin = QtWidgets.QSpinBox()
         self.customXSpin.setRange(-10000, 10000)
         self.customXSpin.setValue(self.settings.data["position"].get("customX", 0))
+        self.customXSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
         custom_layout.addWidget(self.customXSpin)
         custom_layout.addWidget(QtWidgets.QLabel("Y:"))
         self.customYSpin = QtWidgets.QSpinBox()
         self.customYSpin.setRange(-10000, 10000)
         self.customYSpin.setValue(self.settings.data["position"].get("customY", 0))
+        self.customYSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
         custom_layout.addWidget(self.customYSpin)
         custom_layout.addStretch()
         layout.addLayout(custom_layout)
@@ -955,6 +1032,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.windowSpecificCheck.setChecked(
             self.settings.data["windowSpecific"].get("enabled", False)
         )
+        self.windowSpecificCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.windowSpecificCheck)
         
         # Target Windows List Management
@@ -1014,6 +1092,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.autoLockCheck.setChecked(
             self.settings.data["windowSpecific"].get("autoLockOnWindowFocus", False)
         )
+        self.autoLockCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.autoLockCheck)
 
         self.resumeAfterSwitchCheck = QtWidgets.QCheckBox(
@@ -1022,6 +1101,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resumeAfterSwitchCheck.setChecked(
             self.settings.data["windowSpecific"].get("resumeAfterWindowSwitch", False)
         )
+        self.resumeAfterSwitchCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.resumeAfterSwitchCheck)
         
         # --- Window Tools Section ---
@@ -1054,6 +1134,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.langCombo.setCurrentIndex(i)
                 break
         lang_layout.addWidget(self.langCombo)
+        self.langCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         lang_layout.addStretch()
         layout.addLayout(lang_layout)
         
@@ -1070,6 +1151,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.themeCombo.setCurrentIndex(i)
                 break
         theme_layout.addWidget(self.themeCombo)
+        self.themeCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
         theme_layout.addStretch()
         layout.addLayout(theme_layout)
         
@@ -1087,15 +1169,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.i18n.t("startup.autostart", "Launch on system startup")
         )
         self.startupCheck.setChecked(is_startup_enabled())
+        self.startupCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
         layout.addWidget(self.startupCheck)
         
         layout.addStretch()
         
-        # Apply button
-        self.applyBtn = QtWidgets.QPushButton(self.i18n.t("apply", "Apply"))
-        self.applyBtn.setFixedHeight(44)
-        self.applyBtn.clicked.connect(self._on_apply)
-        layout.addWidget(self.applyBtn)
+        live_apply_hint = QtWidgets.QLabel(
+            self.i18n.t("settings.liveApply", "Settings in this page take effect automatically.")
+        )
+        live_apply_hint.setWordWrap(True)
+        live_apply_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+        layout.addWidget(live_apply_hint)
         
         scroll.setWidget(content)
         
@@ -1158,12 +1242,14 @@ class MainWindow(QtWidgets.QMainWindow):
             
         self.targetList.addItem(text)
         self.manualInputEdit.clear()
+        self._schedule_live_apply()
 
     def _remove_target_window(self):
         """Remove selected item from target list."""
         row = self.targetList.currentRow()
         if row >= 0:
             self.targetList.takeItem(row)
+            self._schedule_live_apply()
 
     def _current_profile_form_data(self) -> Dict[str, Any]:
         """Build a clicker profile from the current form controls."""
@@ -1194,45 +1280,49 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _load_profile_into_form(self, profile: Dict[str, Any]) -> None:
         """Populate clicker controls from a profile."""
-        self._selected_profile_id = profile.get("id", "default")
-        self.clickerProfileNameEdit.setText(profile.get("name", "默认方案"))
-        self.clickerEnabledCheck.setChecked(profile.get("enabled", False))
+        self._begin_form_update()
+        try:
+            self._selected_profile_id = profile.get("id", "default")
+            self.clickerProfileNameEdit.setText(profile.get("name", "默认方案"))
+            self.clickerEnabledCheck.setChecked(profile.get("enabled", False))
 
-        for i in range(self.clickerButtonCombo.count()):
-            if self.clickerButtonCombo.itemData(i) == profile.get("button", "left"):
-                self.clickerButtonCombo.setCurrentIndex(i)
-                break
+            for i in range(self.clickerButtonCombo.count()):
+                if self.clickerButtonCombo.itemData(i) == profile.get("button", "left"):
+                    self.clickerButtonCombo.setCurrentIndex(i)
+                    break
 
-        preset = profile.get("preset", self._get_clicker_preset_for_interval(profile.get("intervalMs", 100)))
-        for i in range(self.clickerPresetCombo.count()):
-            if self.clickerPresetCombo.itemData(i) == preset:
-                self.clickerPresetCombo.setCurrentIndex(i)
-                break
-        self.clickerIntervalSpin.setValue(int(profile.get("intervalMs", 100)))
+            preset = profile.get("preset", self._get_clicker_preset_for_interval(profile.get("intervalMs", 100)))
+            for i in range(self.clickerPresetCombo.count()):
+                if self.clickerPresetCombo.itemData(i) == preset:
+                    self.clickerPresetCombo.setCurrentIndex(i)
+                    break
+            self.clickerIntervalSpin.setValue(int(profile.get("intervalMs", 100)))
 
-        triggers = profile.get("triggers", {})
-        for i in range(self.clickerTriggerModeCombo.count()):
-            if self.clickerTriggerModeCombo.itemData(i) == triggers.get("mode", "toggle"):
-                self.clickerTriggerModeCombo.setCurrentIndex(i)
-                break
-        self.clickerToggleHotkeyCapture.set_hotkey(triggers.get("toggleHotkey", self.settings.DEFAULT_CLICKER_HOTKEY))
-        self.clickerHoldKeyCapture.set_hotkey(triggers.get("holdKey", self.settings.DEFAULT_HOLD_KEY))
-        for i in range(self.clickerHoldMouseCombo.count()):
-            if self.clickerHoldMouseCombo.itemData(i) == triggers.get("holdMouseButton", "middle"):
-                self.clickerHoldMouseCombo.setCurrentIndex(i)
-                break
+            triggers = profile.get("triggers", {})
+            for i in range(self.clickerTriggerModeCombo.count()):
+                if self.clickerTriggerModeCombo.itemData(i) == triggers.get("mode", "toggle"):
+                    self.clickerTriggerModeCombo.setCurrentIndex(i)
+                    break
+            self.clickerToggleHotkeyCapture.set_hotkey(triggers.get("toggleHotkey", self.settings.DEFAULT_CLICKER_HOTKEY))
+            self.clickerHoldKeyCapture.set_hotkey(triggers.get("holdKey", self.settings.DEFAULT_HOLD_KEY))
+            for i in range(self.clickerHoldMouseCombo.count()):
+                if self.clickerHoldMouseCombo.itemData(i) == triggers.get("holdMouseButton", "middle"):
+                    self.clickerHoldMouseCombo.setCurrentIndex(i)
+                    break
 
-        sound = profile.get("sound", {})
-        self.clickerSoundEnabledCheck.setChecked(sound.get("enabled", False))
-        for i in range(self.clickerSoundPresetCombo.count()):
-            if self.clickerSoundPresetCombo.itemData(i) == sound.get("preset", "systemAsterisk"):
-                self.clickerSoundPresetCombo.setCurrentIndex(i)
-                break
-        self.clickerCustomSoundPathEdit.setText(sound.get("customFile", ""))
-        self._sync_clicker_interval_controls()
-        self._sync_clicker_trigger_controls()
-        self._sync_clicker_sound_controls()
-        self._profile_dirty = False
+            sound = profile.get("sound", {})
+            self.clickerSoundEnabledCheck.setChecked(sound.get("enabled", False))
+            for i in range(self.clickerSoundPresetCombo.count()):
+                if self.clickerSoundPresetCombo.itemData(i) == sound.get("preset", "systemAsterisk"):
+                    self.clickerSoundPresetCombo.setCurrentIndex(i)
+                    break
+            self.clickerCustomSoundPathEdit.setText(sound.get("customFile", ""))
+            self._sync_clicker_interval_controls()
+            self._sync_clicker_trigger_controls()
+            self._sync_clicker_sound_controls()
+            self._profile_dirty = False
+        finally:
+            self._end_form_update()
 
     def _populate_clicker_profiles(self) -> None:
         """Refresh the profile combo box from settings."""
@@ -1257,6 +1347,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_clicker_profile_selected(self, _index: int) -> None:
         """Switch the active clicker profile."""
+        if self._suspend_live_apply > 0:
+            return
         profile_id = self.clickerProfileCombo.currentData()
         if not profile_id:
             return
@@ -1331,6 +1423,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.clickerSoundPresetCombo.setCurrentIndex(i)
                     break
             self._sync_clicker_sound_controls()
+            self._schedule_live_apply()
 
     def _preview_clicker_sound(self) -> None:
         """Preview the currently selected clicker start sound."""
@@ -1367,7 +1460,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clickerCustomSoundPathEdit.setVisible(enabled and use_custom)
         self.clickerCustomSoundBrowseBtn.setVisible(enabled and use_custom)
     
-    def _on_apply(self):
+    def _on_apply(self, show_feedback: bool = True):
         """Apply and save settings."""
         # Save hotkeys
         self.settings.data["hotkeys"]["lock"] = self.lockHotkeyCapture.get_hotkey()
@@ -1416,8 +1509,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(
                 self,
                 self.i18n.t("hotkey.conflict", "Hotkey Conflict"),
-                self.i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:") + 
-                "\n" + "\n".join(errors)
+                self._build_hotkey_conflict_details(errors)
             )
         
         # Apply theme and update UI
@@ -1428,12 +1520,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_tray_meta()
         self._populate_clicker_profiles()
         
-        # Show confirmation
-        QtWidgets.QToolTip.showText(
-            QtGui.QCursor.pos(),
-            self.i18n.t("saved", "Settings saved"),
-            self
-        )
+        if show_feedback:
+            QtWidgets.QToolTip.showText(
+                QtGui.QCursor.pos(),
+                self.i18n.t("saved", "Settings saved"),
+                self
+            )
     
     def _on_mode_changed(self, idx: int):
         """Handle mode tab change."""
@@ -1586,13 +1678,15 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.clickerTimer.stop()
 
-    def start_clicker(self, show_message: bool = True):
+    def start_clicker(self, show_message: bool = True, immediate_click: bool = False):
         """Start the auto clicker."""
         profile = self._get_active_clicker_profile()
         if self._clicker_running or not profile.get("enabled", False):
             return
 
         self._clicker_running = True
+        if immediate_click:
+            click_mouse(profile.get("button", "left"))
         self._apply_clicker_timer()
         self._sound_player.play_for_profile(profile)
         self._update_simple_info()
@@ -1633,7 +1727,7 @@ class MainWindow(QtWidgets.QMainWindow):
         profile = self._get_active_clicker_profile()
         if profile.get("triggers", {}).get("mode") != "toggle":
             if not self._clicker_running:
-                self.start_clicker()
+                self.start_clicker(immediate_click=True)
             else:
                 self.stop_clicker()
             return
@@ -1646,9 +1740,12 @@ class MainWindow(QtWidgets.QMainWindow):
         """Return whether a modifier virtual key is currently pressed."""
         return bool(user32.GetAsyncKeyState(vk) & 0x8000)
 
-    def _hold_hotkey_matches(self, hold_key: Dict[str, Any], key_name: str) -> bool:
-        """Check whether the incoming key event matches the configured hold hotkey."""
-        if key_name != hold_key.get("key", ""):
+    def _hold_hotkey_matches(self, hold_key: Dict[str, Any]) -> bool:
+        """Check whether the configured hold hotkey is currently pressed."""
+        vk = key_to_vk(hold_key.get("key", ""))
+        if vk is None:
+            return False
+        if not self._modifier_pressed(vk):
             return False
 
         modifier_map = [
@@ -1664,43 +1761,44 @@ class MainWindow(QtWidgets.QMainWindow):
                 return False
         return True
 
-    def _handle_global_key_event(self, key_name: str, is_pressed: bool) -> None:
-        """Handle global key down/up events for hold-to-click triggers."""
-        profile = self._get_active_clicker_profile()
-        triggers = profile.get("triggers", {})
-        if triggers.get("mode") != "holdKey":
-            return
-        hold_key = triggers.get("holdKey", {})
-        if is_pressed and self._hold_hotkey_matches(hold_key, key_name) and not self._hold_trigger_pressed:
-            self._hold_trigger_pressed = True
-            self.start_clicker(show_message=True)
-            return
-
-        watched_keys = {
-            hold_key.get("key", ""),
-            "Ctrl",
-            "Alt",
-            "Shift",
-            "Win",
+    def _mouse_button_pressed(self, button_name: str) -> bool:
+        """Return whether a mouse button is currently pressed."""
+        vk_map = {
+            "left": 0x01,
+            "right": 0x02,
+            "middle": 0x04,
+            "x1": 0x05,
+            "x2": 0x06,
         }
-        if not is_pressed and self._hold_trigger_pressed and key_name in watched_keys:
-            self._hold_trigger_pressed = False
-            self.stop_clicker(show_message=True)
+        vk = vk_map.get((button_name or "").lower())
+        return bool(vk and self._modifier_pressed(vk))
 
-    def _handle_global_mouse_event(self, button_name: str, is_pressed: bool) -> None:
-        """Handle global mouse down/up events for hold-to-click triggers."""
+    def _poll_hold_trigger_state(self) -> None:
+        """Poll keyboard/mouse hold state so hold triggers work without low-level hooks."""
         profile = self._get_active_clicker_profile()
         triggers = profile.get("triggers", {})
-        if triggers.get("mode") != "holdMouseButton":
+        if not profile.get("enabled", False):
+            if self._hold_trigger_pressed:
+                self._hold_trigger_pressed = False
+                self.stop_clicker(show_message=False)
             return
-        if button_name != triggers.get("holdMouseButton", "middle"):
+
+        mode = triggers.get("mode")
+        if mode == "holdKey":
+            is_pressed = self._hold_hotkey_matches(triggers.get("holdKey", {}))
+        elif mode == "holdMouseButton":
+            is_pressed = self._mouse_button_pressed(triggers.get("holdMouseButton", "middle"))
+        else:
+            if self._hold_trigger_pressed:
+                self._hold_trigger_pressed = False
             return
+
         if is_pressed and not self._hold_trigger_pressed:
             self._hold_trigger_pressed = True
-            self.start_clicker(show_message=True)
+            self.start_clicker(show_message=False, immediate_click=True)
         elif not is_pressed and self._hold_trigger_pressed:
             self._hold_trigger_pressed = False
-            self.stop_clicker(show_message=True)
+            self.stop_clicker(show_message=False)
     
     def _apply_recenter_timer(self):
         """Start or stop the recenter timer based on state and settings."""
@@ -2010,6 +2108,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if preset_interval is not None:
             self.clickerIntervalSpin.setValue(preset_interval)
         self._sync_clicker_interval_controls()
+        self._schedule_live_apply()
 
     def _update_clicker_button(self):
         """Update the auto clicker button text and enabled state."""
@@ -2270,7 +2369,6 @@ class MainWindow(QtWidgets.QMainWindow):
         """Quit the application."""
         try:
             self.stop_clicker(show_message=False)
-            self._input_listener.stop()
             if self._locked:
                 unclip_cursor()
         finally:
@@ -2345,13 +2443,21 @@ def main() -> int:
     i18n = I18n(settings.data.get("language", "zh-Hans"))
     
     # Register hotkeys
+    unregister_hotkeys()
     success, errors = register_hotkeys(settings.data)
     if not success:
         QtWidgets.QMessageBox.warning(
             None,
             i18n.t("error", "Error"),
-            i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:") +
-            "\n" + "\n".join(errors)
+            "\n".join([
+                i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:"),
+                *errors,
+                "",
+                i18n.t(
+                    "hotkey.conflict.help",
+                    "Windows cannot directly tell which app owns a conflicting global hotkey. Try closing other apps or changing the hotkey."
+                ),
+            ])
         )
     
     window = MainWindow(settings, i18n)
@@ -2379,7 +2485,6 @@ def main() -> int:
     # Cleanup
     try:
         window.stop_clicker(show_message=False)
-        window._input_listener.stop()
         if window.locked:
             unclip_cursor()
     finally:
