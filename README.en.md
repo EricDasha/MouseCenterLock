@@ -67,6 +67,14 @@ To restore default settings, delete `Mconfig.json`. If an older `config.json` is
 
 ## Changelog
 
+### v1.1.0
+- Added clicker profile management with create, switch, save, and delete support for multiple clicker presets.
+- Added Windows action notifications, preferring native toast and falling back to tray messages when unavailable.
+- Added clicker start sound support with built-in presets, custom audio files, and sound preview.
+- Added more clicker trigger modes: toggle, hold keyboard key, and hold mouse button.
+- Added middle mouse button support for click execution.
+- Migrated the default config file to `Mconfig.json` while keeping backward compatibility for legacy `config.json`.
+
 ### v1.0.7
 - New: Window-specific locking now has an option "Auto re-lock after leaving and re-entering target window (for manual unlock)", so you can choose between keeping the old behavior or auto re-lock.
 - Improved: Simple mode "Current Configuration" now shows clearer status for window-specific locking and the auto re-lock behavior.

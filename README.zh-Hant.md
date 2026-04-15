@@ -29,7 +29,7 @@
 - `mouse_center_lock.py` – CLI/基礎版本（可選）
 - `pythonProject/i18n/` – 語言檔案
 - `pythonProject/assets/` – 圖示和資源
-- `config.json` – 預設設定
+- `Mconfig.json` – 預設設定（相容讀取舊版 `config.json`）
 
 ## 系統需求
 
@@ -55,7 +55,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --name MouseCenterLock \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
-  --add-data "config.json;." \
+  --add-data "Mconfig.json;." \
   --add-data "pythonProject/assets;assets" \
   --hidden-import win_api \
   --hidden-import widgets \
@@ -63,7 +63,17 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 ```
 exe 檔案將位於 `dist/MouseCenterLock.exe`。
 
+如需恢復預設設定，請刪除 `Mconfig.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
+
 ## 更新日誌
+
+### v1.1.0
+- 新增連點器方案管理，支援建立、切換、儲存與刪除多組連點設定。
+- 新增 Windows 通知播報，優先使用原生 toast，失敗時回退到系統匣提示。
+- 新增連點器啟動音效，支援內建預設、自訂音訊檔案與音效試聽。
+- 新增多種連點觸發方式，支援切換啟動、按住鍵盤按鍵啟動、按住滑鼠按鍵啟動。
+- 連點按鍵新增支援滑鼠中鍵。
+- 預設設定檔改為 `Mconfig.json`，並相容讀取舊版 `config.json`。
 
 ### v1.0.7
 - 新功能：視窗特定鎖定新增「手動解鎖後，切換回目標視窗時重新自動鎖定」選項，可在保留原有行為與自動重鎖之間自由切換。
