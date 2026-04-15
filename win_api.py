@@ -6,7 +6,7 @@ import ctypes
 import os
 import sys
 from ctypes import wintypes
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any, Callable
 
 # --- Windows DLL references ---
 user32 = ctypes.windll.user32
@@ -25,6 +25,7 @@ MOD_WIN = 0x0008
 HOTKEY_ID_LOCK = 1
 HOTKEY_ID_UNLOCK = 2
 HOTKEY_ID_TOGGLE = 4
+HOTKEY_ID_CLICKER_TOGGLE = 8
 
 # System metrics
 SM_XVIRTUALSCREEN = 76
@@ -46,6 +47,53 @@ SWP_NOSIZE = 0x0001
 
 # MonitorFromWindow flags
 MONITOR_DEFAULTTONEAREST = 2
+
+# Mouse event flags
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+XBUTTON1 = 0x0001
+XBUTTON2 = 0x0002
+
+# Hook constants
+WH_KEYBOARD_LL = 13
+WH_MOUSE_LL = 14
+HC_ACTION = 0
+LLMHF_INJECTED = 0x00000001
+WM_KEYDOWN = 0x0100
+WM_KEYUP = 0x0101
+WM_SYSKEYDOWN = 0x0104
+WM_SYSKEYUP = 0x0105
+WM_LBUTTONDOWN = 0x0201
+WM_LBUTTONUP = 0x0202
+WM_RBUTTONDOWN = 0x0204
+WM_RBUTTONUP = 0x0205
+WM_MBUTTONDOWN = 0x0207
+WM_MBUTTONUP = 0x0208
+WM_XBUTTONDOWN = 0x020B
+WM_XBUTTONUP = 0x020C
+VK_SPACE = 0x20
+VK_TAB = 0x09
+VK_RETURN = 0x0D
+VK_BACK = 0x08
+VK_DELETE = 0x2E
+VK_INSERT = 0x2D
+VK_HOME = 0x24
+VK_END = 0x23
+VK_PRIOR = 0x21
+VK_NEXT = 0x22
+VK_UP = 0x26
+VK_DOWN = 0x28
+VK_LEFT = 0x25
+VK_RIGHT = 0x27
+VK_CONTROL = 0x11
+VK_MENU = 0x12
+VK_SHIFT = 0x10
+VK_LWIN = 0x5B
+VK_RWIN = 0x5C
 
 
 # --- Structures ---
@@ -78,6 +126,33 @@ class MONITORINFO(ctypes.Structure):
         ("rcMonitor", RECT),
         ("rcWork", RECT),
         ("dwFlags", wintypes.DWORD),
+    ]
+
+
+class POINT(ctypes.Structure):
+    _fields_ = [
+        ("x", wintypes.LONG),
+        ("y", wintypes.LONG),
+    ]
+
+
+class KBDLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [
+        ("vkCode", wintypes.DWORD),
+        ("scanCode", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+    ]
+
+
+class MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [
+        ("pt", POINT),
+        ("mouseData", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
     ]
 
 
@@ -165,6 +240,23 @@ def unclip_cursor() -> None:
     """Remove cursor clipping, allowing free movement."""
     if not user32.ClipCursor(None):
         raise ctypes.WinError()
+
+
+def click_mouse(button: str = "left") -> None:
+    """Send a mouse click for the current cursor position."""
+    button_name = (button or "left").lower()
+    if button_name == "right":
+        down_flag = MOUSEEVENTF_RIGHTDOWN
+        up_flag = MOUSEEVENTF_RIGHTUP
+    elif button_name == "middle":
+        down_flag = MOUSEEVENTF_MIDDLEDOWN
+        up_flag = MOUSEEVENTF_MIDDLEUP
+    else:
+        down_flag = MOUSEEVENTF_LEFTDOWN
+        up_flag = MOUSEEVENTF_LEFTUP
+
+    user32.mouse_event(down_flag, 0, 0, 0, 0)
+    user32.mouse_event(up_flag, 0, 0, 0, 0)
 
 
 # --- Window Information ---
@@ -284,8 +376,24 @@ def key_to_vk(key_str: str) -> Optional[int]:
         n = int(s[1:])
         if 1 <= n <= 24:
             return 0x70 + (n - 1)
-    
-    return None
+
+    extra_keys = {
+        "SPACE": VK_SPACE,
+        "TAB": VK_TAB,
+        "ENTER": VK_RETURN,
+        "BACKSPACE": VK_BACK,
+        "DELETE": VK_DELETE,
+        "INSERT": VK_INSERT,
+        "HOME": VK_HOME,
+        "END": VK_END,
+        "PAGEUP": VK_PRIOR,
+        "PAGEDOWN": VK_NEXT,
+        "UP": VK_UP,
+        "DOWN": VK_DOWN,
+        "LEFT": VK_LEFT,
+        "RIGHT": VK_RIGHT,
+    }
+    return extra_keys.get(s)
 
 
 def vk_to_key(vk: int) -> Optional[str]:
@@ -299,6 +407,29 @@ def vk_to_key(vk: int) -> Optional[str]:
     # F1-F24
     if 0x70 <= vk <= 0x87:
         return f"F{vk - 0x70 + 1}"
+    extra_keys = {
+        VK_CONTROL: "Ctrl",
+        VK_MENU: "Alt",
+        VK_SHIFT: "Shift",
+        VK_LWIN: "Win",
+        VK_RWIN: "Win",
+        VK_SPACE: "Space",
+        VK_TAB: "Tab",
+        VK_RETURN: "Enter",
+        VK_BACK: "Backspace",
+        VK_DELETE: "Delete",
+        VK_INSERT: "Insert",
+        VK_HOME: "Home",
+        VK_END: "End",
+        VK_PRIOR: "PageUp",
+        VK_NEXT: "PageDown",
+        VK_UP: "Up",
+        VK_DOWN: "Down",
+        VK_LEFT: "Left",
+        VK_RIGHT: "Right",
+    }
+    if vk in extra_keys:
+        return extra_keys[vk]
     return None
 
 
@@ -342,15 +473,25 @@ def register_hotkeys(settings_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     hk = settings_data.get("hotkeys", {})
     errors = []
     
+    active_profile = settings_data.get("clickerActiveProfile", settings_data.get("clicker", {}))
+    active_triggers = active_profile.get("triggers", {})
+    clicker_toggle_spec = (
+        active_triggers.get("toggleHotkey", active_profile.get("hotkeyToggle", {}))
+        if active_triggers.get("mode", "toggle") == "toggle"
+        else {"key": ""}
+    )
     specs = [
         (HOTKEY_ID_LOCK, hk.get("lock", {})),
         (HOTKEY_ID_UNLOCK, hk.get("unlock", {})),
         (HOTKEY_ID_TOGGLE, hk.get("toggle", {})),
+        (HOTKEY_ID_CLICKER_TOGGLE, clicker_toggle_spec),
     ]
     
     for hotkey_id, spec in specs:
         mods = build_mod_flags(spec)
         vk = key_to_vk(spec.get("key", ""))
+        if vk is None:
+            continue
         success, error = try_register_hotkey(hotkey_id, mods, vk)
         if not success:
             errors.append(f"{format_hotkey_display(spec)}: {error}")
@@ -363,6 +504,98 @@ def unregister_hotkeys() -> None:
     user32.UnregisterHotKey(None, HOTKEY_ID_LOCK)
     user32.UnregisterHotKey(None, HOTKEY_ID_UNLOCK)
     user32.UnregisterHotKey(None, HOTKEY_ID_TOGGLE)
+    user32.UnregisterHotKey(None, HOTKEY_ID_CLICKER_TOGGLE)
+
+
+LowLevelKeyboardProc = ctypes.WINFUNCTYPE(
+    wintypes.LPARAM, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM
+)
+LowLevelMouseProc = ctypes.WINFUNCTYPE(
+    wintypes.LPARAM, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM
+)
+
+
+class GlobalInputListener:
+    """Low-level keyboard and mouse listener for hold-to-click triggers."""
+
+    def __init__(
+        self,
+        on_key_event: Optional[Callable[[str, bool], None]] = None,
+        on_mouse_event: Optional[Callable[[str, bool], None]] = None,
+    ):
+        self.on_key_event = on_key_event
+        self.on_mouse_event = on_mouse_event
+        self._keyboard_hook = None
+        self._mouse_hook = None
+        self._keyboard_proc = LowLevelKeyboardProc(self._keyboard_callback)
+        self._mouse_proc = LowLevelMouseProc(self._mouse_callback)
+
+    def start(self) -> bool:
+        """Install global keyboard and mouse hooks."""
+        module = kernel32.GetModuleHandleW(None)
+        self._keyboard_hook = user32.SetWindowsHookExW(
+            WH_KEYBOARD_LL, self._keyboard_proc, module, 0
+        )
+        self._mouse_hook = user32.SetWindowsHookExW(
+            WH_MOUSE_LL, self._mouse_proc, module, 0
+        )
+        return bool(self._keyboard_hook and self._mouse_hook)
+
+    def stop(self) -> None:
+        """Remove installed hooks."""
+        if self._keyboard_hook:
+            user32.UnhookWindowsHookEx(self._keyboard_hook)
+            self._keyboard_hook = None
+        if self._mouse_hook:
+            user32.UnhookWindowsHookEx(self._mouse_hook)
+            self._mouse_hook = None
+
+    def _keyboard_callback(self, code, w_param, l_param):
+        if code == HC_ACTION and self.on_key_event:
+            data = ctypes.cast(l_param, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            key_name = vk_to_key(data.vkCode)
+            if key_name:
+                is_pressed = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                is_released = w_param in (WM_KEYUP, WM_SYSKEYUP)
+                if is_pressed or is_released:
+                    self.on_key_event(key_name, is_pressed)
+        return user32.CallNextHookEx(self._keyboard_hook, code, w_param, l_param)
+
+    def _mouse_callback(self, code, w_param, l_param):
+        if code == HC_ACTION and self.on_mouse_event:
+            data = ctypes.cast(l_param, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+            if data.flags & LLMHF_INJECTED:
+                return user32.CallNextHookEx(self._mouse_hook, code, w_param, l_param)
+            button_name = None
+            is_pressed = False
+
+            if w_param == WM_LBUTTONDOWN:
+                button_name = "left"
+                is_pressed = True
+            elif w_param == WM_LBUTTONUP:
+                button_name = "left"
+            elif w_param == WM_RBUTTONDOWN:
+                button_name = "right"
+                is_pressed = True
+            elif w_param == WM_RBUTTONUP:
+                button_name = "right"
+            elif w_param == WM_MBUTTONDOWN:
+                button_name = "middle"
+                is_pressed = True
+            elif w_param == WM_MBUTTONUP:
+                button_name = "middle"
+            elif w_param in (WM_XBUTTONDOWN, WM_XBUTTONUP):
+                xbutton = (data.mouseData >> 16) & 0xFFFF
+                if xbutton == XBUTTON1:
+                    button_name = "x1"
+                elif xbutton == XBUTTON2:
+                    button_name = "x2"
+                is_pressed = w_param == WM_XBUTTONDOWN
+
+            if button_name:
+                self.on_mouse_event(button_name, is_pressed)
+
+        return user32.CallNextHookEx(self._mouse_hook, code, w_param, l_param)
 
 
 # --- Startup Management ---

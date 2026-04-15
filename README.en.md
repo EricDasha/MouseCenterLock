@@ -29,7 +29,7 @@ A Windows utility that locks the mouse cursor to the screen center while you wat
 - `mouse_center_lock.py` – CLI/basic version (optional)
 - `pythonProject/i18n/` – language files
 - `pythonProject/assets/` – icons and assets
-- `config.json` – default config
+- `Mconfig.json` – default config (legacy `config.json` is still read for compatibility)
 
 ## Requirements
 
@@ -55,13 +55,15 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --name MouseCenterLock \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
-  --add-data "config.json;." \
+  --add-data "Mconfig.json;." \
   --add-data "pythonProject/assets;assets" \
   --hidden-import win_api \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
 The exe will be in `dist/MouseCenterLock.exe`.
+
+To restore default settings, delete `Mconfig.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
 
 ## Changelog
 

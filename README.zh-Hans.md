@@ -29,7 +29,7 @@
 - `mouse_center_lock.py` – CLI/基础版本（可选）
 - `pythonProject/i18n/` – 语言文件
 - `pythonProject/assets/` – 图标和资源
-- `config.json` – 默认配置
+- `Mconfig.json` – 默认配置（兼容读取旧版 `config.json`）
 
 ## 系统要求
 
@@ -55,13 +55,15 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --name MouseCenterLock \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
-  --add-data "config.json;." \
+  --add-data "Mconfig.json;." \
   --add-data "pythonProject/assets;assets" \
   --hidden-import win_api \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
 exe 文件将位于 `dist/MouseCenterLock.exe`。
+
+如需恢复默认设置，请删除 `Mconfig.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
 
 ## 更新日志
 
