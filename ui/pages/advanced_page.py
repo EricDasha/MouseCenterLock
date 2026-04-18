@@ -365,6 +365,16 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     theme_layout.addStretch()
     layout.addLayout(theme_layout)
 
+    window.restartRequiredHint = QtWidgets.QLabel(
+        window.i18n.t(
+            "settings.restartRequired",
+            "Language and some interface text require restarting the app to fully refresh.",
+        )
+    )
+    window.restartRequiredHint.setWordWrap(True)
+    window.restartRequiredHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(window.restartRequiredHint)
+
     close_action_layout = QtWidgets.QHBoxLayout()
     close_action_layout.addWidget(QtWidgets.QLabel(window.i18n.t("close.action.title", "Close Behavior")))
     window.resetCloseActionBtn = QtWidgets.QPushButton(window.i18n.t("close.action.reset", "Reset 'Don't ask again'"))

@@ -195,6 +195,7 @@ class ServiceTests(unittest.TestCase):
 
         self.assertEqual(service._get_target_position(), (321, 654))
         self.assertTrue(service._check_match("QQ Chat", "qq.exe", ["qq.exe"]))
+        self.assertTrue(service._check_match("Minecraft 1.20", "javaw.exe", ["javaw"]))
         self.assertTrue(service._check_match("Minecraft 1.20", "javaw.exe", ["minecraft"]))
         self.assertFalse(service._check_match("Notepad", "notepad.exe", ["qq.exe"]))
 
@@ -225,6 +226,54 @@ class ServiceTests(unittest.TestCase):
                  mock.patch("services.lock_service.clip_cursor_to_point"):
                 service.lock(manual=True)
                 self.assertTrue(service.is_locked)
+        finally:
+            service.window_focus_timer.stop()
+            service.recenter_timer.stop()
+
+    def test_lock_service_auto_lock_tracks_window_changes_by_hwnd_and_process(self):
+        settings = {
+            "windowSpecific": {
+                "enabled": True,
+                "autoLockOnWindowFocus": True,
+                "targetWindows": ["Minecraft"],
+                "resumeAfterWindowSwitch": False,
+            },
+            "position": {"mode": "custom", "customX": 111, "customY": 222},
+            "recenter": {"enabled": False, "intervalMs": 250},
+        }
+        service = LockService(
+            get_settings=lambda: settings,
+            on_state_changed=lambda: None,
+            on_notify_locked=lambda: None,
+            on_notify_unlocked=lambda: None,
+            on_error=lambda op, exc: None,
+        )
+        try:
+            with mock.patch.object(
+                service,
+                "lock",
+                side_effect=lambda manual=False: setattr(service, "_locked", True),
+            ) as lock_mock, mock.patch.object(
+                service,
+                "unlock",
+                side_effect=lambda manual=False: setattr(service, "_locked", False),
+            ) as unlock_mock, mock.patch(
+                "services.lock_service.get_active_window_info",
+                side_effect=[
+                    (101, "Notepad"),
+                    (202, "Minecraft"),
+                    (303, "Notepad"),
+                ],
+            ), mock.patch(
+                "services.lock_service.get_window_process_name",
+                side_effect=["notepad.exe", "javaw.exe", "notepad.exe"],
+            ):
+                service._check_window_focus()
+                service._check_window_focus()
+                service._check_window_focus()
+
+            lock_mock.assert_called_once_with(manual=False)
+            unlock_mock.assert_called_once_with(manual=False)
         finally:
             service.window_focus_timer.stop()
             service.recenter_timer.stop()

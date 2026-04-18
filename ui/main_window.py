@@ -5,7 +5,7 @@ import os
 from typing import Optional, Dict, Any
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from app_logging import get_log_path, log_message
+from app_logging import get_log_path, is_logging_enabled, log_message
 from app_paths import ASSETS_DIR, RUN_DIR
 
 from win_api import (
@@ -232,6 +232,12 @@ class MainWindow(QtWidgets.QMainWindow):
         log_message(f"{title}: {full_message}")
         QtWidgets.QMessageBox.critical(self, title, full_message)
 
+    def _append_log_path_if_enabled(self, details: str) -> str:
+        """Append the current log path only when runtime logging is enabled."""
+        if not is_logging_enabled():
+            return details
+        return f"{details}\n{get_log_path()}"
+
     def _save_settings_or_warn(self, context: str) -> bool:
         """Persist settings and show/log a clear error if writing fails."""
         if self.settings.save():
@@ -240,7 +246,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._show_operation_error(
             self.i18n.t("error", "Error"),
             self.i18n.t("settings.save.failed", "Failed to save settings."),
-            f"{context}\n{details}\n{get_log_path()}",
+            self._append_log_path_if_enabled(f"{context}\n{details}"),
         )
         return False
 
@@ -252,7 +258,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._show_operation_error(
             self.i18n.t("error", "Error"),
             self.i18n.t("startup.update.failed", "Failed to update startup registration."),
-            f"{error or self.i18n.t('error.unknown', 'Unknown error')}\n{get_log_path()}",
+            self._append_log_path_if_enabled(
+                error or self.i18n.t("error.unknown", "Unknown error")
+            ),
         )
         return False
 

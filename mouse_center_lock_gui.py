@@ -7,7 +7,7 @@ import sys
 
 from PySide6 import QtWidgets
 
-from app_logging import get_log_path, log_exception, log_message
+from app_logging import configure_logging, get_log_path, is_logging_enabled, log_exception, log_message
 from app_runtime import HotkeyEmitter, NativeEventFilter, install_activation_server, send_activation_request
 from i18n_manager import I18n
 from settings_manager import SettingsManager
@@ -24,6 +24,18 @@ from win_api import (
 )
 
 
+def _extract_runtime_flags(argv: list[str]) -> tuple[list[str], bool]:
+    """Split runtime feature flags from the Qt argument list."""
+    qt_argv = [argv[0]] if argv else []
+    log_enabled = False
+    for arg in argv[1:]:
+        if arg == "-log":
+            log_enabled = True
+            continue
+        qt_argv.append(arg)
+    return qt_argv, log_enabled
+
+
 def _register_startup_hotkeys(settings: SettingsManager, i18n: I18n) -> None:
     """Register startup hotkeys and warn if conflicts occur."""
     unregister_hotkeys()
@@ -31,7 +43,7 @@ def _register_startup_hotkeys(settings: SettingsManager, i18n: I18n) -> None:
     if success:
         return
 
-    detail = "\n".join([
+    detail_lines = [
         i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:"),
         *errors,
         "",
@@ -39,9 +51,10 @@ def _register_startup_hotkeys(settings: SettingsManager, i18n: I18n) -> None:
             "hotkey.conflict.help",
             "Windows cannot directly tell which app owns a conflicting global hotkey. Try closing other apps or changing the hotkey.",
         ),
-        "",
-        str(get_log_path()),
-    ])
+    ]
+    if is_logging_enabled():
+        detail_lines.extend(["", str(get_log_path())])
+    detail = "\n".join(detail_lines)
     log_message(f"Startup hotkey registration failed:\n{detail}")
     QtWidgets.QMessageBox.warning(None, i18n.t("error", "Error"), detail)
 
@@ -69,9 +82,14 @@ def _wire_hotkeys(app: QtWidgets.QApplication, window: MainWindow) -> None:
 
 def main() -> int:
     """Application entry point."""
-    app = QtWidgets.QApplication(sys.argv)
+    qt_argv, log_enabled = _extract_runtime_flags(sys.argv)
+    configure_logging(log_enabled)
+    app = QtWidgets.QApplication(qt_argv)
     settings = SettingsManager()
     i18n = I18n(settings.data.get("language", "zh-Hans"))
+
+    if log_enabled:
+        log_message("Runtime logging enabled via -log")
 
     if not acquire_single_instance():
         activated = send_activation_request()
@@ -92,10 +110,11 @@ def main() -> int:
         app._activation_server = install_activation_server(window)
     except Exception as exc:
         log_exception("Failed to start single-instance activation server", exc)
+        log_path_suffix = f"\n{get_log_path()}" if is_logging_enabled() else ""
         QtWidgets.QMessageBox.warning(
             window,
             i18n.t("error", "Error"),
-            f"{i18n.t('single_instance.server.failed', 'Failed to start the single-instance activation server.')}\n\n{exc}\n{get_log_path()}",
+            f"{i18n.t('single_instance.server.failed', 'Failed to start the single-instance activation server.')}\n\n{exc}{log_path_suffix}",
         )
 
     _wire_hotkeys(app, window)

@@ -9,6 +9,19 @@ import sys
 import traceback
 from pathlib import Path
 
+_logging_enabled = False
+
+
+def configure_logging(enabled: bool) -> None:
+    """Enable or disable runtime file logging."""
+    global _logging_enabled
+    _logging_enabled = bool(enabled)
+
+
+def is_logging_enabled() -> bool:
+    """Return whether runtime file logging is currently enabled."""
+    return _logging_enabled
+
 
 def get_log_path() -> Path:
     """Return the runtime log path in the app's run directory."""
@@ -21,6 +34,8 @@ def get_log_path() -> Path:
 
 def log_message(message: str) -> None:
     """Append a timestamped message to the runtime log."""
+    if not is_logging_enabled():
+        return
     timestamp = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_path = get_log_path()
     try:

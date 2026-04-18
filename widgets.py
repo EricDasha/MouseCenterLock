@@ -426,10 +426,12 @@ class ProcessPickerDialog(QtWidgets.QDialog):
                 item.setHidden(False)
     
     def get_selected_process(self) -> Optional[str]:
-        """Get the selected window title."""
+        """Get the selected match text, preferring the process name for stability."""
         item = self.processList.currentItem()
         if item:
-            return item.data(QtCore.Qt.UserRole)
+            process = item.data(QtCore.Qt.UserRole)
+            title = item.data(QtCore.Qt.UserRole + 1)
+            return process or title
         return None
     
     def get_selected_hwnd(self) -> Optional[int]:
@@ -591,6 +593,11 @@ class WindowResizeDialog(QtWidgets.QDialog):
 
         # --- Resolution ---
         layout.addWidget(QtWidgets.QLabel(self._t("windowTools.resolution", "Resolution")))
+        self.currentResolutionLabel = QtWidgets.QLabel(
+            self._t("windowTools.currentResolution.empty", "Current window resolution: No window selected")
+        )
+        self.currentResolutionLabel.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+        layout.addWidget(self.currentResolutionLabel)
 
         # Presets combo
         preset_layout = QtWidgets.QHBoxLayout()
@@ -610,6 +617,7 @@ class WindowResizeDialog(QtWidgets.QDialog):
         self.widthSpin.setRange(100, 7680)
         self.widthSpin.setValue(1600)
         self.widthSpin.setSuffix(" px")
+        self.widthSpin.valueChanged.connect(self._on_custom_size_changed)
         size_layout.addWidget(self.widthSpin)
 
         size_layout.addWidget(QtWidgets.QLabel("×"))
@@ -619,6 +627,7 @@ class WindowResizeDialog(QtWidgets.QDialog):
         self.heightSpin.setRange(100, 4320)
         self.heightSpin.setValue(900)
         self.heightSpin.setSuffix(" px")
+        self.heightSpin.valueChanged.connect(self._on_custom_size_changed)
         size_layout.addWidget(self.heightSpin)
         layout.addLayout(size_layout)
 
@@ -776,6 +785,7 @@ class WindowResizeDialog(QtWidgets.QDialog):
                 client_size = get_window_client_size(self._selected_hwnd)
                 if client_size is not None:
                     width, height = client_size
+                    self._set_current_resolution_text(width, height)
                     self.widthSpin.setValue(width)
                     self.heightSpin.setValue(height)
                     self.presetCombo.blockSignals(True)
@@ -785,32 +795,72 @@ class WindowResizeDialog(QtWidgets.QDialog):
                             self.presetCombo.setCurrentIndex(index)
                             break
                     self.presetCombo.blockSignals(False)
+                else:
+                    self._set_current_resolution_unavailable()
         else:
             self._selected_hwnd = None
+            self.currentResolutionLabel.setText(
+                self._t("windowTools.currentResolution.empty", "Current window resolution: No window selected")
+            )
         self.applyBtn.setEnabled(self._selected_hwnd is not None)
 
     def _on_preset_changed(self, index):
         data = self.presetCombo.itemData(index)
         if data is not None:
             w, h = data
+            self.widthSpin.blockSignals(True)
+            self.heightSpin.blockSignals(True)
             self.widthSpin.setValue(w)
             self.heightSpin.setValue(h)
+            self.widthSpin.blockSignals(False)
+            self.heightSpin.blockSignals(False)
+
+    def _on_custom_size_changed(self, _value):
+        data = self.presetCombo.currentData()
+        if data is None:
+            return
+        current_size = (self.widthSpin.value(), self.heightSpin.value())
+        if current_size != data:
+            self.presetCombo.blockSignals(True)
+            self.presetCombo.setCurrentIndex(0)
+            self.presetCombo.blockSignals(False)
+
+    def _set_current_resolution_text(self, width: int, height: int):
+        self.currentResolutionLabel.setText(
+            self._t("windowTools.currentResolution", "Current window resolution: {0} × {1}").format(width, height)
+        )
+
+    def _set_current_resolution_unavailable(self):
+        self.currentResolutionLabel.setText(
+            self._t("windowTools.currentResolution.unavailable", "Current window resolution: Unavailable")
+        )
 
     def _on_apply(self):
         if not self._selected_hwnd:
             return
 
-        from win_api import resize_window, center_window_on_screen
+        from win_api import get_centered_window_position, get_window_client_size, resize_window
 
         width = self.widthSpin.value()
         height = self.heightSpin.value()
         center = self.centerCheck.isChecked()
+        move_to = None
+        if center:
+            move_to = get_centered_window_position(
+                self._selected_hwnd,
+                width,
+                height,
+                client_size=True,
+            )
 
-        success = resize_window(self._selected_hwnd, width, height)
-        if success and center:
-            center_window_on_screen(self._selected_hwnd)
+        success = resize_window(self._selected_hwnd, width, height, move_to=move_to)
 
         if success:
+            client_size = get_window_client_size(self._selected_hwnd)
+            if client_size is not None:
+                self._set_current_resolution_text(*client_size)
+            else:
+                self._set_current_resolution_unavailable()
             QtWidgets.QMessageBox.information(
                 self,
                 self._t("windowTools.title", "Window Resize & Center"),

@@ -3,6 +3,7 @@ Lock runtime service for MouseCenterLock.
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PySide6 import QtCore
@@ -42,7 +43,7 @@ class LockService(QtCore.QObject):
         self._locked = False
         self._auto_lock_suspended = False
         self._force_lock = False
-        self._last_active_window = ""
+        self._last_active_window_key: Tuple[Optional[int], str, str] = (None, "", "")
 
         self.recenter_timer = QtCore.QTimer(self)
         self.recenter_timer.timeout.connect(self._on_recenter_tick)
@@ -144,11 +145,18 @@ class LockService(QtCore.QObject):
         """Check if current window matches any target by title or process name."""
         title_lower = (title or "").lower()
         process_lower = (process or "").lower()
+        process_stem = os.path.splitext(process_lower)[0]
         for target in targets:
             target_lower = str(target or "").lower()
             if not target_lower:
                 continue
             if target_lower == process_lower:
+                return True
+            if target_lower == process_stem:
+                return True
+            if target_lower in process_lower:
+                return True
+            if process_stem and target_lower in process_stem:
                 return True
             if target_lower in title_lower:
                 return True
@@ -224,8 +232,9 @@ class LockService(QtCore.QObject):
         targets = ws.get("targetWindows", [])
         is_target = self._check_match(title, proc_name, targets)
 
-        if title != self._last_active_window:
-            self._last_active_window = title
+        active_window_key = (hwnd, title or "", proc_name or "")
+        if active_window_key != self._last_active_window_key:
+            self._last_active_window_key = active_window_key
 
             if ws.get("resumeAfterWindowSwitch", False) and not is_target and self._auto_lock_suspended:
                 self._auto_lock_suspended = False

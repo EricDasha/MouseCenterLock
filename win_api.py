@@ -46,6 +46,7 @@ SWP_NOZORDER = 0x0004
 SWP_NOACTIVATE = 0x0010
 SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
+SW_RESTORE = 9
 
 # MonitorFromWindow flags
 MONITOR_DEFAULTTONEAREST = 2
@@ -758,6 +759,53 @@ def _get_adjusted_window_size(hwnd: int, client_width: int, client_height: int) 
     return None
 
 
+def _restore_window_for_resize(hwnd: int) -> None:
+    """Restore minimized/maximized windows before applying a manual resize."""
+    try:
+        if user32.IsIconic(hwnd) or user32.IsZoomed(hwnd):
+            user32.ShowWindow(hwnd, SW_RESTORE)
+    except Exception:
+        pass
+
+
+def get_centered_window_position(
+    hwnd: int,
+    width: int,
+    height: int,
+    *,
+    client_size: bool = False,
+) -> Optional[Tuple[int, int]]:
+    """
+    Calculate the top-left position needed to center a window on its current monitor.
+    Width and height can be either full window size or client-area size.
+    """
+    if not hwnd:
+        return None
+
+    target_width = int(width)
+    target_height = int(height)
+    if client_size:
+        adjusted = _get_adjusted_window_size(hwnd, width, height)
+        if adjusted is not None:
+            target_width, target_height = adjusted
+
+    hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+    if not hmon:
+        return None
+
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+        return None
+
+    work = mi.rcWork
+    work_w = work.right - work.left
+    work_h = work.bottom - work.top
+    new_x = work.left + (work_w - target_width) // 2
+    new_y = work.top + (work_h - target_height) // 2
+    return new_x, new_y
+
+
 def resize_window(hwnd: int, width: int, height: int, move_to: Optional[Tuple[int, int]] = None) -> bool:
     """
     Resize a window to the specified width and height.
@@ -766,6 +814,7 @@ def resize_window(hwnd: int, width: int, height: int, move_to: Optional[Tuple[in
     """
     if not hwnd:
         return False
+    _restore_window_for_resize(hwnd)
     adjusted = _get_adjusted_window_size(hwnd, width, height)
     if adjusted is not None:
         width, height = adjusted
@@ -794,33 +843,21 @@ def center_window_on_screen(hwnd: int) -> bool:
     """
     if not hwnd:
         return False
-    
-    # Get the monitor this window is on
-    hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
-    if not hmon:
-        return False
-    
-    mi = MONITORINFO()
-    mi.cbSize = ctypes.sizeof(MONITORINFO)
-    if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
-        return False
-    
-    # Get current window size
+
     rect = get_window_rect(hwnd)
     if rect is None:
         return False
-    
-    win_w = rect[2] - rect[0]
-    win_h = rect[3] - rect[1]
-    
-    # Calculate centered position within the work area
-    work = mi.rcWork
-    work_w = work.right - work.left
-    work_h = work.bottom - work.top
-    
-    new_x = work.left + (work_w - win_w) // 2
-    new_y = work.top + (work_h - win_h) // 2
-    
+
+    move_to = get_centered_window_position(
+        hwnd,
+        rect[2] - rect[0],
+        rect[3] - rect[1],
+        client_size=False,
+    )
+    if move_to is None:
+        return False
+    new_x, new_y = move_to
+
     return bool(user32.SetWindowPos(
         hwnd, 0, new_x, new_y, 0, 0,
         SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE

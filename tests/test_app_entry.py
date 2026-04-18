@@ -15,6 +15,14 @@ class AppEntryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+    def test_extract_runtime_flags_keeps_qt_args_and_enables_log(self):
+        argv, log_enabled = mouse_center_lock_gui._extract_runtime_flags(
+            ["mouse_center_lock_gui.py", "-log", "--style", "fusion"]
+        )
+
+        self.assertEqual(argv, ["mouse_center_lock_gui.py", "--style", "fusion"])
+        self.assertTrue(log_enabled)
+
     def test_register_startup_hotkeys_warns_on_conflict(self):
         i18n = types.SimpleNamespace(t=lambda _key, fallback="": fallback or _key)
         settings = types.SimpleNamespace(data={"hotkeys": {}})
