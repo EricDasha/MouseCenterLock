@@ -770,6 +770,21 @@ class WindowResizeDialog(QtWidgets.QDialog):
         if row >= 0:
             item = self.windowList.item(row)
             self._selected_hwnd = item.data(QtCore.Qt.UserRole) if item else None
+            if self._selected_hwnd:
+                from win_api import get_window_client_size
+
+                client_size = get_window_client_size(self._selected_hwnd)
+                if client_size is not None:
+                    width, height = client_size
+                    self.widthSpin.setValue(width)
+                    self.heightSpin.setValue(height)
+                    self.presetCombo.blockSignals(True)
+                    self.presetCombo.setCurrentIndex(0)
+                    for index in range(1, self.presetCombo.count()):
+                        if self.presetCombo.itemData(index) == (width, height):
+                            self.presetCombo.setCurrentIndex(index)
+                            break
+                    self.presetCombo.blockSignals(False)
         else:
             self._selected_hwnd = None
         self.applyBtn.setEnabled(self._selected_hwnd is not None)

@@ -73,6 +73,8 @@
   "clicker.profile.select": "方案",
   "clicker.profile.name": "方案名称",
   "clicker.profile.placeholder": "输入方案名称",
+  "clicker.profile.defaultName": "默认方案",
+  "clicker.profile.newBaseName": "新方案",
   "clicker.profile.new": "新建",
   "clicker.profile.save": "保存方案",
   "clicker.profile.delete": "删除",

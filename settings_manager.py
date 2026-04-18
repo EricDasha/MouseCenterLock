@@ -47,6 +47,22 @@ CLICKER_TRIGGER_MODES = {
 
 MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
 
+DEFAULT_PROFILE_NAMES = {
+    "en": "Default Profile",
+    "zh-Hans": "默认方案",
+    "zh-Hant": "預設方案",
+    "ja": "既定プロファイル",
+    "ko": "기본 프로필",
+}
+
+NEW_PROFILE_BASE_NAMES = {
+    "en": "New Profile",
+    "zh-Hans": "新方案",
+    "zh-Hant": "新方案",
+    "ja": "新しいプロファイル",
+    "ko": "새 프로필",
+}
+
 
 def load_json(path: str, default: Any) -> Any:
     """Load JSON from file, returning default on error."""
@@ -142,11 +158,24 @@ class SettingsManager:
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
 
+    def _language_code(self) -> str:
+        """Return the current settings language or a safe fallback."""
+        lang_code = str(self.data.get("language", "zh-Hans") or "zh-Hans")
+        return lang_code if lang_code in DEFAULT_PROFILE_NAMES else "en"
+
+    def _default_profile_name(self) -> str:
+        """Return the localized default clicker profile name."""
+        return DEFAULT_PROFILE_NAMES[self._language_code()]
+
+    def _new_profile_base_name(self) -> str:
+        """Return the localized base name used for new clicker profiles."""
+        return NEW_PROFILE_BASE_NAMES[self._language_code()]
+
     def _default_clicker_profile(self) -> Dict[str, Any]:
         """Return the default clicker profile template."""
         return {
             "id": "default",
-            "name": "默认方案",
+            "name": self._default_profile_name(),
             "enabled": False,
             "button": "left",
             "intervalMs": 100,
@@ -212,7 +241,7 @@ class SettingsManager:
             if isinstance(legacy_clicker, dict):
                 legacy_profile = {
                     "id": "default",
-                    "name": "默认方案",
+                    "name": self._default_profile_name(),
                     "enabled": legacy_clicker.get("enabled", False),
                     "button": legacy_clicker.get("button", "left"),
                     "intervalMs": legacy_clicker.get("intervalMs", 100),
@@ -296,7 +325,7 @@ class SettingsManager:
         if len(profiles) <= 1:
             remaining = self._normalize_clicker_profile(profiles[0] if profiles else self._default_clicker_profile())
             remaining["id"] = "default"
-            remaining["name"] = "默认方案"
+            remaining["name"] = self._default_profile_name()
             self.data["clickerProfiles"] = [remaining]
             return self.set_active_clicker_profile(remaining["id"])
 
@@ -309,7 +338,7 @@ class SettingsManager:
     def _generate_profile_name(self) -> str:
         """Generate a readable default profile name."""
         existing_names = {str(profile.get("name", "")) for profile in self.data.get("clickerProfiles", [])}
-        base = "新方案"
+        base = self._new_profile_base_name()
         index = 1
         while True:
             candidate = f"{base} {index}"

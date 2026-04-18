@@ -49,6 +49,8 @@ SWP_NOSIZE = 0x0001
 
 # MonitorFromWindow flags
 MONITOR_DEFAULTTONEAREST = 2
+GWL_STYLE = -16
+GWL_EXSTYLE = -20
 
 # Mouse event flags
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -128,6 +130,17 @@ class MONITORINFO(ctypes.Structure):
         ("rcMonitor", RECT),
         ("rcWork", RECT),
         ("dwFlags", wintypes.DWORD),
+    ]
+
+
+class WINDOWPLACEMENT(ctypes.Structure):
+    _fields_ = [
+        ("length", wintypes.UINT),
+        ("flags", wintypes.UINT),
+        ("showCmd", wintypes.UINT),
+        ("ptMinPosition", wintypes.POINT),
+        ("ptMaxPosition", wintypes.POINT),
+        ("rcNormalPosition", RECT),
     ]
 
 
@@ -718,6 +731,33 @@ def get_window_rect(hwnd: int) -> Optional[Tuple[int, int, int, int]]:
     return None
 
 
+def get_window_client_size(hwnd: int) -> Optional[Tuple[int, int]]:
+    """Get the client-area size of a window."""
+    rect = RECT()
+    if not user32.GetClientRect(hwnd, ctypes.byref(rect)):
+        return None
+    return rect.right - rect.left, rect.bottom - rect.top
+
+
+def _get_adjusted_window_size(hwnd: int, client_width: int, client_height: int) -> Optional[Tuple[int, int]]:
+    """Convert a desired client size into a full window size for the target HWND."""
+    style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+    ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    has_menu = bool(user32.GetMenu(hwnd))
+    rect = RECT(0, 0, int(client_width), int(client_height))
+    adjust_for_dpi = getattr(user32, "AdjustWindowRectExForDpi", None)
+    if adjust_for_dpi is not None:
+        try:
+            dpi = user32.GetDpiForWindow(hwnd)
+            if adjust_for_dpi(ctypes.byref(rect), style, has_menu, ex_style, dpi):
+                return rect.right - rect.left, rect.bottom - rect.top
+        except Exception:
+            pass
+    if user32.AdjustWindowRectEx(ctypes.byref(rect), style, has_menu, ex_style):
+        return rect.right - rect.left, rect.bottom - rect.top
+    return None
+
+
 def resize_window(hwnd: int, width: int, height: int, move_to: Optional[Tuple[int, int]] = None) -> bool:
     """
     Resize a window to the specified width and height.
@@ -726,7 +766,10 @@ def resize_window(hwnd: int, width: int, height: int, move_to: Optional[Tuple[in
     """
     if not hwnd:
         return False
-    
+    adjusted = _get_adjusted_window_size(hwnd, width, height)
+    if adjusted is not None:
+        width, height = adjusted
+
     if move_to is not None:
         x, y = move_to
         return bool(user32.SetWindowPos(

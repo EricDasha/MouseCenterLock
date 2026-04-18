@@ -73,6 +73,8 @@
   "clicker.profile.select": "Profile",
   "clicker.profile.name": "Profile Name",
   "clicker.profile.placeholder": "Input a profile name",
+  "clicker.profile.defaultName": "Default Profile",
+  "clicker.profile.newBaseName": "New Profile",
   "clicker.profile.new": "New",
   "clicker.profile.save": "Save Profile",
   "clicker.profile.delete": "Delete",

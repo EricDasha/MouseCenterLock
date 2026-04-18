@@ -9,6 +9,11 @@ import subprocess
 from typing import Callable, Dict, Optional
 
 from PySide6 import QtCore, QtGui, QtWidgets
+from ui.presenters.tray_presenter import (
+    build_tray_clicker_action,
+    build_tray_hotkey_text,
+    build_tray_state_text,
+)
 
 
 class NotificationManager:
@@ -134,27 +139,30 @@ class TrayService(QtCore.QObject):
     def refresh(self) -> None:
         """Refresh tray icon and metadata."""
         self.refresh_icon()
-        state = self._i18n.t("status.locked", "Locked") if self._get_locked() else self._i18n.t("status.unlocked", "Unlocked")
-        clicker_state = self._i18n.t("simple.on", "On") if self._get_clicker_running() else self._i18n.t("simple.off", "Off")
         clicker = self._get_clicker_profile()
-        self.state_action.setText(
-            f"● {state} | {self._i18n.t('simple.clicker', 'Auto Clicker')}: {clicker_state} | {clicker.get('name', '')}"
-        )
-
         hotkeys = self._get_hotkeys()
-        trigger_hotkey = clicker.get("triggers", {}).get("toggleHotkey", {})
-        from win_api import format_hotkey_display
-
+        self.state_action.setText(
+            build_tray_state_text(
+                self._i18n,
+                locked=self._get_locked(),
+                clicker_running=self._get_clicker_running(),
+                clicker_profile=clicker,
+            )
+        )
         self.hk_info_action.setText(
-            f"{self._i18n.t('hotkey.toggle', 'Toggle')}: {format_hotkey_display(hotkeys['toggle'])} | "
-            f"{self._i18n.t('clicker.hotkey', 'Auto Clicker Toggle')}: {format_hotkey_display(trigger_hotkey)}"
+            build_tray_hotkey_text(
+                self._i18n,
+                hotkeys=hotkeys,
+                clicker_profile=clicker,
+            )
         )
-        self.clicker_action.setText(
-            self._i18n.t("menu.clicker.stop", "Stop Auto Clicker")
-            if self._get_clicker_running()
-            else self._i18n.t("menu.clicker.start", "Start Auto Clicker")
+        clicker_action_text, clicker_action_enabled = build_tray_clicker_action(
+            self._i18n,
+            clicker_running=self._get_clicker_running(),
+            clicker_profile=clicker,
         )
-        self.clicker_action.setEnabled(clicker.get("enabled", False))
+        self.clicker_action.setText(clicker_action_text)
+        self.clicker_action.setEnabled(clicker_action_enabled)
 
     def show_notification(
         self,

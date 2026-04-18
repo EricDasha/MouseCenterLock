@@ -4,7 +4,7 @@ Clicker runtime service for MouseCenterLock.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Set
 
 from PySide6 import QtCore
 
@@ -13,7 +13,7 @@ try:
 except Exception:
     QtMultimedia = None
 
-from win_api import click_mouse, key_to_vk, user32
+from win_api import GlobalInputListener, click_mouse, key_to_vk, user32
 
 
 class ClickerSoundPlayer(QtCore.QObject):
@@ -80,6 +80,8 @@ class ClickerSoundPlayer(QtCore.QObject):
 class ClickerService(QtCore.QObject):
     """Own the auto-clicker runtime, timers, and hold-trigger polling."""
 
+    inputEvent = QtCore.Signal(str, str, bool)
+
     def __init__(
         self,
         *,
@@ -88,6 +90,7 @@ class ClickerService(QtCore.QObject):
         on_notify_started: Callable[[Dict[str, Any]], None],
         on_notify_stopped: Callable[[Dict[str, Any]], None],
         sound_presets: Dict[str, Any],
+        input_listener_factory: Callable[..., GlobalInputListener] = GlobalInputListener,
         parent=None,
     ):
         super().__init__(parent)
@@ -97,14 +100,24 @@ class ClickerService(QtCore.QObject):
         self._on_notify_stopped = on_notify_stopped
         self._running = False
         self._hold_trigger_pressed = False
+        self._pressed_keys: Set[str] = set()
+        self._pressed_mouse_buttons: Set[str] = set()
         self._sound_player = ClickerSoundPlayer(sound_presets, self)
 
         self.clicker_timer = QtCore.QTimer(self)
         self.clicker_timer.timeout.connect(self._on_clicker_tick)
 
+        self._input_listener = input_listener_factory(
+            on_key_event=self._emit_key_event,
+            on_mouse_event=self._emit_mouse_event,
+        )
+        self.inputEvent.connect(self._on_global_input_event)
+
         self.hold_state_timer = QtCore.QTimer(self)
         self.hold_state_timer.timeout.connect(self._poll_hold_trigger_state)
-        self.hold_state_timer.start(12)
+        self._hook_mode_active = self._input_listener.start()
+        if not self._hook_mode_active:
+            self.hold_state_timer.start(12)
 
     @property
     def is_running(self) -> bool:
@@ -118,9 +131,11 @@ class ClickerService(QtCore.QObject):
     def sync_runtime(self) -> None:
         """Apply the current settings to runtime timers."""
         profile = self._get_profile()
+        self._sync_hold_detection_mode(profile)
         if not profile.get("enabled", False):
             self.stop(show_message=False)
             return
+        self._evaluate_hold_trigger_state(profile, fallback_allowed=not self._hook_mode_active)
         self._apply_clicker_timer()
         self._on_state_changed()
 
@@ -212,6 +227,80 @@ class ClickerService(QtCore.QObject):
     def _poll_hold_trigger_state(self) -> None:
         """Poll keyboard/mouse hold state so hold triggers work without low-level hooks."""
         profile = self._get_profile()
+        self._evaluate_hold_trigger_state(profile, fallback_allowed=True)
+
+    def _emit_key_event(self, key_name: str, is_pressed: bool) -> None:
+        """Bridge low-level key events into the Qt thread."""
+        self.inputEvent.emit("key", key_name, is_pressed)
+
+    def _emit_mouse_event(self, button_name: str, is_pressed: bool) -> None:
+        """Bridge low-level mouse events into the Qt thread."""
+        self.inputEvent.emit("mouse", button_name, is_pressed)
+
+    def _on_global_input_event(self, event_type: str, name: str, is_pressed: bool) -> None:
+        """Update pressed-state tracking from low-level input events."""
+        normalized = str(name or "").strip()
+        if not normalized:
+            return
+
+        if event_type == "key":
+            target_set = self._pressed_keys
+            normalized = normalized.lower()
+        else:
+            target_set = self._pressed_mouse_buttons
+            normalized = normalized.lower()
+
+        if is_pressed:
+            target_set.add(normalized)
+        else:
+            target_set.discard(normalized)
+
+        if self._hook_mode_active:
+            self._evaluate_hold_trigger_state(self._get_profile(), fallback_allowed=False)
+
+    def _sync_hold_detection_mode(self, profile: Dict[str, Any]) -> None:
+        """Enable the polling fallback only when hook mode is unavailable."""
+        triggers = profile.get("triggers", {})
+        mode = triggers.get("mode")
+        hold_mode = mode in ("holdKey", "holdMouseButton") and profile.get("enabled", False)
+
+        if self._hook_mode_active:
+            if self.hold_state_timer.isActive():
+                self.hold_state_timer.stop()
+            if not hold_mode:
+                self._pressed_keys.clear()
+                self._pressed_mouse_buttons.clear()
+        else:
+            if hold_mode:
+                if not self.hold_state_timer.isActive():
+                    self.hold_state_timer.start(12)
+            elif self.hold_state_timer.isActive():
+                self.hold_state_timer.stop()
+
+    def _modifier_name_map(self) -> Dict[str, str]:
+        """Map config modifier flags to tracked key names."""
+        return {
+            "modCtrl": "ctrl",
+            "modAlt": "alt",
+            "modShift": "shift",
+            "modWin": "win",
+        }
+
+    def _hold_hotkey_matches_events(self, hold_key: Dict[str, Any]) -> bool:
+        """Check hold-key state using tracked low-level input events."""
+        main_key = str(hold_key.get("key", "") or "").strip().lower()
+        if not main_key or main_key not in self._pressed_keys:
+            return False
+
+        for flag_name, key_name in self._modifier_name_map().items():
+            expected = bool(hold_key.get(flag_name, False))
+            pressed = key_name in self._pressed_keys
+            if expected != pressed:
+                return False
+        return True
+
+    def _evaluate_hold_trigger_state(self, profile: Dict[str, Any], *, fallback_allowed: bool) -> None:
+        """Start or stop the clicker based on the active hold-trigger state."""
         triggers = profile.get("triggers", {})
         if not profile.get("enabled", False):
             if self._hold_trigger_pressed:
@@ -221,12 +310,23 @@ class ClickerService(QtCore.QObject):
 
         mode = triggers.get("mode")
         if mode == "holdKey":
-            is_pressed = self._hold_hotkey_matches(triggers.get("holdKey", {}))
+            if self._hook_mode_active:
+                is_pressed = self._hold_hotkey_matches_events(triggers.get("holdKey", {}))
+            elif fallback_allowed:
+                is_pressed = self._hold_hotkey_matches(triggers.get("holdKey", {}))
+            else:
+                return
         elif mode == "holdMouseButton":
-            is_pressed = self._mouse_button_pressed(triggers.get("holdMouseButton", "middle"))
+            if self._hook_mode_active:
+                is_pressed = str(triggers.get("holdMouseButton", "middle") or "middle").lower() in self._pressed_mouse_buttons
+            elif fallback_allowed:
+                is_pressed = self._mouse_button_pressed(triggers.get("holdMouseButton", "middle"))
+            else:
+                return
         else:
             if self._hold_trigger_pressed:
                 self._hold_trigger_pressed = False
+                self.stop(show_message=False)
             return
 
         if is_pressed and not self._hold_trigger_pressed:

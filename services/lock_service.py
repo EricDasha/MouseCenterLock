@@ -68,13 +68,20 @@ class LockService(QtCore.QObject):
 
     def sync_runtime(self) -> None:
         """Re-apply timers after settings changes."""
+        settings = self._get_settings()
+        window_specific = settings.get("windowSpecific", {})
+        if window_specific.get("enabled") and window_specific.get("autoLockOnWindowFocus"):
+            if not self.window_focus_timer.isActive():
+                self.window_focus_timer.start(500)
+        else:
+            self.window_focus_timer.stop()
         self._apply_recenter_timer()
 
     def lock(self, manual: bool = False) -> None:
         """Lock the cursor to the configured target position."""
         if self._locked:
             return
-        if not self._should_lock_for_window():
+        if not manual and not self._should_lock_for_window():
             return
 
         if manual:
@@ -195,7 +202,7 @@ class LockService(QtCore.QObject):
         """Recenter and re-clip the cursor while locked."""
         if not self._locked:
             return
-        if not self._should_lock_for_window():
+        if not self._force_lock and not self._should_lock_for_window():
             self.unlock(manual=False)
             return
         cx, cy = self._get_target_position()

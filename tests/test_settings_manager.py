@@ -90,6 +90,17 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertNotIn("clicker", settings.data)
         self.assertNotIn("clickerActiveProfile", settings.data)
 
+    def test_profile_default_names_follow_language(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {"language": "en"}
+        settings._set_defaults()
+
+        self.assertEqual(settings.get_active_clicker_profile()["name"], "Default Profile")
+        created = settings.create_clicker_profile("")
+        self.assertTrue(created["name"].startswith("New Profile "))
+
 
 if __name__ == "__main__":
     unittest.main()
