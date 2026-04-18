@@ -34,3 +34,6 @@ config.json
 
 # Logs
 *.log
+
+# Local test artifacts
+tests_tmp/

@@ -26,7 +26,9 @@ A Windows utility that locks the mouse cursor to the screen center while you wat
 - `mouse_center_lock_gui.py` – GUI app (PySide6)
 - `win_api.py` – Windows API wrapper module
 - `widgets.py` – Custom UI widgets (hotkey capture, process picker)
-- `mouse_center_lock.py` – CLI/basic version (optional)
+- `services/` – runtime services (clicker and lock state machines)
+- `ui/pages/` – Simple/Advanced page builders
+- `tests/` – minimal unit test suite
 - `pythonProject/i18n/` – language files
 - `pythonProject/assets/` – icons and assets
 - `Mconfig.json` – default config (legacy `config.json` is still read for compatibility)
@@ -45,6 +47,11 @@ python -m pip install -r requirements.txt
 Run:
 ```bash
 python mouse_center_lock_gui.py
+```
+
+Test:
+```bash
+python -m unittest discover tests
 ```
 
 ## Build (PyInstaller)

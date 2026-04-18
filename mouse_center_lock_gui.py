@@ -3,36 +3,45 @@ MouseCenterLock GUI Application
 A Windows tool to lock the mouse cursor to the screen center.
 """
 import sys
-import json
 import os
 import ctypes
-import copy
-import html
-import subprocess
-import uuid
-from pathlib import Path
-from ctypes import wintypes
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
-from PySide6 import QtCore, QtGui, QtWidgets
-try:
-    from PySide6 import QtMultimedia
-except Exception:
-    QtMultimedia = None
+from PySide6 import QtCore, QtGui, QtWidgets, QtNetwork
+from app_logging import get_log_path, log_exception, log_message
 
 # Import our modules
 from win_api import (
     WM_HOTKEY, MSG,
     HOTKEY_ID_LOCK, HOTKEY_ID_UNLOCK, HOTKEY_ID_TOGGLE, HOTKEY_ID_CLICKER_TOGGLE,
-    acquire_single_instance, release_single_instance, bring_existing_instance_to_front,
-    get_virtual_screen_center, get_primary_screen_center,
-    set_cursor_to, clip_cursor_to_point, unclip_cursor,
-    get_active_window_info, format_hotkey_display,
-    register_hotkeys, unregister_hotkeys, get_window_center,
-    is_startup_enabled, set_startup_enabled, user32,
-    get_window_process_name, click_mouse, key_to_vk, enumerate_visible_windows
+    acquire_single_instance, release_single_instance,
+    format_hotkey_display, register_hotkeys, unregister_hotkeys,
+    is_startup_enabled, set_startup_enabled, enumerate_visible_windows
 )
-from widgets import HotkeyCapture, ProcessPickerDialog, CloseActionDialog, WindowResizeDialog
+from services.clicker_service import ClickerService
+from services.clicker_profile_controller import ClickerProfileController
+from services.lock_service import LockService
+from services.settings_apply_controller import SettingsApplyController
+from services.theme_service import ThemeService
+from services.tray_service import TrayService
+from i18n_manager import I18n
+from settings_manager import (
+    SettingsManager,
+    CLICKER_PRESETS,
+    CLICKER_SOUND_PRESETS,
+    CLICKER_TRIGGER_MODES,
+)
+from ui.pages.simple_page import build_simple_page
+from ui.pages.advanced_page import build_advanced_page
+from ui.forms.clicker_profile_form import (
+    collect_clicker_profile_form_data,
+    load_clicker_profile_into_form,
+)
+from ui.forms.settings_form import (
+    apply_general_settings_form_data,
+    collect_general_settings_form_data,
+)
+from widgets import ProcessPickerDialog, CloseActionDialog, WindowResizeDialog
 
 
 # --- Configuration & i18n Paths ---
@@ -44,464 +53,10 @@ else:
     _RUN_DIR = _BASE_DIR
 
 APP_DIR = _BASE_DIR
-I18N_DIR = os.path.join(APP_DIR, "pythonProject", "i18n")
-if not os.path.exists(I18N_DIR):
-    I18N_DIR = os.path.join(APP_DIR, "i18n")
 ASSETS_DIR = os.path.join(APP_DIR, "pythonProject", "assets")
 if not os.path.exists(ASSETS_DIR):
     ASSETS_DIR = os.path.join(APP_DIR, "assets")
-
-CONFIG_DEFAULT_PATH = os.path.join(APP_DIR, "Mconfig.json")
-CONFIG_PATH = os.path.join(_RUN_DIR, "Mconfig.json")
-LEGACY_CONFIG_PATH = os.path.join(_RUN_DIR, "config.json")
-
-CLICKER_PRESETS = {
-    "custom": None,
-    "efficient": 100,
-    "extreme": 10,
-}
-
-CLICKER_SOUND_PRESETS = {
-    "systemAsterisk": 0x00000040,
-    "systemExclamation": 0x00000030,
-    "systemQuestion": 0x00000020,
-    "systemHand": 0x00000010,
-    "custom": None,
-}
-
-CLICKER_TRIGGER_MODES = {
-    "toggle": "clicker.trigger.toggle",
-    "holdKey": "clicker.trigger.holdKey",
-    "holdMouseButton": "clicker.trigger.holdMouseButton",
-}
-
-MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
-
-
-def load_json(path: str, default: Any) -> Any:
-    """Load JSON from file, returning default on error."""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
-
-
-def deep_copy(data: Any) -> Any:
-    """Return a detached copy of nested config data."""
-    return copy.deepcopy(data)
-
-
-def normalize_hotkey(config: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize hotkey dictionaries to the expected shape."""
-    data = config if isinstance(config, dict) else {}
-    normalized = deep_copy(fallback)
-    for field in ["modCtrl", "modAlt", "modShift", "modWin", "key"]:
-        if field == "key":
-            normalized[field] = str(data.get(field, normalized[field]) or "")
-        else:
-            normalized[field] = bool(data.get(field, normalized[field]))
-    return normalized
-
-
-class SettingsManager:
-    """Manages application settings including loading, validation, and saving."""
-    
-    DEFAULT_HOTKEYS = {
-        "lock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "F9"},
-        "unlock": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "F10"},
-        "toggle": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "K"}
-    }
-    DEFAULT_CLICKER_HOTKEY = {
-        "modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F6"
-    }
-    DEFAULT_HOLD_KEY = {
-        "modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F7"
-    }
-    DEFAULT_CLICKER_SOUND = {
-        "enabled": False,
-        "preset": "systemAsterisk",
-        "customFile": ""
-    }
-    
-    def __init__(self):
-        self.loaded_from_path = ""
-        data = None
-        for candidate in [CONFIG_PATH, LEGACY_CONFIG_PATH, CONFIG_DEFAULT_PATH]:
-            loaded = load_json(candidate, None)
-            if isinstance(loaded, dict):
-                self.loaded_from_path = candidate
-                data = loaded
-                break
-        if data is None:
-            data = {}
-
-        self.data: Dict[str, Any] = data if isinstance(data, dict) else {}
-        self._set_defaults()
-    
-    def _set_defaults(self):
-        """Ensure all required settings have default values."""
-        self.data.setdefault("language", "zh-Hans")
-        self.data.setdefault("theme", "dark")
-        self.data.setdefault("hotkeys", self.DEFAULT_HOTKEYS.copy())
-        self._ensure_clicker_profiles()
-
-        # Ensure each hotkey has all required fields
-        for key in ["lock", "unlock", "toggle"]:
-            if key not in self.data["hotkeys"]:
-                self.data["hotkeys"][key] = self.DEFAULT_HOTKEYS[key].copy()
-            else:
-                for field in ["modCtrl", "modAlt", "modShift", "modWin", "key"]:
-                    self.data["hotkeys"][key].setdefault(
-                        field, 
-                        self.DEFAULT_HOTKEYS[key].get(field, False if field != "key" else "")
-                    )
-        
-        self.data.setdefault("recenter", {"enabled": True, "intervalMs": 250})
-        self.data.setdefault("position", {"mode": "virtualCenter", "customX": 0, "customY": 0})
-        ws = self.data.setdefault("windowSpecific", {})
-        # Migration: targetWindow (str) -> targetWindows (list)
-        if "targetWindow" in ws and "targetWindows" not in ws:
-            val = ws.pop("targetWindow")
-            ws["targetWindows"] = [val] if val else []
-            
-        ws.setdefault("enabled", False)
-        ws.setdefault("targetWindows", [])
-        ws.setdefault("targetWindowHandle", 0)
-        ws.setdefault("autoLockOnWindowFocus", False)
-        ws.setdefault("resumeAfterWindowSwitch", False)
-        self.data.setdefault("startup", {"launchOnBoot": False})
-        self.data.setdefault("closeAction", "ask")  # ask, minimize, quit
-
-    def _default_clicker_profile(self) -> Dict[str, Any]:
-        """Return the default clicker profile template."""
-        return {
-            "id": "default",
-            "name": "默认方案",
-            "enabled": False,
-            "button": "left",
-            "intervalMs": 100,
-            "preset": "efficient",
-            "sound": deep_copy(self.DEFAULT_CLICKER_SOUND),
-            "triggers": {
-                "mode": "toggle",
-                "toggleHotkey": deep_copy(self.DEFAULT_CLICKER_HOTKEY),
-                "holdKey": deep_copy(self.DEFAULT_HOLD_KEY),
-                "holdMouseButton": "middle",
-            },
-        }
-
-    def _normalize_clicker_profile(self, profile: Dict[str, Any], index: int = 0) -> Dict[str, Any]:
-        """Normalize a clicker profile from config."""
-        base = self._default_clicker_profile()
-        source = profile if isinstance(profile, dict) else {}
-
-        normalized = deep_copy(base)
-        normalized["id"] = str(source.get("id") or f"profile-{index + 1}")
-        normalized["name"] = str(source.get("name") or base["name"])
-        normalized["enabled"] = bool(source.get("enabled", False))
-        normalized["button"] = (
-            source.get("button", "left")
-            if source.get("button") in ("left", "right", "middle")
-            else "left"
-        )
-        normalized["intervalMs"] = max(1, int(source.get("intervalMs", 100)))
-        preset = source.get("preset")
-        normalized["preset"] = preset if preset in CLICKER_PRESETS else self._resolve_preset(normalized["intervalMs"])
-
-        sound = source.get("sound", {})
-        normalized["sound"]["enabled"] = bool(sound.get("enabled", normalized["sound"]["enabled"]))
-        sound_preset = sound.get("preset", normalized["sound"]["preset"])
-        normalized["sound"]["preset"] = sound_preset if sound_preset in CLICKER_SOUND_PRESETS else "systemAsterisk"
-        normalized["sound"]["customFile"] = str(sound.get("customFile", "") or "")
-
-        triggers = source.get("triggers", {})
-        legacy_toggle = source.get("hotkeyToggle", {})
-        normalized["triggers"]["mode"] = triggers.get("mode", "toggle")
-        if normalized["triggers"]["mode"] not in CLICKER_TRIGGER_MODES:
-            normalized["triggers"]["mode"] = "toggle"
-        normalized["triggers"]["toggleHotkey"] = normalize_hotkey(
-            triggers.get("toggleHotkey", legacy_toggle), self.DEFAULT_CLICKER_HOTKEY
-        )
-        normalized["triggers"]["holdKey"] = normalize_hotkey(
-            triggers.get("holdKey", {}), self.DEFAULT_HOLD_KEY
-        )
-        hold_mouse_button = str(triggers.get("holdMouseButton", "middle") or "middle").lower()
-        normalized["triggers"]["holdMouseButton"] = hold_mouse_button if hold_mouse_button in MOUSE_TRIGGER_BUTTONS else "middle"
-        return normalized
-
-    def _resolve_preset(self, interval_ms: int) -> str:
-        """Resolve a click interval to its preset label."""
-        normalized = max(1, int(interval_ms))
-        for preset_key, preset_interval in CLICKER_PRESETS.items():
-            if preset_interval == normalized:
-                return preset_key
-        return "custom"
-
-    def _ensure_clicker_profiles(self):
-        """Migrate legacy clicker config and normalize clicker profile storage."""
-        profiles = self.data.get("clickerProfiles")
-        if not isinstance(profiles, list) or not profiles:
-            legacy_clicker = self.data.get("clicker", {})
-            profile = self._default_clicker_profile()
-            if isinstance(legacy_clicker, dict):
-                legacy_profile = {
-                    "id": "default",
-                    "name": "默认方案",
-                    "enabled": legacy_clicker.get("enabled", False),
-                    "button": legacy_clicker.get("button", "left"),
-                    "intervalMs": legacy_clicker.get("intervalMs", 100),
-                    "preset": legacy_clicker.get("preset", self._resolve_preset(legacy_clicker.get("intervalMs", 100))),
-                    "triggers": {
-                        "mode": "toggle",
-                        "toggleHotkey": legacy_clicker.get("hotkeyToggle", self.DEFAULT_CLICKER_HOTKEY),
-                        "holdKey": self.DEFAULT_HOLD_KEY,
-                        "holdMouseButton": "middle",
-                    },
-                }
-                profile = self._normalize_clicker_profile(legacy_profile)
-            profiles = [profile]
-            self.data["clickerProfiles"] = profiles
-
-        normalized_profiles: List[Dict[str, Any]] = []
-        seen_ids = set()
-        for index, profile in enumerate(profiles):
-            normalized = self._normalize_clicker_profile(profile, index)
-            if normalized["id"] in seen_ids:
-                normalized["id"] = f"{normalized['id']}-{index + 1}"
-            seen_ids.add(normalized["id"])
-            normalized_profiles.append(normalized)
-
-        if not normalized_profiles:
-            normalized_profiles = [self._default_clicker_profile()]
-
-        self.data["clickerProfiles"] = normalized_profiles
-        active_id = str(self.data.get("activeClickerProfileId") or normalized_profiles[0]["id"])
-        if not any(profile["id"] == active_id for profile in normalized_profiles):
-            active_id = normalized_profiles[0]["id"]
-        self.data["activeClickerProfileId"] = active_id
-        self.data["clickerActiveProfile"] = self.get_active_clicker_profile()
-        self.data.setdefault("clicker", self.get_active_clicker_profile())
-
-    def get_clicker_profiles(self) -> List[Dict[str, Any]]:
-        """Return deep-copied clicker profiles."""
-        return [deep_copy(profile) for profile in self.data.get("clickerProfiles", [])]
-
-    def get_active_clicker_profile(self) -> Dict[str, Any]:
-        """Return the active clicker profile."""
-        active_id = self.data.get("activeClickerProfileId")
-        for profile in self.data.get("clickerProfiles", []):
-            if profile.get("id") == active_id:
-                return deep_copy(profile)
-        first = self.data.get("clickerProfiles", [self._default_clicker_profile()])[0]
-        return deep_copy(first)
-
-    def set_active_clicker_profile(self, profile_id: str) -> Dict[str, Any]:
-        """Set the active clicker profile by id."""
-        for profile in self.data.get("clickerProfiles", []):
-            if profile.get("id") == profile_id:
-                self.data["activeClickerProfileId"] = profile_id
-                self.data["clickerActiveProfile"] = deep_copy(profile)
-                self.data["clicker"] = deep_copy(profile)
-                return deep_copy(profile)
-        return self.get_active_clicker_profile()
-
-    def upsert_clicker_profile(self, profile: Dict[str, Any]) -> Dict[str, Any]:
-        """Create or update a clicker profile and make it active."""
-        normalized = self._normalize_clicker_profile(profile, len(self.data.get("clickerProfiles", [])))
-        profiles = self.data.setdefault("clickerProfiles", [])
-        for index, existing in enumerate(profiles):
-            if existing.get("id") == normalized["id"]:
-                profiles[index] = normalized
-                break
-        else:
-            if any(existing.get("id") == normalized["id"] for existing in profiles):
-                normalized["id"] = uuid.uuid4().hex[:8]
-            profiles.append(normalized)
-        return self.set_active_clicker_profile(normalized["id"])
-
-    def create_clicker_profile(self, name: str, base_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Create a new clicker profile from the provided base."""
-        profile = self._normalize_clicker_profile(base_profile or self.get_active_clicker_profile())
-        profile["id"] = uuid.uuid4().hex[:8]
-        profile["name"] = name.strip() or self._generate_profile_name()
-        return self.upsert_clicker_profile(profile)
-
-    def delete_clicker_profile(self, profile_id: str) -> Dict[str, Any]:
-        """Delete a clicker profile while preserving at least one profile."""
-        profiles = self.data.get("clickerProfiles", [])
-        if len(profiles) <= 1:
-            remaining = self._normalize_clicker_profile(profiles[0] if profiles else self._default_clicker_profile())
-            remaining["id"] = "default"
-            remaining["name"] = "默认方案"
-            self.data["clickerProfiles"] = [remaining]
-            return self.set_active_clicker_profile(remaining["id"])
-
-        self.data["clickerProfiles"] = [profile for profile in profiles if profile.get("id") != profile_id]
-        if not self.data["clickerProfiles"]:
-            self.data["clickerProfiles"] = [self._default_clicker_profile()]
-        default_target = self.data["clickerProfiles"][0]["id"]
-        return self.set_active_clicker_profile(default_target)
-
-    def _generate_profile_name(self) -> str:
-        """Generate a readable default profile name."""
-        existing_names = {str(profile.get("name", "")) for profile in self.data.get("clickerProfiles", [])}
-        base = "新方案"
-        index = 1
-        while True:
-            candidate = f"{base} {index}"
-            if candidate not in existing_names:
-                return candidate
-            index += 1
-    
-    def save(self) -> bool:
-        """Save settings to file. Returns True if successful."""
-        try:
-            self.data["clickerActiveProfile"] = self.get_active_clicker_profile()
-            self.data["clicker"] = self.get_active_clicker_profile()
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception:
-            return False
-
-
-class I18n:
-    """Internationalization helper for loading and accessing translations."""
-    
-    SUPPORTED_LANGUAGES = ["en", "zh-Hans", "zh-Hant", "ja", "ko"]
-    
-    def __init__(self, lang_code: str):
-        self.lang_code = lang_code if lang_code in self.SUPPORTED_LANGUAGES else "en"
-        self.strings: Dict[str, str] = load_json(
-            os.path.join(I18N_DIR, f"{self.lang_code}.json"), {}
-        )
-        # Load English as fallback
-        if self.lang_code != "en":
-            self._fallback = load_json(os.path.join(I18N_DIR, "en.json"), {})
-        else:
-            self._fallback = {}
-    
-    def t(self, key: str, fallback: str = "") -> str:
-        """Get translation for key, with fallback chain."""
-        if key in self.strings:
-            return self.strings[key]
-        if key in self._fallback:
-            return self._fallback[key]
-        return fallback if fallback else key
-
-
-class NotificationManager:
-    """Windows notification helper with native-toast fallback behavior."""
-
-    def __init__(self, tray: QtWidgets.QSystemTrayIcon, app_id: str = "MouseCenterLock"):
-        self.tray = tray
-        self.app_id = app_id
-        self._toast_processes = []
-
-    def show(
-        self,
-        title: str,
-        message: str,
-        icon: QtWidgets.QSystemTrayIcon.MessageIcon = QtWidgets.QSystemTrayIcon.Information,
-        timeout_ms: int = 2000,
-    ) -> None:
-        """Try native Windows toast first, then fall back to tray balloons."""
-        if not self._show_windows_toast(title, message):
-            self.tray.showMessage(title, message, icon, timeout_ms)
-
-    def _show_windows_toast(self, title: str, message: str) -> bool:
-        """Best-effort native Windows toast via asynchronous PowerShell WinRT APIs."""
-        if os.name != "nt":
-            return False
-
-        escaped_title = html.escape(title, quote=False).replace("'", "''")
-        escaped_message = html.escape(message, quote=False).replace("'", "''")
-        escaped_app_id = self.app_id.replace("'", "''")
-        script = (
-            "$ErrorActionPreference='Stop';"
-            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] > $null;"
-            "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType=WindowsRuntime] > $null;"
-            f"$xml=@\"<toast><visual><binding template='ToastGeneric'><text>{escaped_title}</text>"
-            f"<text>{escaped_message}</text></binding></visual></toast>\"@;"
-            "$doc=New-Object Windows.Data.Xml.Dom.XmlDocument;"
-            "$doc.LoadXml($xml);"
-            "$toast=[Windows.UI.Notifications.ToastNotification]::new($doc);"
-            f"$notifier=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{escaped_app_id}');"
-            "$notifier.Show($toast);"
-        )
-        try:
-            process = subprocess.Popen(
-                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            self._toast_processes.append(process)
-            self._toast_processes = [p for p in self._toast_processes if p.poll() is None]
-            return True
-        except Exception:
-            return False
-
-
-class ClickerSoundPlayer(QtCore.QObject):
-    """Play clicker start sounds from system presets or local files."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._media_player = None
-        self._audio_output = None
-        if QtMultimedia is not None:
-            try:
-                self._audio_output = QtMultimedia.QAudioOutput(self)
-                self._media_player = QtMultimedia.QMediaPlayer(self)
-                self._media_player.setAudioOutput(self._audio_output)
-                self._audio_output.setVolume(0.8)
-            except Exception:
-                self._audio_output = None
-                self._media_player = None
-
-    def play_for_profile(self, profile: Dict[str, Any]) -> None:
-        """Play the configured start sound for a clicker profile."""
-        self.play_sound_config(profile.get("sound", {}))
-
-    def play_sound_config(self, sound: Dict[str, Any]) -> None:
-        """Play a sound from raw sound settings."""
-        if not sound.get("enabled", False):
-            return
-
-        preset = sound.get("preset", "systemAsterisk")
-        if preset == "custom":
-            self._play_custom_file(sound.get("customFile", ""))
-            return
-
-        try:
-            import winsound
-            winsound.MessageBeep(CLICKER_SOUND_PRESETS.get(preset, CLICKER_SOUND_PRESETS["systemAsterisk"]))
-        except Exception:
-            pass
-
-    def _play_custom_file(self, file_path: str) -> None:
-        """Play a local audio file when supported."""
-        if not file_path:
-            return
-        path = Path(file_path)
-        if not path.exists():
-            return
-        if self._media_player is None:
-            try:
-                import winsound
-                if path.suffix.lower() == ".wav":
-                    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
-            except Exception:
-                pass
-            return
-        try:
-            self._media_player.stop()
-            self._media_player.setSource(QtCore.QUrl.fromLocalFile(str(path)))
-            self._media_player.play()
-        except Exception:
-            pass
+INSTANCE_SERVER_NAME = "MouseCenterLockActivation"
 
 
 # --- Native Event Filter for Hotkeys ---
@@ -533,21 +88,63 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings = settings
         self.i18n = i18n
         
-        self._locked = False
-        self._clicker_running = False
-        self._hold_trigger_pressed = False
-        self._auto_lock_suspended = False
-        self._force_lock = False
-        self._last_active_window = ""
         self._custom_icon: Optional[QtGui.QIcon] = None
-        self._notification_manager: Optional[NotificationManager] = None
-        self._sound_player = ClickerSoundPlayer(self)
+        self._tray_service: Optional[TrayService] = None
         self._selected_profile_id = self.settings.data.get("activeClickerProfileId", "default")
         self._profile_dirty = False
         self._suspend_live_apply = 0
         self._live_apply_timer = QtCore.QTimer(self)
         self._live_apply_timer.setSingleShot(True)
         self._live_apply_timer.timeout.connect(self._apply_live_settings)
+        self._clicker_service = ClickerService(
+            get_profile=self._get_active_clicker_profile,
+            on_state_changed=self._on_clicker_runtime_changed,
+            on_notify_started=self._notify_clicker_started,
+            on_notify_stopped=self._notify_clicker_stopped,
+            sound_presets=CLICKER_SOUND_PRESETS,
+            parent=self,
+        )
+        self._lock_service = LockService(
+            get_settings=lambda: self.settings.data,
+            on_state_changed=self._on_lock_state_changed,
+            on_notify_locked=self._notify_locked,
+            on_notify_unlocked=self._notify_unlocked,
+            on_error=self._handle_lock_service_error,
+            parent=self,
+        )
+        self._theme_service = ThemeService()
+        self._clicker_profile_controller = ClickerProfileController(
+            settings=self.settings,
+            save_settings=self._save_settings_or_warn,
+            notify=self._notify,
+            stop_clicker=self.stop_clicker,
+            sync_clicker_runtime=self._clicker_service.sync_runtime,
+            refresh_form=self._load_profile_into_form,
+            refresh_profile_list=self._populate_clicker_profiles,
+            refresh_ui=self._refresh_clicker_ui,
+            tooltip_saved=self._show_saved_tooltip,
+            i18n=self.i18n,
+        )
+        self._settings_apply_controller = SettingsApplyController(
+            settings=self.settings,
+            collect_general_form_data=self._current_general_settings_form_data,
+            collect_clicker_profile_data=self._current_profile_form_data,
+            apply_general_form_data=apply_general_settings_form_data,
+            set_startup=self._set_startup_or_warn,
+            get_startup_enabled=is_startup_enabled,
+            save_settings=self._save_settings_or_warn,
+            sync_lock_runtime=self._lock_service.sync_runtime,
+            get_active_clicker_profile=self._get_active_clicker_profile,
+            stop_clicker=self.stop_clicker,
+            sync_clicker_runtime=self._clicker_service.sync_runtime,
+            unregister_hotkeys=unregister_hotkeys,
+            register_hotkeys=register_hotkeys,
+            on_hotkey_conflict=self._register_hotkeys_or_warn,
+            apply_theme=self._apply_theme,
+            refresh_ui=self._refresh_all_runtime_ui,
+            refresh_profiles=self._populate_clicker_profiles,
+            show_saved_feedback=self._show_saved_tooltip,
+        )
         
         self._setup_window()
         self._setup_timers()
@@ -557,23 +154,66 @@ class MainWindow(QtWidgets.QMainWindow):
     
     @property
     def locked(self) -> bool:
-        return self._locked
+        return self._lock_service.is_locked
     
     @locked.setter
     def locked(self, value: bool):
-        self._locked = value
-        self._on_lock_state_changed()
+        if value:
+            self._lock_service.lock(manual=False)
+        else:
+            self._lock_service.unlock(manual=False)
 
     @property
     def clicker_running(self) -> bool:
-        return self._clicker_running
+        return self._clicker_service.is_running
 
     def _get_active_clicker_profile(self) -> Dict[str, Any]:
         """Return the active clicker profile from settings."""
-        profile = self.settings.get_active_clicker_profile()
-        self.settings.data["clickerActiveProfile"] = deep_copy(profile)
-        self.settings.data["clicker"] = deep_copy(profile)
-        return profile
+        return self.settings.get_active_clicker_profile()
+
+    def _on_clicker_runtime_changed(self) -> None:
+        """Refresh UI elements affected by clicker runtime state."""
+        self._update_simple_info()
+        self._update_clicker_button()
+        self._update_tray_meta()
+
+    def _notify_clicker_started(self, profile: Dict[str, Any]) -> None:
+        """Show the clicker-started notification."""
+        mode_text = self.i18n.t(
+            CLICKER_TRIGGER_MODES.get(profile.get("triggers", {}).get("mode", "toggle"), ""),
+            profile.get("triggers", {}).get("mode", "toggle"),
+        )
+        self._notify(
+            self.i18n.t("clicker.started.detail", "Auto clicker started: {0} ({1})").format(
+                profile.get("name", ""),
+                mode_text,
+            )
+        )
+
+    def _notify_clicker_stopped(self, profile: Dict[str, Any]) -> None:
+        """Show the clicker-stopped notification."""
+        self._notify(
+            self.i18n.t("clicker.stopped.detail", "Auto clicker stopped: {0}").format(
+                profile.get("name", "")
+            )
+        )
+
+    def _notify_locked(self) -> None:
+        """Show the locked notification."""
+        self._notify(self.i18n.t("locked.message", "Locked to screen center"))
+
+    def _notify_unlocked(self) -> None:
+        """Show the unlocked notification."""
+        self._notify(self.i18n.t("unlocked.message", "Unlocked"))
+
+    def _handle_lock_service_error(self, operation: str, exc: BaseException) -> None:
+        """Surface lock-service errors through the GUI."""
+        title = self.i18n.t("error", "Error")
+        if operation == "lock":
+            message = self.i18n.t("lock.failed", "Failed to lock: {}").format(str(exc))
+        else:
+            message = self.i18n.t("unlock.failed", "Failed to unlock: {}").format(str(exc))
+        QtWidgets.QMessageBox.critical(self, title, message)
 
     def _build_hotkey_conflict_details(self, errors: list[str]) -> str:
         """Build a diagnostic message for hotkey registration conflicts."""
@@ -604,21 +244,71 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _notify(self, message: str, timeout_ms: int = 2000) -> None:
         """Show a Windows notification using the configured fallback chain."""
-        if self._notification_manager is not None:
-            self._notification_manager.show(
+        if self._tray_service is not None:
+            self._tray_service.show_notification(
                 self.i18n.t("app.title", "Mouse Center Lock"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
             )
-        elif hasattr(self, "tray"):
-            self.tray.showMessage(
+        elif hasattr(self, "_tray_service") and self._tray_service is not None:
+            self._tray_service.tray.showMessage(
                 self.i18n.t("app.title", "Mouse Center Lock"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
             )
-    
+
+    def _show_operation_error(self, title: str, message: str, details: Optional[str] = None) -> None:
+        """Show a visible error dialog and append the details to the runtime log."""
+        full_message = message if not details else f"{message}\n\n{details}"
+        log_message(f"{title}: {full_message}")
+        QtWidgets.QMessageBox.critical(self, title, full_message)
+
+    def _save_settings_or_warn(self, context: str) -> bool:
+        """Persist settings and show/log a clear error if writing fails."""
+        if self.settings.save():
+            return True
+        details = self.settings.last_error or self.i18n.t("error.unknown", "Unknown error")
+        self._show_operation_error(
+            self.i18n.t("error", "Error"),
+            self.i18n.t("settings.save.failed", "Failed to save settings."),
+            f"{context}\n{details}\n{get_log_path()}",
+        )
+        return False
+
+    def _set_startup_or_warn(self, enabled: bool) -> bool:
+        """Apply startup registration and surface failures immediately."""
+        success, error = set_startup_enabled(enabled)
+        if success:
+            return True
+        self._show_operation_error(
+            self.i18n.t("error", "Error"),
+            self.i18n.t("startup.update.failed", "Failed to update startup registration."),
+            f"{error or self.i18n.t('error.unknown', 'Unknown error')}\n{get_log_path()}",
+        )
+        return False
+
+    def _register_hotkeys_or_warn(self, errors: list[str]) -> None:
+        """Show and log hotkey registration failures."""
+        detail = self._build_hotkey_conflict_details(errors)
+        log_message(f"Hotkey registration failed:\n{detail}")
+        QtWidgets.QMessageBox.warning(
+            self,
+            self.i18n.t("hotkey.conflict", "Hotkey Conflict"),
+            detail,
+        )
+
+    def activate_from_external_request(self) -> None:
+        """Bring the existing window to the front when another instance requests activation."""
+        if self.isMinimized():
+            self.showNormal()
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
+        self.setWindowState((self.windowState() & ~QtCore.Qt.WindowMinimized) | QtCore.Qt.WindowActive)
+
     def _setup_window(self):
         """Configure window properties."""
         self.setWindowTitle(self.i18n.t("app.title", "Mouse Center Lock"))
@@ -634,19 +324,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _setup_timers(self):
         """Setup timers for recentering and window focus checking."""
-        self.recenterTimer = QtCore.QTimer(self)
-        self.recenterTimer.timeout.connect(self._on_recenter_tick)
-
-        self.clickerTimer = QtCore.QTimer(self)
-        self.clickerTimer.timeout.connect(self._on_clicker_tick)
-
-        self.holdStateTimer = QtCore.QTimer(self)
-        self.holdStateTimer.timeout.connect(self._poll_hold_trigger_state)
-        self.holdStateTimer.start(12)
-        
-        self.windowFocusTimer = QtCore.QTimer(self)
-        self.windowFocusTimer.timeout.connect(self._check_window_focus)
-        self.windowFocusTimer.start(500)
+        pass
 
     def _schedule_live_apply(self):
         """Debounce settings persistence so advanced-page edits take effect immediately."""
@@ -693,528 +371,21 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _build_simple_page(self) -> QtWidgets.QWidget:
         """Build the simple mode page."""
-        page = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(page)
-        layout.setContentsMargins(8, 16, 8, 16)
-        layout.setSpacing(16)
-        
-        # Status badge
-        self.statusBadge = QtWidgets.QLabel()
-        self.statusBadge.setAlignment(QtCore.Qt.AlignCenter)
-        self.statusBadge.setFixedHeight(56)
-        self._update_status_badge()
-        layout.addWidget(self.statusBadge)
-
-        # Configuration card
-        self.configCard = self._build_info_card(
-            self.i18n.t("simple.config.title", "Current Configuration")
-        )
-        self.configLabel = QtWidgets.QLabel()
-        self.configLabel.setWordWrap(True)
-        self.configLabel.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        self.configLabel.setStyleSheet("color: rgba(235, 235, 245, 0.90); font-size: 13px; line-height: 1.6;")
-        self.configCard.layout().addWidget(self.configLabel)
-        layout.addWidget(self.configCard)
-
-        # Hotkeys card
-        self.hotkeysCard = self._build_info_card(
-            self.i18n.t("simple.hotkeys.title", "Hotkeys")
-        )
-        self.hotkeysLabel = QtWidgets.QLabel()
-        self.hotkeysLabel.setWordWrap(True)
-        self.hotkeysLabel.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-        self.hotkeysLabel.setStyleSheet("color: rgba(235, 235, 245, 0.90); font-size: 13px; font-family: 'Consolas', 'Courier New', monospace; line-height: 1.8;")
-        self.hotkeysCard.layout().addWidget(self.hotkeysLabel)
-        layout.addWidget(self.hotkeysCard)
-        
-        self._update_simple_info()
-        
-        layout.addStretch(1)
-        
-        # Toggle button
-        self.toggleBtn = QtWidgets.QPushButton()
-        self.toggleBtn.setFixedHeight(56)
-        self.toggleBtn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.toggleBtn.clicked.connect(self.toggle_lock)
-        self._update_toggle_button()
-        layout.addWidget(self.toggleBtn)
-
-        # Auto clicker button
-        self.clickerBtn = QtWidgets.QPushButton()
-        self.clickerBtn.setFixedHeight(48)
-        self.clickerBtn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.clickerBtn.clicked.connect(self.toggle_clicker)
-        self._update_clicker_button()
-        layout.addWidget(self.clickerBtn)
-        
-        # Hint
-        hint = QtWidgets.QLabel(self.i18n.t("simple.hint", "Use hotkeys for quick access ⌨️"))
-        hint.setAlignment(QtCore.Qt.AlignCenter)
-        hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
-        layout.addWidget(hint)
-        
-        return page
+        return build_simple_page(self)
     
     def _build_advanced_page(self) -> QtWidgets.QWidget:
         """Build the advanced settings page."""
-        page = QtWidgets.QWidget()
-        
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
-        
-        content = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(content)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(16)
-        
-        # --- Hotkeys Section ---
-        layout.addWidget(self._section_label(self.i18n.t("section.hotkeys", "Hotkeys")))
-        
-        hotkey_grid = QtWidgets.QGridLayout()
-        hotkey_grid.setSpacing(12)
-        
-        # Lock hotkey
-        hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.lock", "Lock")), 0, 0)
-        self.lockHotkeyCapture = HotkeyCapture(i18n=self.i18n)
-        self.lockHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["lock"])
-        self.lockHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
-        hotkey_grid.addWidget(self.lockHotkeyCapture, 0, 1)
-        
-        # Unlock hotkey
-        hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.unlock", "Unlock")), 1, 0)
-        self.unlockHotkeyCapture = HotkeyCapture(i18n=self.i18n)
-        self.unlockHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["unlock"])
-        self.unlockHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
-        hotkey_grid.addWidget(self.unlockHotkeyCapture, 1, 1)
-        
-        # Toggle hotkey
-        hotkey_grid.addWidget(QtWidgets.QLabel(self.i18n.t("hotkey.toggle", "Toggle")), 2, 0)
-        self.toggleHotkeyCapture = HotkeyCapture(i18n=self.i18n)
-        self.toggleHotkeyCapture.set_hotkey(self.settings.data["hotkeys"]["toggle"])
-        self.toggleHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
-        hotkey_grid.addWidget(self.toggleHotkeyCapture, 2, 1)
-
-        hotkey_hint = QtWidgets.QLabel(
-            self.i18n.t("clicker.hotkey.profileHint", "Auto clicker trigger keys are configured per clicker profile below.")
-        )
-        hotkey_hint.setWordWrap(True)
-        hotkey_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
-        hotkey_grid.addWidget(hotkey_hint, 3, 0, 1, 2)
-        
-        layout.addLayout(hotkey_grid)
-        
-        # --- Behavior Section ---
-        layout.addWidget(self._section_label(self.i18n.t("section.behavior", "Behavior")))
-        
-        # Recenter enabled
-        self.recenterCheck = QtWidgets.QCheckBox(self.i18n.t("recenter.enabled", "Enable periodic recentering"))
-        self.recenterCheck.setChecked(self.settings.data["recenter"].get("enabled", True))
-        self.recenterCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.recenterCheck)
-        
-        # Recenter interval
-        interval_layout = QtWidgets.QHBoxLayout()
-        interval_layout.addWidget(QtWidgets.QLabel(self.i18n.t("recenter.interval", "Interval (ms)")))
-        self.recenterSpin = QtWidgets.QSpinBox()
-        self.recenterSpin.setRange(16, 5000)
-        self.recenterSpin.setSingleStep(16)
-        self.recenterSpin.setValue(self.settings.data["recenter"].get("intervalMs", 250))
-        self.recenterSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
-        interval_layout.addWidget(self.recenterSpin)
-        interval_layout.addStretch()
-        layout.addLayout(interval_layout)
-
-        # --- Auto Clicker Section ---
-        layout.addWidget(self._section_label(self.i18n.t("clicker.section", "Auto Clicker")))
-
-        profile_layout = QtWidgets.QHBoxLayout()
-        profile_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.profile.select", "Profile")))
-        self.clickerProfileCombo = QtWidgets.QComboBox()
-        self.clickerProfileCombo.currentIndexChanged.connect(self._on_clicker_profile_selected)
-        profile_layout.addWidget(self.clickerProfileCombo)
-        layout.addLayout(profile_layout)
-
-        profile_name_layout = QtWidgets.QHBoxLayout()
-        profile_name_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.profile.name", "Profile Name")))
-        self.clickerProfileNameEdit = QtWidgets.QLineEdit()
-        self.clickerProfileNameEdit.setPlaceholderText(self.i18n.t("clicker.profile.placeholder", "Input a profile name"))
-        self.clickerProfileNameEdit.textChanged.connect(lambda _text: self._schedule_live_apply())
-        profile_name_layout.addWidget(self.clickerProfileNameEdit)
-        layout.addLayout(profile_name_layout)
-
-        profile_btn_layout = QtWidgets.QHBoxLayout()
-        self.newClickerProfileBtn = QtWidgets.QPushButton(self.i18n.t("clicker.profile.new", "New"))
-        self.newClickerProfileBtn.clicked.connect(self._create_clicker_profile)
-        profile_btn_layout.addWidget(self.newClickerProfileBtn)
-        self.saveClickerProfileBtn = QtWidgets.QPushButton(self.i18n.t("clicker.profile.save", "Save Profile"))
-        self.saveClickerProfileBtn.clicked.connect(self._save_clicker_profile)
-        profile_btn_layout.addWidget(self.saveClickerProfileBtn)
-        self.deleteClickerProfileBtn = QtWidgets.QPushButton(self.i18n.t("clicker.profile.delete", "Delete"))
-        self.deleteClickerProfileBtn.clicked.connect(self._delete_clicker_profile)
-        profile_btn_layout.addWidget(self.deleteClickerProfileBtn)
-        profile_btn_layout.addStretch()
-        layout.addLayout(profile_btn_layout)
-
-        self.clickerEnabledCheck = QtWidgets.QCheckBox(self.i18n.t("clicker.enabled", "Enable auto clicker"))
-        self.clickerEnabledCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.clickerEnabledCheck)
-
-        clicker_button_layout = QtWidgets.QHBoxLayout()
-        clicker_button_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.button", "Click Button")))
-        self.clickerButtonCombo = QtWidgets.QComboBox()
-        self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.left", "Left Click"), "left")
-        self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.right", "Right Click"), "right")
-        self.clickerButtonCombo.addItem(self.i18n.t("clicker.button.middle", "Middle Click"), "middle")
-        self.clickerButtonCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        clicker_button_layout.addWidget(self.clickerButtonCombo)
-        clicker_button_layout.addStretch()
-        layout.addLayout(clicker_button_layout)
-
-        clicker_preset_layout = QtWidgets.QHBoxLayout()
-        clicker_preset_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.preset", "Click Speed")))
-        self.clickerPresetCombo = QtWidgets.QComboBox()
-        self.clickerPresetCombo.addItem(self.i18n.t("clicker.preset.efficient", "Efficient Mode"), "efficient")
-        self.clickerPresetCombo.addItem(self.i18n.t("clicker.preset.extreme", "Extreme Mode"), "extreme")
-        self.clickerPresetCombo.addItem(self.i18n.t("clicker.preset.custom", "Custom"), "custom")
-        self.clickerPresetCombo.currentIndexChanged.connect(self._on_clicker_preset_changed)
-        clicker_preset_layout.addWidget(self.clickerPresetCombo)
-        clicker_preset_layout.addStretch()
-        layout.addLayout(clicker_preset_layout)
-
-        self.clickerPresetHint = QtWidgets.QLabel()
-        self.clickerPresetHint.setWordWrap(True)
-        self.clickerPresetHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
-        layout.addWidget(self.clickerPresetHint)
-
-        clicker_interval_layout = QtWidgets.QHBoxLayout()
-        self.clickerIntervalLabel = QtWidgets.QLabel(self.i18n.t("clicker.interval", "Click Interval (ms)"))
-        clicker_interval_layout.addWidget(self.clickerIntervalLabel)
-        self.clickerIntervalSpin = QtWidgets.QSpinBox()
-        self.clickerIntervalSpin.setRange(1, 5000)
-        self.clickerIntervalSpin.setSingleStep(10)
-        self.clickerIntervalSpin.setSuffix(" ms")
-        self.clickerIntervalSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
-        clicker_interval_layout.addWidget(self.clickerIntervalSpin)
-        clicker_interval_layout.addStretch()
-        layout.addLayout(clicker_interval_layout)
-
-        trigger_mode_layout = QtWidgets.QHBoxLayout()
-        trigger_mode_layout.addWidget(QtWidgets.QLabel(self.i18n.t("clicker.trigger.mode", "Trigger Mode")))
-        self.clickerTriggerModeCombo = QtWidgets.QComboBox()
-        self.clickerTriggerModeCombo.addItem(self.i18n.t("clicker.trigger.toggle", "Toggle"), "toggle")
-        self.clickerTriggerModeCombo.addItem(self.i18n.t("clicker.trigger.holdKey", "Hold Key"), "holdKey")
-        self.clickerTriggerModeCombo.addItem(self.i18n.t("clicker.trigger.holdMouseButton", "Hold Mouse Button"), "holdMouseButton")
-        self.clickerTriggerModeCombo.currentIndexChanged.connect(self._sync_clicker_trigger_controls)
-        self.clickerTriggerModeCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        trigger_mode_layout.addWidget(self.clickerTriggerModeCombo)
-        trigger_mode_layout.addStretch()
-        layout.addLayout(trigger_mode_layout)
-
-        toggle_hotkey_layout = QtWidgets.QHBoxLayout()
-        self.clickerToggleHotkeyLabel = QtWidgets.QLabel(self.i18n.t("clicker.hotkey", "Auto Clicker Toggle"))
-        toggle_hotkey_layout.addWidget(self.clickerToggleHotkeyLabel)
-        self.clickerToggleHotkeyCapture = HotkeyCapture(i18n=self.i18n)
-        self.clickerToggleHotkeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
-        toggle_hotkey_layout.addWidget(self.clickerToggleHotkeyCapture)
-        layout.addLayout(toggle_hotkey_layout)
-
-        hold_key_layout = QtWidgets.QHBoxLayout()
-        self.clickerHoldKeyLabel = QtWidgets.QLabel(self.i18n.t("clicker.trigger.holdKey.input", "Hold Key"))
-        hold_key_layout.addWidget(self.clickerHoldKeyLabel)
-        self.clickerHoldKeyCapture = HotkeyCapture(i18n=self.i18n)
-        self.clickerHoldKeyCapture.hotkeyChanged.connect(lambda _cfg: self._schedule_live_apply())
-        hold_key_layout.addWidget(self.clickerHoldKeyCapture)
-        layout.addLayout(hold_key_layout)
-
-        hold_mouse_layout = QtWidgets.QHBoxLayout()
-        self.clickerHoldMouseLabel = QtWidgets.QLabel(self.i18n.t("clicker.trigger.holdMouseButton.input", "Hold Mouse Button"))
-        hold_mouse_layout.addWidget(self.clickerHoldMouseLabel)
-        self.clickerHoldMouseCombo = QtWidgets.QComboBox()
-        self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.middle", "Middle Button"), "middle")
-        self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"), "x1")
-        self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"), "x2")
-        self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.left", "Left Button"), "left")
-        self.clickerHoldMouseCombo.addItem(self.i18n.t("clicker.mouse.right", "Right Button"), "right")
-        self.clickerHoldMouseCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        hold_mouse_layout.addWidget(self.clickerHoldMouseCombo)
-        hold_mouse_layout.addStretch()
-        layout.addLayout(hold_mouse_layout)
-
-        sound_enabled_layout = QtWidgets.QHBoxLayout()
-        self.clickerSoundEnabledCheck = QtWidgets.QCheckBox(self.i18n.t("clicker.sound.enabled", "Play start sound"))
-        self.clickerSoundEnabledCheck.toggled.connect(self._sync_clicker_sound_controls)
-        self.clickerSoundEnabledCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        sound_enabled_layout.addWidget(self.clickerSoundEnabledCheck)
-        sound_enabled_layout.addStretch()
-        layout.addLayout(sound_enabled_layout)
-
-        sound_preset_layout = QtWidgets.QHBoxLayout()
-        self.clickerSoundPresetLabel = QtWidgets.QLabel(self.i18n.t("clicker.sound.preset", "Start Sound"))
-        sound_preset_layout.addWidget(self.clickerSoundPresetLabel)
-        self.clickerSoundPresetCombo = QtWidgets.QComboBox()
-        self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.systemAsterisk", "System Asterisk"), "systemAsterisk")
-        self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.systemExclamation", "System Exclamation"), "systemExclamation")
-        self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.systemQuestion", "System Question"), "systemQuestion")
-        self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.systemHand", "System Hand"), "systemHand")
-        self.clickerSoundPresetCombo.addItem(self.i18n.t("clicker.sound.preset.custom", "Custom File"), "custom")
-        self.clickerSoundPresetCombo.currentIndexChanged.connect(self._sync_clicker_sound_controls)
-        self.clickerSoundPresetCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        sound_preset_layout.addWidget(self.clickerSoundPresetCombo)
-        self.clickerSoundPreviewBtn = QtWidgets.QPushButton(self.i18n.t("clicker.sound.preview", "Preview"))
-        self.clickerSoundPreviewBtn.clicked.connect(self._preview_clicker_sound)
-        sound_preset_layout.addWidget(self.clickerSoundPreviewBtn)
-        sound_preset_layout.addStretch()
-        layout.addLayout(sound_preset_layout)
-
-        custom_sound_layout = QtWidgets.QHBoxLayout()
-        self.clickerCustomSoundPathEdit = QtWidgets.QLineEdit()
-        self.clickerCustomSoundPathEdit.setPlaceholderText(self.i18n.t("clicker.sound.path.placeholder", "Select a local audio file"))
-        self.clickerCustomSoundPathEdit.textChanged.connect(lambda _text: self._schedule_live_apply())
-        custom_sound_layout.addWidget(self.clickerCustomSoundPathEdit)
-        self.clickerCustomSoundBrowseBtn = QtWidgets.QPushButton(self.i18n.t("browse", "Browse"))
-        self.clickerCustomSoundBrowseBtn.clicked.connect(self._browse_clicker_sound_file)
-        custom_sound_layout.addWidget(self.clickerCustomSoundBrowseBtn)
-        layout.addLayout(custom_sound_layout)
-
-        self.clickerConfigHint = QtWidgets.QLabel(
-            self.i18n.t(
-                "clicker.config.hint",
-                "Restore defaults by deleting Mconfig.json. Legacy config.json is still read for compatibility."
-            )
-        )
-        self.clickerConfigHint.setWordWrap(True)
-        self.clickerConfigHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
-        layout.addWidget(self.clickerConfigHint)
-        self._populate_clicker_profiles()
-        
-        # --- Position Section ---
-        layout.addWidget(self._section_label(self.i18n.t("position.title", "Target Position")))
-        
-        pos_layout = QtWidgets.QHBoxLayout()
-        self.posCombo = QtWidgets.QComboBox()
-        self.posCombo.addItem(self.i18n.t("position.virtualCenter", "Virtual screen center"), "virtualCenter")
-        self.posCombo.addItem(self.i18n.t("position.primaryCenter", "Primary screen center"), "primaryCenter")
-        self.posCombo.addItem(self.i18n.t("position.custom", "Custom"), "custom")
-        self.posCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        
-        current_mode = self.settings.data["position"].get("mode", "virtualCenter")
-        for i in range(self.posCombo.count()):
-            if self.posCombo.itemData(i) == current_mode:
-                self.posCombo.setCurrentIndex(i)
-                break
-        pos_layout.addWidget(self.posCombo)
-        layout.addLayout(pos_layout)
-        
-        # Custom position
-        custom_layout = QtWidgets.QHBoxLayout()
-        custom_layout.addWidget(QtWidgets.QLabel("X:"))
-        self.customXSpin = QtWidgets.QSpinBox()
-        self.customXSpin.setRange(-10000, 10000)
-        self.customXSpin.setValue(self.settings.data["position"].get("customX", 0))
-        self.customXSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
-        custom_layout.addWidget(self.customXSpin)
-        custom_layout.addWidget(QtWidgets.QLabel("Y:"))
-        self.customYSpin = QtWidgets.QSpinBox()
-        self.customYSpin.setRange(-10000, 10000)
-        self.customYSpin.setValue(self.settings.data["position"].get("customY", 0))
-        self.customYSpin.valueChanged.connect(lambda _value: self._schedule_live_apply())
-        custom_layout.addWidget(self.customYSpin)
-        custom_layout.addStretch()
-        layout.addLayout(custom_layout)
-        
-        # --- Window Specific Section ---
-        layout.addWidget(self._section_label(self.i18n.t("window.specific.title", "Window-Specific Locking")))
-        
-        self.windowSpecificCheck = QtWidgets.QCheckBox(
-            self.i18n.t("window.specific.enabled", "Enable window-specific locking")
-        )
-        self.windowSpecificCheck.setChecked(
-            self.settings.data["windowSpecific"].get("enabled", False)
-        )
-        self.windowSpecificCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.windowSpecificCheck)
-        
-        # Target Windows List Management
-        list_layout = QtWidgets.QVBoxLayout()
-        list_layout.setSpacing(8)
-        
-        # List widget
-        list_label = QtWidgets.QLabel(self.i18n.t("window.specific.listLabel", "Target Windows List"))
-        list_layout.addWidget(list_label)
-        
-        self.targetList = QtWidgets.QListWidget()
-        self.targetList.setFixedHeight(120)
-        self.targetList.setStyleSheet("""
-            QListWidget {
-                background: rgba(0, 0, 0, 0.2);
-                border: 1px solid rgba(128, 128, 128, 0.3);
-                border-radius: 6px;
-                padding: 4px;
-            }
-        """)
-        # Populate existing items
-        for win_title in self.settings.data["windowSpecific"].get("targetWindows", []):
-            self.targetList.addItem(win_title)
-        list_layout.addWidget(self.targetList)
-        
-        # Input controls
-        input_layout = QtWidgets.QHBoxLayout()
-        
-        self.manualInputEdit = QtWidgets.QLineEdit()
-        self.manualInputEdit.setPlaceholderText(self.i18n.t("window.specific.placeholder", "Target window title"))
-        input_layout.addWidget(self.manualInputEdit)
-        
-        self.pickProcessBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.pick", "Pick Process"))
-        self.pickProcessBtn.clicked.connect(self._pick_process)
-        input_layout.addWidget(self.pickProcessBtn)
-        
-        list_layout.addLayout(input_layout)
-        
-        # Action buttons
-        btn_layout = QtWidgets.QHBoxLayout()
-        self.addBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.add", "Add"))
-        self.addBtn.clicked.connect(self._add_target_window)
-        btn_layout.addWidget(self.addBtn)
-        
-        self.removeBtn = QtWidgets.QPushButton(self.i18n.t("window.specific.remove", "Remove"))
-        self.removeBtn.clicked.connect(self._remove_target_window)
-        btn_layout.addWidget(self.removeBtn)
-        
-        btn_layout.addStretch()
-        list_layout.addLayout(btn_layout)
-        
-        layout.addLayout(list_layout)
-        
-        self.autoLockCheck = QtWidgets.QCheckBox(
-            self.i18n.t("window.specific.autoLock", "Auto lock/unlock on window switch")
-        )
-        self.autoLockCheck.setChecked(
-            self.settings.data["windowSpecific"].get("autoLockOnWindowFocus", False)
-        )
-        self.autoLockCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.autoLockCheck)
-
-        self.resumeAfterSwitchCheck = QtWidgets.QCheckBox(
-            self.i18n.t("window.specific.resumeAfterSwitch", "Auto re-lock after leaving and re-entering target window (for manual unlock)")
-        )
-        self.resumeAfterSwitchCheck.setChecked(
-            self.settings.data["windowSpecific"].get("resumeAfterWindowSwitch", False)
-        )
-        self.resumeAfterSwitchCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.resumeAfterSwitchCheck)
-        
-        # --- Window Tools Section ---
-        layout.addWidget(self._section_label(self.i18n.t("section.windowTools", "Window Tools")))
-        
-        self.resizeCenterBtn = QtWidgets.QPushButton(
-            self.i18n.t("windowTools.resizeCenter", "Resize & Center Window")
-        )
-        self.resizeCenterBtn.setFixedHeight(40)
-        self.resizeCenterBtn.setCursor(QtCore.Qt.PointingHandCursor)
-        self.resizeCenterBtn.clicked.connect(self._open_window_resize)
-        layout.addWidget(self.resizeCenterBtn)
-        
-        # --- Settings Section ---
-        layout.addWidget(self._section_label(self.i18n.t("section.settings", "Settings")))
-        
-        # Language
-        lang_layout = QtWidgets.QHBoxLayout()
-        lang_layout.addWidget(QtWidgets.QLabel(self.i18n.t("language.title", "Language")))
-        self.langCombo = QtWidgets.QComboBox()
-        self.langCombo.addItem("English", "en")
-        self.langCombo.addItem("简体中文", "zh-Hans")
-        self.langCombo.addItem("繁體中文", "zh-Hant")
-        self.langCombo.addItem("日本語", "ja")
-        self.langCombo.addItem("한국어", "ko")
-        
-        current_lang = self.settings.data.get("language", "zh-Hans")
-        for i in range(self.langCombo.count()):
-            if self.langCombo.itemData(i) == current_lang:
-                self.langCombo.setCurrentIndex(i)
-                break
-        lang_layout.addWidget(self.langCombo)
-        self.langCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        lang_layout.addStretch()
-        layout.addLayout(lang_layout)
-        
-        # Theme
-        theme_layout = QtWidgets.QHBoxLayout()
-        theme_layout.addWidget(QtWidgets.QLabel(self.i18n.t("theme.title", "Theme")))
-        self.themeCombo = QtWidgets.QComboBox()
-        self.themeCombo.addItem(self.i18n.t("theme.dark", "Dark"), "dark")
-        self.themeCombo.addItem(self.i18n.t("theme.light", "Light"), "light")
-        
-        current_theme = self.settings.data.get("theme", "dark")
-        for i in range(self.themeCombo.count()):
-            if self.themeCombo.itemData(i) == current_theme:
-                self.themeCombo.setCurrentIndex(i)
-                break
-        theme_layout.addWidget(self.themeCombo)
-        self.themeCombo.currentIndexChanged.connect(lambda _index: self._schedule_live_apply())
-        theme_layout.addStretch()
-        layout.addLayout(theme_layout)
-        
-        # Close Action Reset
-        close_action_layout = QtWidgets.QHBoxLayout()
-        close_action_layout.addWidget(QtWidgets.QLabel(self.i18n.t("close.action.title", "Close Behavior")))
-        self.resetCloseActionBtn = QtWidgets.QPushButton(self.i18n.t("close.action.reset", "Reset 'Don't ask again'"))
-        self.resetCloseActionBtn.clicked.connect(self._reset_close_action)
-        close_action_layout.addWidget(self.resetCloseActionBtn)
-        close_action_layout.addStretch()
-        layout.addLayout(close_action_layout)
-        
-        # Startup
-        self.startupCheck = QtWidgets.QCheckBox(
-            self.i18n.t("startup.autostart", "Launch on system startup")
-        )
-        self.startupCheck.setChecked(is_startup_enabled())
-        self.startupCheck.toggled.connect(lambda _checked: self._schedule_live_apply())
-        layout.addWidget(self.startupCheck)
-        
-        layout.addStretch()
-        
-        live_apply_hint = QtWidgets.QLabel(
-            self.i18n.t("settings.liveApply", "Settings in this page take effect automatically.")
-        )
-        live_apply_hint.setWordWrap(True)
-        live_apply_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
-        layout.addWidget(live_apply_hint)
-        
-        scroll.setWidget(content)
-        
-        page_layout = QtWidgets.QVBoxLayout(page)
-        page_layout.setContentsMargins(0, 0, 0, 0)
-        page_layout.addWidget(scroll)
-        
-        return page
+        return build_advanced_page(self)
     
     def _section_label(self, text: str) -> QtWidgets.QLabel:
-        """Create a styled section label."""
-        label = QtWidgets.QLabel(text)
-        label.setStyleSheet("font-weight: 600; font-size: 15px; margin-top: 8px;")
-        return label
+        """Backward-compatible wrapper for shared section labels."""
+        from ui.pages.common import create_section_label
+        return create_section_label(text)
     
     def _build_info_card(self, title: str) -> QtWidgets.QFrame:
-        """Create a styled information card with title."""
-        card = QtWidgets.QFrame()
-        card.setFrameShape(QtWidgets.QFrame.NoFrame)
-        card.setStyleSheet("""
-            QFrame {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 12px;
-            }
-        """)
-        card_layout = QtWidgets.QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(10)
-        
-        title_label = QtWidgets.QLabel(title)
-        title_label.setStyleSheet("font-weight: 600; font-size: 14px; color: rgba(10, 132, 255, 1.0);")
-        card_layout.addWidget(title_label)
-        
-        return card
+        """Backward-compatible wrapper for shared info cards."""
+        from ui.pages.common import create_info_card
+        return create_info_card(title)
     
     def _pick_process(self):
         """Open process picker dialog."""
@@ -1253,76 +424,32 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _current_profile_form_data(self) -> Dict[str, Any]:
         """Build a clicker profile from the current form controls."""
-        active = self._get_active_clicker_profile()
-        profile_id = self._selected_profile_id or active.get("id", "default")
-        profile_name = self.clickerProfileNameEdit.text().strip() or active.get("name", "默认方案")
-        preset = self.clickerPresetCombo.currentData() or "custom"
-        interval_ms = self.clickerIntervalSpin.value()
-        return {
-            "id": profile_id,
-            "name": profile_name,
-            "enabled": self.clickerEnabledCheck.isChecked(),
-            "button": self.clickerButtonCombo.currentData(),
-            "preset": preset,
-            "intervalMs": interval_ms,
-            "sound": {
-                "enabled": self.clickerSoundEnabledCheck.isChecked(),
-                "preset": self.clickerSoundPresetCombo.currentData() or "systemAsterisk",
-                "customFile": self.clickerCustomSoundPathEdit.text().strip(),
-            },
-            "triggers": {
-                "mode": self.clickerTriggerModeCombo.currentData() or "toggle",
-                "toggleHotkey": self.clickerToggleHotkeyCapture.get_hotkey(),
-                "holdKey": self.clickerHoldKeyCapture.get_hotkey(),
-                "holdMouseButton": self.clickerHoldMouseCombo.currentData() or "middle",
-            },
-        }
+        return collect_clicker_profile_form_data(self)
+
+    def _current_general_settings_form_data(self) -> Dict[str, Any]:
+        """Build a general settings payload from the current form controls."""
+        return collect_general_settings_form_data(self)
 
     def _load_profile_into_form(self, profile: Dict[str, Any]) -> None:
         """Populate clicker controls from a profile."""
-        self._begin_form_update()
-        try:
-            self._selected_profile_id = profile.get("id", "default")
-            self.clickerProfileNameEdit.setText(profile.get("name", "默认方案"))
-            self.clickerEnabledCheck.setChecked(profile.get("enabled", False))
+        load_clicker_profile_into_form(self, profile)
 
-            for i in range(self.clickerButtonCombo.count()):
-                if self.clickerButtonCombo.itemData(i) == profile.get("button", "left"):
-                    self.clickerButtonCombo.setCurrentIndex(i)
-                    break
+    def _refresh_clicker_ui(self) -> None:
+        """Refresh UI fragments that depend on clicker profile state."""
+        self._update_clicker_button()
+        self._update_simple_info()
+        self._update_tray_meta()
 
-            preset = profile.get("preset", self._get_clicker_preset_for_interval(profile.get("intervalMs", 100)))
-            for i in range(self.clickerPresetCombo.count()):
-                if self.clickerPresetCombo.itemData(i) == preset:
-                    self.clickerPresetCombo.setCurrentIndex(i)
-                    break
-            self.clickerIntervalSpin.setValue(int(profile.get("intervalMs", 100)))
+    def _show_saved_tooltip(self) -> None:
+        """Show the standard saved tooltip near the cursor."""
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), self.i18n.t("saved", "Settings saved"), self)
 
-            triggers = profile.get("triggers", {})
-            for i in range(self.clickerTriggerModeCombo.count()):
-                if self.clickerTriggerModeCombo.itemData(i) == triggers.get("mode", "toggle"):
-                    self.clickerTriggerModeCombo.setCurrentIndex(i)
-                    break
-            self.clickerToggleHotkeyCapture.set_hotkey(triggers.get("toggleHotkey", self.settings.DEFAULT_CLICKER_HOTKEY))
-            self.clickerHoldKeyCapture.set_hotkey(triggers.get("holdKey", self.settings.DEFAULT_HOLD_KEY))
-            for i in range(self.clickerHoldMouseCombo.count()):
-                if self.clickerHoldMouseCombo.itemData(i) == triggers.get("holdMouseButton", "middle"):
-                    self.clickerHoldMouseCombo.setCurrentIndex(i)
-                    break
-
-            sound = profile.get("sound", {})
-            self.clickerSoundEnabledCheck.setChecked(sound.get("enabled", False))
-            for i in range(self.clickerSoundPresetCombo.count()):
-                if self.clickerSoundPresetCombo.itemData(i) == sound.get("preset", "systemAsterisk"):
-                    self.clickerSoundPresetCombo.setCurrentIndex(i)
-                    break
-            self.clickerCustomSoundPathEdit.setText(sound.get("customFile", ""))
-            self._sync_clicker_interval_controls()
-            self._sync_clicker_trigger_controls()
-            self._sync_clicker_sound_controls()
-            self._profile_dirty = False
-        finally:
-            self._end_form_update()
+    def _refresh_all_runtime_ui(self) -> None:
+        """Refresh UI fragments affected by settings apply."""
+        self._update_toggle_button()
+        self._update_clicker_button()
+        self._update_simple_info()
+        self._update_tray_meta()
 
     def _populate_clicker_profiles(self) -> None:
         """Refresh the profile combo box from settings."""
@@ -1350,63 +477,41 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._suspend_live_apply > 0:
             return
         profile_id = self.clickerProfileCombo.currentData()
-        if not profile_id:
-            return
-        if self._clicker_running:
-            self.stop_clicker(show_message=False)
-        active = self.settings.set_active_clicker_profile(profile_id)
-        self.settings.save()
-        self._load_profile_into_form(active)
-        self._update_clicker_button()
-        self._update_simple_info()
-        self._update_tray_meta()
-        self._notify(
-            self.i18n.t("clicker.profile.switched", "Switched clicker profile: {0}").format(active.get("name", ""))
+        active = self._clicker_profile_controller.select_profile(
+            profile_id,
+            clicker_running=self.clicker_running,
         )
+        if active is None:
+            return
 
     def _save_clicker_profile(self) -> None:
         """Save the currently edited clicker profile."""
-        profile = self.settings.upsert_clicker_profile(self._current_profile_form_data())
+        profile = self._clicker_profile_controller.save_profile(self._current_profile_form_data())
+        if profile is None:
+            return
         self._selected_profile_id = profile.get("id", "default")
-        self._populate_clicker_profiles()
-        self.settings.save()
-        self._apply_clicker_timer()
-        self._update_clicker_button()
-        self._update_simple_info()
-        self._update_tray_meta()
         self._profile_dirty = False
-        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), self.i18n.t("saved", "Settings saved"), self)
 
     def _create_clicker_profile(self) -> None:
         """Create a new clicker profile based on the current editor state."""
-        profile = self.settings.create_clicker_profile(
+        profile = self._clicker_profile_controller.create_profile(
             self.clickerProfileNameEdit.text().strip(),
             self._current_profile_form_data(),
         )
+        if profile is None:
+            return
         self._selected_profile_id = profile.get("id", "default")
-        self._populate_clicker_profiles()
-        self.settings.save()
-        self._notify(
-            self.i18n.t("clicker.profile.created", "Created clicker profile: {0}").format(profile.get("name", ""))
-        )
 
     def _delete_clicker_profile(self) -> None:
         """Delete the currently selected clicker profile."""
         active = self._get_active_clicker_profile()
-        if self._clicker_running:
-            self.stop_clicker(show_message=False)
-        new_active = self.settings.delete_clicker_profile(active.get("id", "default"))
-        self._selected_profile_id = new_active.get("id", "default")
-        self._populate_clicker_profiles()
-        self.settings.save()
-        self._update_clicker_button()
-        self._update_simple_info()
-        self._update_tray_meta()
-        self._notify(
-            self.i18n.t("clicker.profile.deleted", "Deleted clicker profile. Active profile: {0}").format(
-                new_active.get("name", "")
-            )
+        new_active = self._clicker_profile_controller.delete_profile(
+            active.get("id", "default"),
+            clicker_running=self.clicker_running,
         )
+        if new_active is None:
+            return
+        self._selected_profile_id = new_active.get("id", "default")
 
     def _browse_clicker_sound_file(self) -> None:
         """Select a custom start-sound file."""
@@ -1432,7 +537,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "preset": self.clickerSoundPresetCombo.currentData() or "systemAsterisk",
             "customFile": self.clickerCustomSoundPathEdit.text().strip(),
         }
-        self._sound_player.play_sound_config(sound_config)
+        self._clicker_service.play_sound_preview(sound_config)
 
     def _sync_clicker_trigger_controls(self):
         """Only show trigger inputs relevant to the selected trigger mode."""
@@ -1462,71 +567,12 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _on_apply(self, show_feedback: bool = True):
         """Apply and save settings."""
-        # Save hotkeys
-        self.settings.data["hotkeys"]["lock"] = self.lockHotkeyCapture.get_hotkey()
-        self.settings.data["hotkeys"]["unlock"] = self.unlockHotkeyCapture.get_hotkey()
-        self.settings.data["hotkeys"]["toggle"] = self.toggleHotkeyCapture.get_hotkey()
-        self.settings.upsert_clicker_profile(self._current_profile_form_data())
-        
-        # Save behavior
-        self.settings.data["recenter"]["enabled"] = self.recenterCheck.isChecked()
-        self.settings.data["recenter"]["intervalMs"] = self.recenterSpin.value()
-        
-        # Save position
-        self.settings.data["position"]["mode"] = self.posCombo.currentData()
-        self.settings.data["position"]["customX"] = self.customXSpin.value()
-        self.settings.data["position"]["customY"] = self.customYSpin.value()
-        
-        # Save window specific
-        self.settings.data["windowSpecific"]["enabled"] = self.windowSpecificCheck.isChecked()
-        # Save list items
-        items = [self.targetList.item(i).text() for i in range(self.targetList.count())]
-        self.settings.data["windowSpecific"]["targetWindows"] = items
-        
-        self.settings.data["windowSpecific"]["autoLockOnWindowFocus"] = self.autoLockCheck.isChecked()
-        self.settings.data["windowSpecific"]["resumeAfterWindowSwitch"] = self.resumeAfterSwitchCheck.isChecked()
-        
-        # Save language and theme
-        self.settings.data["language"] = self.langCombo.currentData()
-        self.settings.data["theme"] = self.themeCombo.currentData()
-        
-        # Handle startup
-        set_startup_enabled(self.startupCheck.isChecked())
-        self.settings.data.setdefault("startup", {})
-        self.settings.data["startup"]["launchOnBoot"] = self.startupCheck.isChecked()
-        
-        self.settings.save()
+        startup_updated = self._settings_apply_controller.apply(show_feedback=show_feedback)
+        if not startup_updated:
+            self.startupCheck.blockSignals(True)
+            self.startupCheck.setChecked(is_startup_enabled())
+            self.startupCheck.blockSignals(False)
 
-        if not self._get_active_clicker_profile().get("enabled", False):
-            self.stop_clicker(show_message=False)
-        else:
-            self._apply_clicker_timer()
-        
-        # Re-register hotkeys
-        unregister_hotkeys()
-        success, errors = register_hotkeys(self.settings.data)
-        if not success:
-            QtWidgets.QMessageBox.warning(
-                self,
-                self.i18n.t("hotkey.conflict", "Hotkey Conflict"),
-                self._build_hotkey_conflict_details(errors)
-            )
-        
-        # Apply theme and update UI
-        self._apply_theme()
-        self._update_toggle_button()
-        self._update_clicker_button()
-        self._update_simple_info()
-        self._update_tray_meta()
-        self._populate_clicker_profiles()
-        
-        if show_feedback:
-            QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(),
-                self.i18n.t("saved", "Settings saved"),
-                self
-            )
-    
     def _on_mode_changed(self, idx: int):
         """Handle mode tab change."""
         self.stack.setCurrentIndex(idx)
@@ -1534,130 +580,15 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- Lock/Unlock Logic ---
     def lock(self, manual: bool = False):
         """Lock the cursor to target position."""
-        if self._locked:
-            return
-
-        # Enforce window check even for manual lock if specific window locking is enabled
-        if not self._should_lock_for_window():
-            return
-
-        if manual:
-            self._auto_lock_suspended = False
-            self._force_lock = True
-        else:
-            self._force_lock = False
-        
-        try:
-            cx, cy = self._get_target_position()
-            set_cursor_to(cx, cy)
-            clip_cursor_to_point(cx, cy)
-            self.locked = True
-            self._apply_recenter_timer()
-            self._notify(self.i18n.t("locked.message", "Locked to screen center"))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                self.i18n.t("error", "Error"),
-                self.i18n.t("lock.failed", "Failed to lock: {}").format(str(e))
-            )
+        self._lock_service.lock(manual=manual)
 
     def unlock(self, manual: bool = False):
         """Unlock the cursor."""
-        if not self._locked:
-            return
-
-        if manual and self.settings.data.get("windowSpecific", {}).get("autoLockOnWindowFocus", False):
-            self._auto_lock_suspended = True
-        
-        if manual:
-            self._force_lock = False
-        
-        try:
-            unclip_cursor()
-            self.locked = False
-            self._apply_recenter_timer()
-            self._notify(self.i18n.t("unlocked.message", "Unlocked"))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self,
-                self.i18n.t("error", "Error"),
-                self.i18n.t("unlock.failed", "Failed to unlock: {}").format(str(e))
-            )
+        self._lock_service.unlock(manual=manual)
     
     def toggle_lock(self):
         """Toggle lock state."""
-        if self._locked:
-            self.unlock(manual=True)
-        else:
-            self.lock(manual=True)
-    
-    def _check_match(self, title: str, process: str, targets: list) -> bool:
-        """Check if current window matches any target (by title substring or process name)."""
-        if not title:
-            title = ""
-        if not process:
-            process = ""
-            
-        title_lower = title.lower()
-        process_lower = process.lower()
-        
-        for t in targets:
-            t_lower = t.lower()
-            if not t_lower:
-                continue
-            # Check 1: Exact process name match
-            if t_lower == process_lower:
-                return True
-            # Check 2: Title substring match
-            if t_lower in title_lower:
-                return True
-        
-        return False
-
-    def _should_lock_for_window(self) -> bool:
-        """Check if locking should proceed based on window-specific settings."""
-        # If specific window locking is enabled, it takes precedence over manual lock
-        if self.settings.data["windowSpecific"].get("enabled", False):
-            hwnd, title = get_active_window_info()
-            targets = self.settings.data["windowSpecific"].get("targetWindows", [])
-            
-            # Get process name for more robust matching
-            proc_name = get_window_process_name(hwnd) if hwnd else ""
-            
-            match = self._check_match(title, proc_name, targets)
-            # print(f"[DEBUG] Lock Check - Title: '{title}' | Proc: '{proc_name}' | Match: {match}")
-            return match
-            
-        # If not enabled, we allow locking (force_lock is irrelevant here as this function 
-        # is essentially answering 'Is the current window valid for locking?')
-        return True
-    
-    def _get_target_position(self) -> tuple:
-        """Get the target lock position based on settings."""
-        # 1. Check for Window-Specific Locking
-        if self.settings.data["windowSpecific"].get("enabled", False):
-            hwnd, title = get_active_window_info()
-            if hwnd:
-                proc_name = get_window_process_name(hwnd) or ""
-                targets = self.settings.data["windowSpecific"].get("targetWindows", [])
-                
-                if self._check_match(title, proc_name, targets):
-                    center = get_window_center(hwnd)
-                    if center:
-                        # log_debug(f"Target Position: Window Center {center}")
-                        return center
-
-        # 2. Fallback to global positioning settings
-        mode = self.settings.data["position"].get("mode", "virtualCenter")
-        
-        if mode == "primaryCenter":
-            return get_primary_screen_center()
-        elif mode == "custom":
-            return (
-                self.settings.data["position"].get("customX", 0),
-                self.settings.data["position"].get("customY", 0)
-            )
-        return get_virtual_screen_center()
+        self._lock_service.toggle()
     
     def _on_lock_state_changed(self):
         """Called when lock state changes."""
@@ -1669,225 +600,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_tray_meta()
 
     def _apply_clicker_timer(self):
-        """Start or stop the clicker timer based on state and settings."""
-        clicker = self._get_active_clicker_profile()
-        if self._clicker_running and clicker.get("enabled", False):
-            interval = max(1, int(clicker.get("intervalMs", 100)))
-            if self.clickerTimer.interval() != interval or not self.clickerTimer.isActive():
-                self.clickerTimer.start(interval)
-        else:
-            self.clickerTimer.stop()
+        """Compatibility wrapper for clicker runtime updates."""
+        self._clicker_service.sync_runtime()
 
     def start_clicker(self, show_message: bool = True, immediate_click: bool = False):
         """Start the auto clicker."""
-        profile = self._get_active_clicker_profile()
-        if self._clicker_running or not profile.get("enabled", False):
-            return
-
-        self._clicker_running = True
-        if immediate_click:
-            click_mouse(profile.get("button", "left"))
-        self._apply_clicker_timer()
-        self._sound_player.play_for_profile(profile)
-        self._update_simple_info()
-        self._update_clicker_button()
-        self._update_tray_meta()
-        if show_message:
-            mode_text = self.i18n.t(
-                CLICKER_TRIGGER_MODES.get(profile.get("triggers", {}).get("mode", "toggle"), ""),
-                profile.get("triggers", {}).get("mode", "toggle"),
-            )
-            self._notify(
-                self.i18n.t("clicker.started.detail", "Auto clicker started: {0} ({1})").format(
-                    profile.get("name", ""),
-                    mode_text,
-                )
-            )
+        self._clicker_service.start(show_message=show_message, immediate_click=immediate_click)
 
     def stop_clicker(self, show_message: bool = True):
         """Stop the auto clicker."""
-        if not self._clicker_running:
-            return
-
-        self._clicker_running = False
-        self._apply_clicker_timer()
-        self._update_simple_info()
-        self._update_clicker_button()
-        self._update_tray_meta()
-        if show_message:
-            profile = self._get_active_clicker_profile()
-            self._notify(
-                self.i18n.t("clicker.stopped.detail", "Auto clicker stopped: {0}").format(
-                    profile.get("name", "")
-                )
-            )
+        self._clicker_service.stop(show_message=show_message)
 
     def toggle_clicker(self):
         """Toggle the auto clicker."""
-        profile = self._get_active_clicker_profile()
-        if profile.get("triggers", {}).get("mode") != "toggle":
-            if not self._clicker_running:
-                self.start_clicker(immediate_click=True)
-            else:
-                self.stop_clicker()
-            return
-        if self._clicker_running:
-            self.stop_clicker()
-        else:
-            self.start_clicker()
-
-    def _modifier_pressed(self, vk: int) -> bool:
-        """Return whether a modifier virtual key is currently pressed."""
-        return bool(user32.GetAsyncKeyState(vk) & 0x8000)
-
-    def _hold_hotkey_matches(self, hold_key: Dict[str, Any]) -> bool:
-        """Check whether the configured hold hotkey is currently pressed."""
-        vk = key_to_vk(hold_key.get("key", ""))
-        if vk is None:
-            return False
-        if not self._modifier_pressed(vk):
-            return False
-
-        modifier_map = [
-            ("modCtrl", 0x11),
-            ("modAlt", 0x12),
-            ("modShift", 0x10),
-            ("modWin", 0x5B),
-        ]
-        for flag_name, vk in modifier_map:
-            expected = bool(hold_key.get(flag_name, False))
-            pressed = self._modifier_pressed(vk)
-            if expected != pressed:
-                return False
-        return True
-
-    def _mouse_button_pressed(self, button_name: str) -> bool:
-        """Return whether a mouse button is currently pressed."""
-        vk_map = {
-            "left": 0x01,
-            "right": 0x02,
-            "middle": 0x04,
-            "x1": 0x05,
-            "x2": 0x06,
-        }
-        vk = vk_map.get((button_name or "").lower())
-        return bool(vk and self._modifier_pressed(vk))
-
-    def _poll_hold_trigger_state(self) -> None:
-        """Poll keyboard/mouse hold state so hold triggers work without low-level hooks."""
-        profile = self._get_active_clicker_profile()
-        triggers = profile.get("triggers", {})
-        if not profile.get("enabled", False):
-            if self._hold_trigger_pressed:
-                self._hold_trigger_pressed = False
-                self.stop_clicker(show_message=False)
-            return
-
-        mode = triggers.get("mode")
-        if mode == "holdKey":
-            is_pressed = self._hold_hotkey_matches(triggers.get("holdKey", {}))
-        elif mode == "holdMouseButton":
-            is_pressed = self._mouse_button_pressed(triggers.get("holdMouseButton", "middle"))
-        else:
-            if self._hold_trigger_pressed:
-                self._hold_trigger_pressed = False
-            return
-
-        if is_pressed and not self._hold_trigger_pressed:
-            self._hold_trigger_pressed = True
-            self.start_clicker(show_message=False, immediate_click=True)
-        elif not is_pressed and self._hold_trigger_pressed:
-            self._hold_trigger_pressed = False
-            self.stop_clicker(show_message=False)
-    
-    def _apply_recenter_timer(self):
-        """Start or stop the recenter timer based on state and settings."""
-        if self._locked and self.settings.data["recenter"].get("enabled", True):
-            interval = max(16, self.settings.data["recenter"].get("intervalMs", 250))
-            if self.recenterTimer.interval() != interval or not self.recenterTimer.isActive():
-                self.recenterTimer.start(interval)
-        else:
-            self.recenterTimer.stop()
-    
-    def _on_recenter_tick(self):
-        """Periodically recenter cursor."""
-        if not self._locked:
-            return
-        
-        if not self._should_lock_for_window():
-            self.unlock(manual=False)
-            return
-        
-        cx, cy = self._get_target_position()
-        set_cursor_to(cx, cy)
-        try:
-            clip_cursor_to_point(cx, cy)
-        except Exception:
-            pass
-
-    def _on_clicker_tick(self):
-        """Perform one click while the clicker is running."""
-        if not self._clicker_running:
-            return
-
-        clicker = self._get_active_clicker_profile()
-        if not clicker.get("enabled", False):
-            self.stop_clicker(show_message=False)
-            return
-
-        click_mouse(clicker.get("button", "left"))
-    
-    def _check_window_focus(self):
-        """Check window focus for auto lock/unlock."""
-        ws = self.settings.data.get("windowSpecific", {})
-        if not ws.get("enabled") or not ws.get("autoLockOnWindowFocus"):
-            return
-        
-        hwnd, title = get_active_window_info()
-        if title is None:
-            return
-            
-        # Get process name for matching
-        proc_name = get_window_process_name(hwnd) if hwnd else ""
-        
-        # Log active window info periodically or on change
-        if title != self._last_active_window:
-            prev_title = self._last_active_window
-            self._last_active_window = title
-            targets = ws.get("targetWindows", [])
-            
-            # Resume logic: matching check
-            is_target = self._check_match(title, proc_name, targets)
-            
-            # We don't have previous process name easily, but resume logic is "was target" -> "now not target".
-            # The previous title check is weak if locking by process.
-            # Simplified: If we are leaving a state where we SHOULD match.
-            # But we can't easily check "was_target" without full history.
-            # Workaround: If we are UNLOCKING, we are leaving. 
-            
-            # Let's trust is_target.
-            
-            if ws.get("resumeAfterWindowSwitch", False) and not is_target and self._auto_lock_suspended:
-                 # If we are suspended (meaning we manually unlocked inside a target), and now we leave target...
-                 # We should clear suspended so when we return, it locks.
-                 # Wait, 'was_target' check was: "prev_title == target".
-                 # If we rely on _auto_lock_suspended being True, it IMPLIES we were in a target window and unlocked it.
-                 self._auto_lock_suspended = False
-            
-            # If currently locked but moved to a non-target window -> Unlock
-            if self._locked and not is_target:
-                self.unlock(manual=False)
-            # If not locked, moved to a target window, and not manually paused -> Lock
-            elif not self._locked and is_target and not self._auto_lock_suspended:
-                self.lock(manual=False)
-            self._update_simple_info()
+        self._clicker_service.toggle()
     
     # --- UI Updates ---
     def _update_status_badge(self):
         """Update the status badge appearance."""
-        if self._locked:
+        if self.locked:
             # Locked state - green
-            if self._force_lock:
+            if self._lock_service.is_force_lock:
                 text = self.i18n.t("status.locked.manual", "LOCKED (Manual)")
             else:
                 text = self.i18n.t("status.locked.auto", "LOCKED (Auto)")
@@ -1907,7 +640,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ws = self.settings.data.get("windowSpecific", {})
             is_auto_enabled = ws.get("enabled", False) and ws.get("autoLockOnWindowFocus", False)
             
-            if is_auto_enabled and not self._auto_lock_suspended:
+            if is_auto_enabled and not self._lock_service.auto_lock_suspended:
                 # Waiting for window switch - yellow/orange
                 text = self.i18n.t("status.waiting", "WAITING (Auto-lock enabled)")
                 self.statusBadge.setText(text)
@@ -1921,7 +654,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     font-size: 16px;
                     padding: 4px;
                 """)
-            elif self._auto_lock_suspended:
+            elif self._lock_service.auto_lock_suspended:
                 # Auto-lock paused - red
                 text = self.i18n.t("status.unlocked.suspended", "UNLOCKED (Auto-lock paused)")
                 self.statusBadge.setText(text)
@@ -2008,7 +741,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         clicker_enabled = bool(clicker.get("enabled", False))
         clicker_status = self.i18n.t('simple.enabled', 'Enabled') if clicker_enabled else self.i18n.t('simple.disabled', 'Disabled')
-        clicker_runtime = self.i18n.t('simple.on', 'On') if self._clicker_running else self.i18n.t('simple.off', 'Off')
+        clicker_runtime = self.i18n.t('simple.on', 'On') if self.clicker_running else self.i18n.t('simple.off', 'Off')
         button_name = clicker.get("button", "left")
         if button_name == "right":
             button_key = "clicker.button.right"
@@ -2059,7 +792,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Update the toggle button text."""
         hk = self.settings.data["hotkeys"]
         
-        if self._locked:
+        if self.locked:
             text = self.i18n.t("btn.unlock", "Unlock")
             keys = f"({format_hotkey_display(hk['unlock'])} / {format_hotkey_display(hk['toggle'])})"
         else:
@@ -2124,7 +857,7 @@ class MainWindow(QtWidgets.QMainWindow):
             hotkey = format_hotkey_display(triggers.get("holdKey", {}))
         else:
             hotkey = self.i18n.t(f"clicker.mouse.{triggers.get('holdMouseButton', 'middle')}", triggers.get("holdMouseButton", "middle"))
-        if self._clicker_running:
+        if self.clicker_running:
             text = self.i18n.t("btn.clicker.stop", "Stop Auto Clicker")
         else:
             text = self.i18n.t("btn.clicker.start", "Start Auto Clicker")
@@ -2138,147 +871,29 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- Theme ---
     def _apply_theme(self):
         """Apply the current theme."""
-        QtWidgets.QApplication.setStyle("Fusion")
         theme = self.settings.data.get("theme", "dark")
-        
-        if theme == "light":
-            palette = self._create_light_palette()
-            stylesheet = self._light_stylesheet()
-        else:
-            palette = self._create_dark_palette()
-            stylesheet = self._dark_stylesheet()
-        
-        QtWidgets.QApplication.setPalette(palette)
-        self.setStyleSheet(stylesheet)
-    
-    def _create_dark_palette(self) -> QtGui.QPalette:
-        """Create dark theme palette."""
-        p = QtGui.QPalette()
-        p.setColor(QtGui.QPalette.Window, QtGui.QColor(28, 28, 30))
-        p.setColor(QtGui.QPalette.WindowText, QtGui.QColor(235, 235, 245))
-        p.setColor(QtGui.QPalette.Base, QtGui.QColor(44, 44, 46))
-        p.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(28, 28, 30))
-        p.setColor(QtGui.QPalette.Text, QtGui.QColor(235, 235, 245))
-        p.setColor(QtGui.QPalette.Button, QtGui.QColor(44, 44, 46))
-        p.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(235, 235, 245))
-        p.setColor(QtGui.QPalette.Highlight, QtGui.QColor(10, 132, 255))
-        p.setColor(QtGui.QPalette.PlaceholderText, QtGui.QColor(142, 142, 147))
-        return p
-    
-    def _create_light_palette(self) -> QtGui.QPalette:
-        """Create light theme palette."""
-        p = QtGui.QPalette()
-        p.setColor(QtGui.QPalette.Window, QtGui.QColor(242, 242, 247))
-        p.setColor(QtGui.QPalette.WindowText, QtGui.QColor(20, 20, 25))
-        p.setColor(QtGui.QPalette.Base, QtGui.QColor(255, 255, 255))
-        p.setColor(QtGui.QPalette.AlternateBase, QtGui.QColor(242, 242, 247))
-        p.setColor(QtGui.QPalette.Text, QtGui.QColor(20, 20, 25))
-        p.setColor(QtGui.QPalette.Button, QtGui.QColor(255, 255, 255))
-        p.setColor(QtGui.QPalette.ButtonText, QtGui.QColor(20, 20, 25))
-        p.setColor(QtGui.QPalette.Highlight, QtGui.QColor(10, 132, 255))
-        p.setColor(QtGui.QPalette.PlaceholderText, QtGui.QColor(142, 142, 147))
-        return p
-    
-    def _dark_stylesheet(self) -> str:
-        return """
-            QMainWindow { background: #1c1c1e; }
-            QWidget { color: #ebebf5; font-size: 14px; }
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0a84ff, stop:1 #0671dd);
-                border: none;
-                border-radius: 10px;
-                padding: 8px 14px;
-                color: white;
-                font-weight: 500;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #2b95ff, stop:1 #1982ee); 
-            }
-            QPushButton:pressed { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0671dd, stop:1 #0558bb); 
-            }
-            QComboBox, QSpinBox, QLineEdit {
-                background: #2c2c2e;
-                border: 1px solid #48484a;
-                border-radius: 6px;
-                padding: 6px;
-            }
-            QComboBox:focus, QSpinBox:focus, QLineEdit:focus {
-                border: 1px solid #0a84ff;
-            }
-            QCheckBox { spacing: 8px; }
-            QScrollArea { border: none; }
-        """
-    
-    def _light_stylesheet(self) -> str:
-        return """
-            QMainWindow { background: #f2f2f7; }
-            QWidget { color: #141419; font-size: 14px; }
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0a84ff, stop:1 #0671dd);
-                border: none;
-                border-radius: 10px;
-                padding: 8px 14px;
-                color: white;
-                font-weight: 500;
-            }
-            QPushButton:hover { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #2b95ff, stop:1 #1982ee); 
-            }
-            QPushButton:pressed { 
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-                    stop:0 #0671dd, stop:1 #0558bb); 
-            }
-            QComboBox, QSpinBox, QLineEdit {
-                background: #ffffff;
-                border: 1px solid #d1d1d6;
-                border-radius: 6px;
-                padding: 6px;
-            }
-            QComboBox:focus, QSpinBox:focus, QLineEdit:focus {
-                border: 1px solid #0a84ff;
-            }
-            QCheckBox { spacing: 8px; }
-            QScrollArea { border: none; }
-        """
+        self._theme_service.apply(self, theme)
     
     # --- System Tray ---
     def _create_tray(self):
         """Create system tray icon and menu."""
-        self.tray = QtWidgets.QSystemTrayIcon(self._custom_icon or self._make_icon(False), self)
-        
-        menu = QtWidgets.QMenu()
-        
-        # State header
-        self.stateAction = menu.addAction("")
-        self.stateAction.setEnabled(False)
-        menu.addSeparator()
-        
-        # Hotkey info
-        self.hkInfoAction = menu.addAction("")
-        self.hkInfoAction.setEnabled(False)
-        menu.addSeparator()
-        
-        # Actions
-        menu.addAction(self.i18n.t("menu.toggle", "Toggle Lock")).triggered.connect(self.toggle_lock)
-        menu.addAction(self.i18n.t("menu.lock", "Lock")).triggered.connect(lambda: self.lock(manual=True))
-        menu.addAction(self.i18n.t("menu.unlock", "Unlock")).triggered.connect(lambda: self.unlock(manual=True))
-        self.clickerAction = menu.addAction("")
-        self.clickerAction.triggered.connect(self.toggle_clicker)
-        menu.addSeparator()
-        menu.addAction(self.i18n.t("menu.show", "Show Window")).triggered.connect(self._show_from_tray)
-        menu.addAction(self.i18n.t("menu.quit", "Quit")).triggered.connect(self._quit)
-        
-        self.tray.setContextMenu(menu)
-        self.tray.activated.connect(self._tray_activated)
-        self._update_tray_meta()
-        self.tray.show()
-        self._notification_manager = NotificationManager(self.tray)
+        base_icon = self._custom_icon or QtGui.QIcon()
+        self._tray_service = TrayService(
+            parent=self,
+            base_icon=base_icon,
+            dynamic_icon_factory=self._make_icon,
+            i18n=self.i18n,
+            get_locked=lambda: self.locked,
+            get_clicker_running=lambda: self.clicker_running,
+            get_clicker_profile=self._get_active_clicker_profile,
+            get_hotkeys=lambda: self.settings.data["hotkeys"],
+            on_toggle_lock=self.toggle_lock,
+            on_lock=lambda: self.lock(manual=True),
+            on_unlock=lambda: self.unlock(manual=True),
+            on_toggle_clicker=self.toggle_clicker,
+            on_show_window=self._show_from_tray,
+            on_quit=self._quit,
+        )
     
     def _make_icon(self, locked: bool) -> QtGui.QIcon:
         """Create a programmatic icon."""
@@ -2329,48 +944,23 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _update_tray_icon(self):
         """Update tray icon based on lock state."""
-        if self._custom_icon is None:
-            self.tray.setIcon(self._make_icon(self._locked))
+        if self._tray_service is not None:
+            self._tray_service.refresh_icon()
     
     def _update_tray_meta(self):
         """Update tray menu information."""
-        state = self.i18n.t("status.locked", "Locked") if self._locked else self.i18n.t("status.unlocked", "Unlocked")
-        clicker_state = self.i18n.t("simple.on", "On") if self._clicker_running else self.i18n.t("simple.off", "Off")
-        clicker = self._get_active_clicker_profile()
-        self.stateAction.setText(
-            f"● {state} | {self.i18n.t('simple.clicker', 'Auto Clicker')}: {clicker_state} | {clicker.get('name', '')}"
-        )
-        
-        hk = self.settings.data["hotkeys"]
-        clicker_hotkey = clicker.get("triggers", {}).get("toggleHotkey", {})
-        self.hkInfoAction.setText(
-            f"{self.i18n.t('hotkey.toggle', 'Toggle')}: {format_hotkey_display(hk['toggle'])} | "
-            f"{self.i18n.t('clicker.hotkey', 'Auto Clicker Toggle')}: {format_hotkey_display(clicker_hotkey)}"
-        )
-        self.clickerAction.setText(
-            self.i18n.t("menu.clicker.stop", "Stop Auto Clicker")
-            if self._clicker_running else
-            self.i18n.t("menu.clicker.start", "Start Auto Clicker")
-        )
-        self.clickerAction.setEnabled(clicker.get("enabled", False))
-    
-    def _tray_activated(self, reason):
-        """Handle tray icon activation."""
-        if reason == QtWidgets.QSystemTrayIcon.Trigger:
-            self._show_from_tray()
+        if self._tray_service is not None:
+            self._tray_service.refresh()
     
     def _show_from_tray(self):
         """Show window from tray."""
-        self.show()
-        self.raise_()
-        self.activateWindow()
+        self.activate_from_external_request()
     
     def _quit(self):
         """Quit the application."""
         try:
             self.stop_clicker(show_message=False)
-            if self._locked:
-                unclip_cursor()
+            self._lock_service.release_cursor()
         finally:
             unregister_hotkeys()
             release_single_instance()
@@ -2379,7 +969,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def _reset_close_action(self):
         """Reset the close action to 'ask'."""
         self.settings.data["closeAction"] = "ask"
-        self.settings.save()
+        if not self._save_settings_or_warn("Resetting close action"):
+            return
         QtWidgets.QMessageBox.information(
             self,
             self.i18n.t("settings.reset", "Settings Reset"),
@@ -2409,7 +1000,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 if dialog.dont_ask_again and dialog.action:
                     self.settings.data["closeAction"] = dialog.action
-                    self.settings.save()
+                    if not self._save_settings_or_warn("Saving close action preference"):
+                        self.settings.data["closeAction"] = "ask"
             else:
                 # Cancelled
                 event.ignore()
@@ -2420,47 +1012,87 @@ class MainWindow(QtWidgets.QMainWindow):
             event.accept()
             self._quit()
 
+def send_activation_request(timeout_ms: int = 1000) -> bool:
+    """Ask an already-running instance to bring itself to the foreground."""
+    socket = QtNetwork.QLocalSocket()
+    socket.connectToServer(INSTANCE_SERVER_NAME)
+    if not socket.waitForConnected(timeout_ms):
+        return False
+    socket.write(b"activate")
+    socket.flush()
+    socket.waitForBytesWritten(timeout_ms)
+    socket.disconnectFromServer()
+    return True
+
+
+def install_activation_server(window: MainWindow) -> QtNetwork.QLocalServer:
+    """Install a local server used to wake the existing instance."""
+    QtNetwork.QLocalServer.removeServer(INSTANCE_SERVER_NAME)
+    server = QtNetwork.QLocalServer(window)
+
+    def on_new_connection() -> None:
+        while server.hasPendingConnections():
+            socket = server.nextPendingConnection()
+            if socket is None:
+                return
+            socket.readAll()
+            socket.write(b"ok")
+            socket.flush()
+            socket.disconnectFromServer()
+            socket.deleteLater()
+            QtCore.QTimer.singleShot(0, window.activate_from_external_request)
+
+    server.newConnection.connect(on_new_connection)
+    if not server.listen(INSTANCE_SERVER_NAME):
+        raise RuntimeError(server.errorString())
+    return server
+
 
 def main() -> int:
     """Application entry point."""
-    # Check single instance
-    if not acquire_single_instance():
-        # Try to bring existing window to front
-        bring_existing_instance_to_front()
-        
-        # Show message box
-        app = QtWidgets.QApplication(sys.argv)
-        QtWidgets.QMessageBox.information(
-            None,
-            "Mouse Center Lock",
-            "Application is already running.\nCheck the system tray."
-        )
-        return 0
-    
     app = QtWidgets.QApplication(sys.argv)
-    
     settings = SettingsManager()
     i18n = I18n(settings.data.get("language", "zh-Hans"))
-    
-    # Register hotkeys
+
+    if not acquire_single_instance():
+        activated = send_activation_request()
+        if activated:
+            return 0
+        log_message("A second instance started, but activation request could not reach the running instance.")
+        QtWidgets.QMessageBox.information(
+            None,
+            i18n.t("app.title", "Mouse Center Lock"),
+            i18n.t("single_instance.running", "Application is already running.\nCheck the system tray.")
+        )
+        return 0
+
     unregister_hotkeys()
     success, errors = register_hotkeys(settings.data)
     if not success:
-        QtWidgets.QMessageBox.warning(
-            None,
-            i18n.t("error", "Error"),
-            "\n".join([
-                i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:"),
-                *errors,
-                "",
-                i18n.t(
-                    "hotkey.conflict.help",
-                    "Windows cannot directly tell which app owns a conflicting global hotkey. Try closing other apps or changing the hotkey."
-                ),
-            ])
-        )
-    
+        detail = "\n".join([
+            i18n.t("hotkey.register.fail", "Some hotkeys could not be registered:"),
+            *errors,
+            "",
+            i18n.t(
+                "hotkey.conflict.help",
+                "Windows cannot directly tell which app owns a conflicting global hotkey. Try closing other apps or changing the hotkey."
+            ),
+            "",
+            str(get_log_path()),
+        ])
+        log_message(f"Startup hotkey registration failed:\n{detail}")
+        QtWidgets.QMessageBox.warning(None, i18n.t("error", "Error"), detail)
+
     window = MainWindow(settings, i18n)
+    try:
+        app._activation_server = install_activation_server(window)
+    except Exception as exc:
+        log_exception("Failed to start single-instance activation server", exc)
+        QtWidgets.QMessageBox.warning(
+            window,
+            i18n.t("error", "Error"),
+            f"{i18n.t('single_instance.server.failed', 'Failed to start the single-instance activation server.')}\n\n{exc}\n{get_log_path()}",
+        )
     window.show()
     
     # Setup hotkey handling
@@ -2485,8 +1117,7 @@ def main() -> int:
     # Cleanup
     try:
         window.stop_clicker(show_message=False)
-        if window.locked:
-            unclip_cursor()
+        window._lock_service.release_cursor()
     finally:
         unregister_hotkeys()
         release_single_instance()

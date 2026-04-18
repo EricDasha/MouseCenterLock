@@ -6,7 +6,9 @@ import ctypes
 import os
 import sys
 from ctypes import wintypes
+from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any, Callable
+from app_logging import log_exception, log_message
 
 # --- Windows DLL references ---
 user32 = ctypes.windll.user32
@@ -194,16 +196,9 @@ def release_single_instance() -> None:
 
 def bring_existing_instance_to_front() -> bool:
     """
-    Find and bring the existing instance window to front.
-    Returns True if successful.
+    Legacy activation helper kept for backward compatibility.
+    Use local-socket activation from the GUI entry point for robust behavior.
     """
-    window_title = "Mouse Center Lock"
-    hwnd = user32.FindWindowW(None, window_title)
-    if hwnd:
-        SW_RESTORE = 9
-        user32.ShowWindow(hwnd, SW_RESTORE)
-        user32.SetForegroundWindow(hwnd)
-        return True
     return False
 
 
@@ -664,14 +659,28 @@ def is_startup_enabled() -> bool:
             return False
         finally:
             winreg.CloseKey(key)
-    except Exception:
+    except Exception as exc:
+        log_exception("Failed to query startup registry state", exc)
         return False
 
 
-def set_startup_enabled(enabled: bool) -> bool:
+def get_startup_command() -> str:
+    """Build the command line used for the startup registry entry."""
+    if getattr(sys, "frozen", False):
+        return f'"{Path(sys.executable).resolve()}"'
+
+    gui_entry = Path(__file__).resolve().with_name("mouse_center_lock_gui.py")
+    if gui_entry.exists():
+        return f'"{Path(sys.executable).resolve()}" "{gui_entry}"'
+
+    fallback_entry = Path(sys.argv[0]).resolve()
+    return f'"{Path(sys.executable).resolve()}" "{fallback_entry}"'
+
+
+def set_startup_enabled(enabled: bool) -> Tuple[bool, Optional[str]]:
     """
     Enable or disable running at startup.
-    Returns True if successful.
+    Returns (success, error_message).
     """
     import winreg
     
@@ -679,23 +688,21 @@ def set_startup_enabled(enabled: bool) -> bool:
         key = get_startup_registry_key()
         try:
             if enabled:
-                # Get the executable path
-                if getattr(sys, 'frozen', False):
-                    exe_path = sys.executable
-                else:
-                    exe_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
-                
-                winreg.SetValueEx(key, "MouseCenterLock", 0, winreg.REG_SZ, exe_path)
+                command = get_startup_command()
+                winreg.SetValueEx(key, "MouseCenterLock", 0, winreg.REG_SZ, command)
+                log_message(f"Updated startup registry entry: enabled -> {command}")
             else:
                 try:
                     winreg.DeleteValue(key, "MouseCenterLock")
                 except FileNotFoundError:
-                    pass  # Already deleted
-            return True
+                    pass
+                log_message("Updated startup registry entry: disabled")
+            return True, None
         finally:
             winreg.CloseKey(key)
-    except Exception:
-        return False
+    except Exception as exc:
+        log_exception("Failed to update startup registry entry", exc)
+        return False, str(exc)
 
 
 # --- Window Resize & Center ---

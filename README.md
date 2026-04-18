@@ -26,7 +26,9 @@
 - `mouse_center_lock_gui.py` – GUI 應用（PySide6）
 - `win_api.py` – Windows API 封裝模組
 - `widgets.py` – 自訂 UI 元件（快捷鍵捕獲、進程選擇器）
-- `mouse_center_lock.py` – CLI/基礎版本（可選）
+- `services/` – 執行期服務（連點器、鎖定狀態機）
+- `ui/pages/` – 簡單/進階頁面建構模組
+- `tests/` – 最小單元測試集
 - `pythonProject/i18n/` – 語言檔案
 - `pythonProject/assets/` – 圖示和資源
 - `Mconfig.json` – 預設設定（相容讀取舊版 `config.json`）
@@ -45,6 +47,11 @@ python -m pip install -r requirements.txt
 執行：
 ```bash
 python mouse_center_lock_gui.py
+```
+
+測試：
+```bash
+python -m unittest discover tests
 ```
 
 ## 建置（PyInstaller）
