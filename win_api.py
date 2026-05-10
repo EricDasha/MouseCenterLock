@@ -8,6 +8,7 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any, Callable
+import functools
 from app_logging import log_exception, log_message
 
 # --- Windows DLL references ---
@@ -303,6 +304,7 @@ def get_window_center(hwnd: int) -> Optional[Tuple[int, int]]:
     return None
 
 
+@functools.lru_cache(maxsize=1024)
 def get_window_process_name(hwnd: int) -> Optional[str]:
     """Get the process name for a given window handle."""
     pid = wintypes.DWORD()

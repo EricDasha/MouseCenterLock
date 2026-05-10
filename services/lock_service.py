@@ -50,7 +50,7 @@ class LockService(QtCore.QObject):
 
         self.window_focus_timer = QtCore.QTimer(self)
         self.window_focus_timer.timeout.connect(self._check_window_focus)
-        self.window_focus_timer.start(500)
+        self.window_focus_timer.start(50)
 
     @property
     def is_locked(self) -> bool:
@@ -73,7 +73,7 @@ class LockService(QtCore.QObject):
         window_specific = settings.get("windowSpecific", {})
         if window_specific.get("enabled") and window_specific.get("autoLockOnWindowFocus"):
             if not self.window_focus_timer.isActive():
-                self.window_focus_timer.start(500)
+                self.window_focus_timer.start(50)
         else:
             self.window_focus_timer.stop()
         self._apply_recenter_timer()
