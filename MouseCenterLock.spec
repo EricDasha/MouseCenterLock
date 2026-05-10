@@ -5,14 +5,14 @@ a = Analysis(
     ['mouse_center_lock_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('pythonProject\\i18n', 'i18n'), ('pythonProject\\assets\\app.ico', 'assets'), ('Mconfig.json', '.')],
-    hiddenimports=['win_api', 'widgets', 'PySide6.QtMultimedia'],
+    datas=[('i18n', 'i18n'), ('Mconfig.json', '.'), ('assets', 'assets')],
+    hiddenimports=['win_api', 'widgets', 'app_logging', 'app_paths', 'app_runtime', 'i18n_manager', 'settings_manager', 'services.clicker_service', 'services.clicker_profile_controller', 'services.lock_service', 'services.settings_apply_controller', 'services.theme_service', 'services.tray_service', 'ui.main_window', 'ui.pages.common', 'ui.pages.simple_page', 'ui.pages.advanced_page', 'ui.forms.clicker_profile_form', 'ui.forms.settings_form', 'ui.presenters.main_window_presenter', 'ui.presenters.tray_presenter'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'matplotlib', 'numpy', 'scipy', 'pandas'],
+    excludes=[],
     noarchive=False,
-    optimize=2,
+    optimize=0,
 )
 pyz = PYZ(a.pure)
 
@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    [('O', None, 'OPTION'), ('O', None, 'OPTION')],
+    [],
     name='MouseCenterLock',
     debug=False,
     bootloader_ignore_signals=False,
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['pythonProject\\assets\\app.ico'],
+    icon=['assets\\app.ico'],
 )

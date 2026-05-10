@@ -33,15 +33,27 @@ jobs:
           import ast, pathlib
           paths = [
               'app_logging.py',
+              'app_paths.py',
+              'app_runtime.py',
+              'i18n_manager.py',
               'mouse_center_lock_gui.py',
+              'settings_manager.py',
               'win_api.py',
               'widgets.py',
               'services/clicker_service.py',
+              'services/clicker_profile_controller.py',
               'services/lock_service.py',
+              'services/settings_apply_controller.py',
+              'services/theme_service.py',
               'services/tray_service.py',
+              'ui/main_window.py',
               'ui/pages/common.py',
               'ui/pages/simple_page.py',
               'ui/pages/advanced_page.py',
+              'ui/forms/clicker_profile_form.py',
+              'ui/forms/settings_form.py',
+              'ui/presenters/main_window_presenter.py',
+              'ui/presenters/tray_presenter.py',
           ]
           for path in paths:
               ast.parse(pathlib.Path(path).read_text(encoding='utf-8'), filename=path)
