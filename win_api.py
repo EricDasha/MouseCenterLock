@@ -85,6 +85,7 @@ VK_SPACE = 0x20
 VK_TAB = 0x09
 VK_RETURN = 0x0D
 VK_BACK = 0x08
+VK_LBUTTON = 0x01
 VK_DELETE = 0x2E
 VK_INSERT = 0x2D
 VK_HOME = 0x24
@@ -267,6 +268,11 @@ def click_mouse(button: str = "left") -> None:
 
     user32.mouse_event(down_flag, 0, 0, 0, 0)
     user32.mouse_event(up_flag, 0, 0, 0, 0)
+
+
+def is_primary_mouse_button_pressed() -> bool:
+    """Return whether the primary mouse button is currently pressed."""
+    return bool(user32.GetAsyncKeyState(VK_LBUTTON) & 0x8000)
 
 
 # --- Window Information ---

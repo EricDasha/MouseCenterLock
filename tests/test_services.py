@@ -202,7 +202,7 @@ class ServiceTests(unittest.TestCase):
         service.window_focus_timer.stop()
         service.recenter_timer.stop()
 
-    def test_lock_service_manual_lock_bypasses_window_specific_gate(self):
+    def test_lock_service_manual_lock_respects_window_specific_gate(self):
         settings = {
             "windowSpecific": {
                 "enabled": True,
@@ -222,10 +222,84 @@ class ServiceTests(unittest.TestCase):
         )
         try:
             with mock.patch.object(service, "_should_lock_for_window", return_value=False), \
+                 mock.patch("services.lock_service.set_cursor_to") as set_cursor, \
+                 mock.patch("services.lock_service.clip_cursor_to_point") as clip_cursor:
+                service.lock(manual=True)
+                self.assertFalse(service.is_locked)
+                set_cursor.assert_not_called()
+                clip_cursor.assert_not_called()
+        finally:
+            service.window_focus_timer.stop()
+            service.recenter_timer.stop()
+
+    def test_lock_service_manual_lock_in_target_is_released_outside_target(self):
+        settings = {
+            "windowSpecific": {
+                "enabled": True,
+                "autoLockOnWindowFocus": False,
+                "targetWindows": ["game.exe"],
+                "resumeAfterWindowSwitch": False,
+            },
+            "position": {"mode": "custom", "customX": 111, "customY": 222},
+            "recenter": {"enabled": False, "intervalMs": 250},
+        }
+        service = LockService(
+            get_settings=lambda: settings,
+            on_state_changed=lambda: None,
+            on_notify_locked=lambda: None,
+            on_notify_unlocked=lambda: None,
+            on_error=lambda op, exc: None,
+        )
+        try:
+            with mock.patch.object(service, "_should_lock_for_window", return_value=True), \
                  mock.patch("services.lock_service.set_cursor_to"), \
                  mock.patch("services.lock_service.clip_cursor_to_point"):
                 service.lock(manual=True)
                 self.assertTrue(service.is_locked)
+                self.assertFalse(service.is_force_lock)
+
+            with mock.patch("services.lock_service.get_active_window_info", return_value=(303, "Notepad")), \
+                 mock.patch("services.lock_service.get_window_process_name", return_value="notepad.exe"), \
+                 mock.patch("services.lock_service.unclip_cursor") as unclip_cursor:
+                service._check_window_focus()
+                self.assertFalse(service.is_locked)
+                unclip_cursor.assert_called_once()
+        finally:
+            service.window_focus_timer.stop()
+            service.recenter_timer.stop()
+
+    def test_lock_service_suspends_recenter_while_target_window_moves(self):
+        settings = {
+            "windowSpecific": {
+                "enabled": True,
+                "autoLockOnWindowFocus": False,
+                "targetWindows": ["game.exe"],
+                "resumeAfterWindowSwitch": False,
+            },
+            "position": {"mode": "custom", "customX": 111, "customY": 222},
+            "recenter": {"enabled": True, "intervalMs": 250},
+        }
+        service = LockService(
+            get_settings=lambda: settings,
+            on_state_changed=lambda: None,
+            on_notify_locked=lambda: None,
+            on_notify_unlocked=lambda: None,
+            on_error=lambda op, exc: None,
+        )
+        try:
+            service._locked = True
+            service._last_target_position = (100, 100)
+            with mock.patch.object(service, "_should_lock_for_window", return_value=True), \
+                 mock.patch.object(service, "_get_target_position", return_value=(200, 200)), \
+                 mock.patch("services.lock_service.is_primary_mouse_button_pressed", return_value=True), \
+                 mock.patch("services.lock_service.unclip_cursor") as unclip_cursor, \
+                 mock.patch("services.lock_service.set_cursor_to") as set_cursor, \
+                 mock.patch("services.lock_service.clip_cursor_to_point") as clip_cursor:
+                service._on_recenter_tick()
+                unclip_cursor.assert_called_once()
+                set_cursor.assert_not_called()
+                clip_cursor.assert_not_called()
+                self.assertEqual(service._last_target_position, (200, 200))
         finally:
             service.window_focus_timer.stop()
             service.recenter_timer.stop()

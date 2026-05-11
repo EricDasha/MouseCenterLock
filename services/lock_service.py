@@ -15,6 +15,7 @@ from win_api import (
     get_virtual_screen_center,
     get_window_center,
     get_window_process_name,
+    is_primary_mouse_button_pressed,
     set_cursor_to,
     unclip_cursor,
 )
@@ -44,6 +45,7 @@ class LockService(QtCore.QObject):
         self._auto_lock_suspended = False
         self._force_lock = False
         self._last_active_window_key: Tuple[Optional[int], str, str] = (None, "", "")
+        self._last_target_position: Optional[Tuple[int, int]] = None
 
         self.recenter_timer = QtCore.QTimer(self)
         self.recenter_timer.timeout.connect(self._on_recenter_tick)
@@ -71,7 +73,7 @@ class LockService(QtCore.QObject):
         """Re-apply timers after settings changes."""
         settings = self._get_settings()
         window_specific = settings.get("windowSpecific", {})
-        if window_specific.get("enabled") and window_specific.get("autoLockOnWindowFocus"):
+        if window_specific.get("enabled"):
             if not self.window_focus_timer.isActive():
                 self.window_focus_timer.start(50)
         else:
@@ -82,12 +84,12 @@ class LockService(QtCore.QObject):
         """Lock the cursor to the configured target position."""
         if self._locked:
             return
-        if not manual and not self._should_lock_for_window():
+        if not self._should_lock_for_window():
             return
 
         if manual:
             self._auto_lock_suspended = False
-            self._force_lock = True
+            self._force_lock = not self._is_window_specific_enabled()
         else:
             self._force_lock = False
 
@@ -96,6 +98,7 @@ class LockService(QtCore.QObject):
             set_cursor_to(cx, cy)
             clip_cursor_to_point(cx, cy)
             self._locked = True
+            self._last_target_position = (cx, cy)
             self._apply_recenter_timer()
             self._on_state_changed()
             self._on_notify_locked()
@@ -116,6 +119,7 @@ class LockService(QtCore.QObject):
         try:
             unclip_cursor()
             self._locked = False
+            self._last_target_position = None
             self._apply_recenter_timer()
             self._on_state_changed()
             self._on_notify_unlocked()
@@ -138,6 +142,7 @@ class LockService(QtCore.QObject):
         except Exception:
             pass
         self._locked = False
+        self._last_target_position = None
         self._apply_recenter_timer()
         self._on_state_changed()
 
@@ -162,15 +167,25 @@ class LockService(QtCore.QObject):
                 return True
         return False
 
+    def _is_window_specific_enabled(self) -> bool:
+        """Return whether window-specific locking is enabled."""
+        return bool(self._get_settings().get("windowSpecific", {}).get("enabled", False))
+
+    def _active_window_matches_targets(self, ws: Dict[str, Any]) -> tuple[bool, Optional[int], str, str]:
+        """Return active-window match state plus normalized window identity."""
+        hwnd, title = get_active_window_info()
+        proc_name = get_window_process_name(hwnd) if hwnd else ""
+        targets = ws.get("targetWindows", [])
+        is_target = self._check_match(title or "", proc_name or "", targets)
+        return is_target, hwnd, title or "", proc_name or ""
+
     def _should_lock_for_window(self) -> bool:
         """Check if locking should proceed based on window-specific settings."""
         settings = self._get_settings()
         ws = settings.get("windowSpecific", {})
         if ws.get("enabled", False):
-            hwnd, title = get_active_window_info()
-            proc_name = get_window_process_name(hwnd) if hwnd else ""
-            targets = ws.get("targetWindows", [])
-            return self._check_match(title, proc_name, targets)
+            is_target, _hwnd, _title, _proc_name = self._active_window_matches_targets(ws)
+            return is_target
         return True
 
     def _get_target_position(self) -> Tuple[int, int]:
@@ -206,15 +221,32 @@ class LockService(QtCore.QObject):
         else:
             self.recenter_timer.stop()
 
+    def _should_suspend_recenter_for_window_move(self, target_position: Tuple[int, int]) -> bool:
+        """Avoid fighting an in-progress target-window move while locked."""
+        if not self._is_window_specific_enabled():
+            return False
+        if self._last_target_position in (None, target_position):
+            return False
+        return is_primary_mouse_button_pressed()
+
     def _on_recenter_tick(self) -> None:
         """Recenter and re-clip the cursor while locked."""
         if not self._locked:
             return
-        if not self._force_lock and not self._should_lock_for_window():
+        if not self._should_lock_for_window():
             self.unlock(manual=False)
             return
         cx, cy = self._get_target_position()
+        target_position = (cx, cy)
+        if self._should_suspend_recenter_for_window_move(target_position):
+            self._last_target_position = target_position
+            try:
+                unclip_cursor()
+            except Exception:
+                pass
+            return
         set_cursor_to(cx, cy)
+        self._last_target_position = target_position
         try:
             clip_cursor_to_point(cx, cy)
         except Exception:
@@ -224,15 +256,13 @@ class LockService(QtCore.QObject):
         """Auto lock/unlock based on configured target windows."""
         settings = self._get_settings()
         ws = settings.get("windowSpecific", {})
-        if not ws.get("enabled") or not ws.get("autoLockOnWindowFocus"):
+        if not ws.get("enabled"):
             return
 
-        hwnd, title = get_active_window_info()
-        proc_name = get_window_process_name(hwnd) if hwnd else ""
-        targets = ws.get("targetWindows", [])
-        is_target = self._check_match(title, proc_name, targets)
+        auto_lock_enabled = ws.get("autoLockOnWindowFocus", False)
+        is_target, hwnd, title, proc_name = self._active_window_matches_targets(ws)
 
-        active_window_key = (hwnd, title or "", proc_name or "")
+        active_window_key = (hwnd, title, proc_name)
         if active_window_key != self._last_active_window_key:
             self._last_active_window_key = active_window_key
 
@@ -241,19 +271,15 @@ class LockService(QtCore.QObject):
 
             if self._locked and not is_target:
                 self.unlock(manual=False)
-            elif not self._locked and is_target and not self._auto_lock_suspended:
+            elif auto_lock_enabled and not self._locked and is_target and not self._auto_lock_suspended:
                 self.lock(manual=False)
             return
 
         if self._locked:
-            if self._force_lock:
-                return
             if not is_target:
                 self.unlock(manual=False)
         else:
-            is_auto_enabled = ws.get("autoLockOnWindowFocus", False)
-            if is_target:
-                if is_auto_enabled and not self._auto_lock_suspended:
-                    self.lock(manual=False)
+            if auto_lock_enabled and is_target and not self._auto_lock_suspended:
+                self.lock(manual=False)
             elif self._auto_lock_suspended:
                 return
