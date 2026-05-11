@@ -3,22 +3,12 @@ Internationalization helpers for MouseCenterLock.
 """
 from __future__ import annotations
 
-import os
-import sys
 from typing import Dict
 
+import os
+
+from app_paths import I18N_DIR
 from settings_manager import load_json
-
-
-if getattr(sys, "frozen", False):
-    _BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-APP_DIR = _BASE_DIR
-I18N_DIR = os.path.join(APP_DIR, "pythonProject", "i18n")
-if not os.path.exists(I18N_DIR):
-    I18N_DIR = os.path.join(APP_DIR, "i18n")
 
 
 class I18n:

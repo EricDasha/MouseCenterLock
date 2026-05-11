@@ -5,25 +5,17 @@ from __future__ import annotations
 
 import copy
 import json
-import os
-import sys
 import uuid
 from typing import Any, Dict, List, Optional
 
 from app_logging import log_exception
+from app_paths import APP_DIR, RUN_DIR
 
+import os
 
-if getattr(sys, "frozen", False):
-    _BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-    _RUN_DIR = os.path.dirname(sys.executable)
-else:
-    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    _RUN_DIR = _BASE_DIR
-
-APP_DIR = _BASE_DIR
 CONFIG_DEFAULT_PATH = os.path.join(APP_DIR, "Mconfig.json")
-CONFIG_PATH = os.path.join(_RUN_DIR, "Mconfig.json")
-LEGACY_CONFIG_PATH = os.path.join(_RUN_DIR, "config.json")
+CONFIG_PATH = os.path.join(RUN_DIR, "Mconfig.json")
+LEGACY_CONFIG_PATH = os.path.join(RUN_DIR, "config.json")
 
 CLICKER_PRESETS = {
     "custom": None,

@@ -29,8 +29,8 @@
 - `services/` – 執行期服務（連點器、鎖定狀態機）
 - `ui/pages/` – 簡單/進階頁面建構模組
 - `tests/` – 最小單元測試集
-- `pythonProject/i18n/` – 語言檔案
-- `pythonProject/assets/` – 圖示和資源
+- `i18n/` – 語言檔案
+- `assets/` – 圖示和資源
 - `Mconfig.json` – 預設設定（相容讀取舊版 `config.json`）
 
 ## 系統需求
@@ -58,17 +58,19 @@ python -m unittest discover tests
 
 建立虛擬環境（建議）並建置視窗化 exe：
 ```bash
-pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
-  --icon pythonProject/assets/app.ico \
-  --add-data "pythonProject/i18n;i18n" \
-  --add-data "Mconfig.json;." \
-  --add-data "pythonProject/assets;assets" \
-  --hidden-import win_api \
-  --hidden-import widgets \
-  mouse_center_lock_gui.py
+python build.py
+```
+或使用 PyInstaller 直接建置：
+```bash
+pyinstaller --noconfirm --clean MouseCenterLock.spec
 ```
 exe 檔案將位於 `dist/MouseCenterLock.exe`。
+
+打包腳本選項：
+- `python build.py` — 完整建置（清理 + 測試 + 打包）
+- `python build.py --skip-test` — 跳過單元測試
+- `python build.py --dev` — 開發建置（含除錯資訊）
+- `python build.py --clean-only` — 僅清理建置產物
 
 如需恢復預設設定，請刪除 `Mconfig.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
 
