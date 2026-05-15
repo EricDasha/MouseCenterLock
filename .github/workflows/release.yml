@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to create or update"
+        required: true
+        default: "latest"
+      release_name:
+        description: "Release title"
+        required: false
+        default: "MouseCenterLock latest build"
+      prerelease:
+        description: "Mark as prerelease"
+        type: boolean
+        required: false
+        default: false
+      draft:
+        description: "Create/update as draft"
+        type: boolean
+        required: false
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Run tests and build executable
+        run: python build.py
+
+      - name: Prepare release assets
+        id: meta
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag_name }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = "${{ github.ref_name }}"
+          }
+          if ([string]::IsNullOrWhiteSpace($tag) -or $tag -eq "main") {
+            $tag = "latest"
+          }
+
+          $releaseName = "${{ github.event.inputs.release_name }}"
+          if ([string]::IsNullOrWhiteSpace($releaseName)) {
+            $releaseName = "MouseCenterLock $tag"
+          }
+
+          $exe = "dist/MouseCenterLock.exe"
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "Build output $exe was not created."
+          }
+
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $zip = "release/MouseCenterLock-$tag-windows-x64.zip"
+          if (Test-Path -LiteralPath $zip) {
+            Remove-Item -LiteralPath $zip -Force
+          }
+          Compress-Archive -LiteralPath $exe -DestinationPath $zip
+          Get-FileHash -Algorithm SHA256 -LiteralPath $zip |
+            ForEach-Object { "$($_.Hash)  $(Split-Path -Leaf $zip)" } |
+            Set-Content -Encoding ascii -Path "$zip.sha256"
+
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "release_name=$releaseName" >> $env:GITHUB_OUTPUT
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "checksum=$zip.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.meta.outputs.tag }}
+          RELEASE_NAME: ${{ steps.meta.outputs.release_name }}
+          ZIP_PATH: ${{ steps.meta.outputs.zip }}
+          CHECKSUM_PATH: ${{ steps.meta.outputs.checksum }}
+          IS_DRAFT: ${{ github.event.inputs.draft || 'false' }}
+          IS_PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+        run: |
+          $notes = @"
+          Automated Windows build for ``$env:TAG_NAME``.
+
+          Assets:
+          - ``MouseCenterLock-$env:TAG_NAME-windows-x64.zip``
+          - SHA256 checksum
+
+          Source commit: ${{ github.sha }}
+          "@
+          $notesPath = "release/release-notes.md"
+          Set-Content -Encoding utf8 -Path $notesPath -Value $notes
+
+          gh release view "$env:TAG_NAME" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $createArgs = @(
+              "release", "create", "$env:TAG_NAME",
+              "$env:ZIP_PATH", "$env:CHECKSUM_PATH",
+              "--target", "${{ github.sha }}",
+              "--title", "$env:RELEASE_NAME",
+              "--notes-file", "$notesPath"
+            )
+            if ($env:IS_DRAFT -eq "true") { $createArgs += "--draft" }
+            if ($env:IS_PRERELEASE -eq "true") { $createArgs += "--prerelease" }
+            gh @createArgs
+          } else {
+            $editArgs = @(
+              "release", "edit", "$env:TAG_NAME",
+              "--title", "$env:RELEASE_NAME",
+              "--notes-file", "$notesPath"
+            )
+            if ($env:IS_DRAFT -eq "true") { $editArgs += "--draft" }
+            if ($env:IS_PRERELEASE -eq "true") { $editArgs += "--prerelease" }
+            gh @editArgs
+            gh release upload "$env:TAG_NAME" "$env:ZIP_PATH" "$env:CHECKSUM_PATH" --clobber
+          }
