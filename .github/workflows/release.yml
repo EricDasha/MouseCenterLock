@@ -11,6 +11,10 @@ on:
         description: "Release title"
         required: false
         default: "MouseCenterLock latest build"
+      release_notes:
+        description: "Release notes. Leave empty to use the default generated notes."
+        required: false
+        default: ""
       prerelease:
         description: "Mark as prerelease"
         type: boolean
@@ -96,10 +100,12 @@ jobs:
           RELEASE_NAME: ${{ steps.meta.outputs.release_name }}
           ZIP_PATH: ${{ steps.meta.outputs.zip }}
           CHECKSUM_PATH: ${{ steps.meta.outputs.checksum }}
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes || '' }}
           IS_DRAFT: ${{ github.event.inputs.draft || 'false' }}
           IS_PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
         run: |
-          $notes = @"
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_NOTES)) {
+            $notes = @"
           Automated Windows build for ``$env:TAG_NAME``.
 
           Assets:
@@ -108,6 +114,9 @@ jobs:
 
           Source commit: ${{ github.sha }}
           "@
+          } else {
+            $notes = $env:RELEASE_NOTES
+          }
           $notesPath = "release/release-notes.md"
           Set-Content -Encoding utf8 -Path $notesPath -Value $notes
 
