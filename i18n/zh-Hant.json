@@ -155,5 +155,8 @@
   "windowTools.centerOnScreen": "將視窗移至螢幕中心",
   "windowTools.apply": "套用",
   "windowTools.success": "視窗調整成功！",
-  "windowTools.error": "視窗調整失敗，目標視窗可能已關閉。"
+  "windowTools.error": "視窗調整失敗，目標視窗可能已關閉。",
+  "clicker.blacklist.title": "連點器程序黑名單",
+  "clicker.blacklist.hint": "目前前台程序命中此列表時，連點器不會啟動或點擊。",
+  "clicker.blacklist.placeholder": "程序名，例如 steam.exe"
 }

@@ -13,7 +13,14 @@ try:
 except Exception:
     QtMultimedia = None
 
-from win_api import GlobalInputListener, click_mouse, key_to_vk, user32
+from win_api import (
+    GlobalInputListener,
+    click_mouse,
+    get_active_window_info,
+    get_window_process_name,
+    key_to_vk,
+    user32,
+)
 
 
 class ClickerSoundPlayer(QtCore.QObject):
@@ -142,12 +149,12 @@ class ClickerService(QtCore.QObject):
     def start(self, show_message: bool = True, immediate_click: bool = False) -> None:
         """Start the auto clicker."""
         profile = self._get_profile()
-        if self._running or not profile.get("enabled", False):
+        if self._running or not profile.get("enabled", False) or self._is_active_process_blocked(profile):
             return
 
         self._running = True
         if immediate_click:
-            click_mouse(profile.get("button", "left"))
+            self._click_once(profile)
         self._apply_clicker_timer()
         self._sound_player.play_for_profile(profile)
         self._on_state_changed()
@@ -188,6 +195,40 @@ class ClickerService(QtCore.QObject):
                 self.clicker_timer.start(interval)
         else:
             self.clicker_timer.stop()
+
+    def _check_process_match(self, process: str, targets: list[str]) -> bool:
+        """Check whether a process name matches any configured target."""
+        process_lower = (process or "").lower()
+        process_stem = Path(process_lower).stem
+        for target in targets:
+            target_lower = str(target or "").strip().lower()
+            if not target_lower:
+                continue
+            target_stem = Path(target_lower).stem
+            if target_lower in (process_lower, process_stem):
+                return True
+            if target_stem and target_stem in (process_lower, process_stem):
+                return True
+            if target_lower in process_lower or (process_stem and target_lower in process_stem):
+                return True
+        return False
+
+    def _is_active_process_blocked(self, profile: Dict[str, Any]) -> bool:
+        """Return whether the foreground process is blacklisted for this profile."""
+        blacklist = profile.get("processBlacklist", [])
+        if not blacklist:
+            return False
+        hwnd, _title = get_active_window_info()
+        process = get_window_process_name(hwnd) if hwnd else ""
+        return self._check_process_match(process or "", blacklist)
+
+    def _click_once(self, profile: Dict[str, Any]) -> None:
+        """Click once unless the active process is blacklisted."""
+        if self._is_active_process_blocked(profile):
+            if self._running:
+                self.stop(show_message=False)
+            return
+        click_mouse(profile.get("button", "left"))
 
     def _modifier_pressed(self, vk: int) -> bool:
         """Return whether a modifier virtual key is currently pressed."""
@@ -307,6 +348,11 @@ class ClickerService(QtCore.QObject):
                 self._hold_trigger_pressed = False
                 self.stop(show_message=False)
             return
+        if self._is_active_process_blocked(profile):
+            if self._hold_trigger_pressed:
+                self._hold_trigger_pressed = False
+            self.stop(show_message=False)
+            return
 
         mode = triggers.get("mode")
         if mode == "holdKey":
@@ -344,4 +390,4 @@ class ClickerService(QtCore.QObject):
         if not profile.get("enabled", False):
             self.stop(show_message=False)
             return
-        click_mouse(profile.get("button", "left"))
+        self._click_once(profile)

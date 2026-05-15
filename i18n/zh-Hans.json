@@ -166,5 +166,8 @@
   "windowTools.apply": "应用",
   "windowTools.success": "窗口调整成功！",
   "windowTools.error": "窗口调整失败，目标窗口可能已关闭。",
-  "browse": "浏览"
+  "browse": "浏览",
+  "clicker.blacklist.title": "连点器进程黑名单",
+  "clicker.blacklist.hint": "当前前台进程命中此列表时，连点器不会启动或点击。",
+  "clicker.blacklist.placeholder": "进程名，例如 steam.exe"
 }

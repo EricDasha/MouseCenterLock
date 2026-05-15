@@ -163,5 +163,8 @@
   "windowTools.centerOnScreen": "ウィンドウを画面中央に移動",
   "windowTools.apply": "適用",
   "windowTools.success": "ウィンドウの調整に成功しました！",
-  "windowTools.error": "ウィンドウの調整に失敗しました。ウィンドウが閉じられている可能性があります。"
+  "windowTools.error": "ウィンドウの調整に失敗しました。ウィンドウが閉じられている可能性があります。",
+  "clicker.blacklist.title": "オートクリッカーのプロセスブラックリスト",
+  "clicker.blacklist.hint": "前面のプロセスがこのリストに一致すると、オートクリッカーは開始もクリックもしません。",
+  "clicker.blacklist.placeholder": "プロセス名、例: steam.exe"
 }

@@ -166,5 +166,8 @@
   "windowTools.apply": "Apply",
   "windowTools.success": "Window adjusted successfully!",
   "windowTools.error": "Failed to adjust window. The window may have been closed.",
-  "browse": "Browse"
+  "browse": "Browse",
+  "clicker.blacklist.title": "Auto Clicker Process Blacklist",
+  "clicker.blacklist.hint": "Auto clicker will not start or click while the foreground process matches this list.",
+  "clicker.blacklist.placeholder": "Process name, e.g. steam.exe"
 }

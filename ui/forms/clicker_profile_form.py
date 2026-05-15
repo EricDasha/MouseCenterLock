@@ -6,6 +6,11 @@ from __future__ import annotations
 from typing import Any, Dict
 
 
+def _collect_list_widget_items(widget) -> list[str]:
+    """Collect text entries from a QListWidget-like object."""
+    return [widget.item(i).text() for i in range(widget.count())]
+
+
 def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
     """Build a clicker profile dict from the current form controls."""
     active = window._get_active_clicker_profile()
@@ -25,6 +30,7 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
             "preset": window.clickerSoundPresetCombo.currentData() or "systemAsterisk",
             "customFile": window.clickerCustomSoundPathEdit.text().strip(),
         },
+        "processBlacklist": _collect_list_widget_items(window.clickerProcessBlacklist),
         "triggers": {
             "mode": window.clickerTriggerModeCombo.currentData() or "toggle",
             "toggleHotkey": window.clickerToggleHotkeyCapture.get_hotkey(),
@@ -77,6 +83,9 @@ def load_clicker_profile_into_form(window, profile: Dict[str, Any]) -> None:
                 window.clickerSoundPresetCombo.setCurrentIndex(i)
                 break
         window.clickerCustomSoundPathEdit.setText(sound.get("customFile", ""))
+        window.clickerProcessBlacklist.clear()
+        for process_name in profile.get("processBlacklist", []):
+            window.clickerProcessBlacklist.addItem(process_name)
         window._sync_clicker_interval_controls()
         window._sync_clicker_trigger_controls()
         window._sync_clicker_sound_controls()

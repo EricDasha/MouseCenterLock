@@ -90,6 +90,21 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertNotIn("clicker", settings.data)
         self.assertNotIn("clickerActiveProfile", settings.data)
 
+    def test_clicker_profile_normalizes_process_blacklist(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {}
+        settings._set_defaults()
+
+        saved = settings.upsert_clicker_profile({
+            "id": "default",
+            "name": "Default",
+            "processBlacklist": ["steam.exe", " ", "steamwebhelper"],
+        })
+
+        self.assertEqual(saved["processBlacklist"], ["steam.exe", "steamwebhelper"])
+
     def test_profile_default_names_follow_language(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

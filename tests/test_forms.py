@@ -8,6 +8,7 @@ from ui.forms.settings_form import (
     apply_general_settings_form_data,
     collect_general_settings_form_data,
 )
+from ui.forms.clicker_profile_form import collect_clicker_profile_form_data
 
 
 class _ValueWidget:
@@ -40,6 +41,14 @@ class _HotkeyWidget:
 
     def get_hotkey(self):
         return self._spec
+
+
+class _LineEditWidget:
+    def __init__(self, text):
+        self._text = text
+
+    def text(self):
+        return self._text
 
 
 class _ListItem:
@@ -91,6 +100,30 @@ class SettingsFormTests(unittest.TestCase):
         self.assertEqual(settings.data["windowSpecific"]["targetWindows"], ["game.exe", "Minecraft"])
         self.assertEqual(settings.data["language"], "zh-Hant")
         self.assertTrue(settings.data["startup"]["launchOnBoot"])
+
+    def test_collect_clicker_profile_includes_process_blacklist(self):
+        window = types.SimpleNamespace(
+            _get_active_clicker_profile=lambda: {"id": "default", "name": "默认方案"},
+            _selected_profile_id="default",
+            clickerProfileNameEdit=_LineEditWidget("Steam Safe"),
+            clickerEnabledCheck=_CheckWidget(True),
+            clickerButtonCombo=_ComboWidget("left"),
+            clickerPresetCombo=_ComboWidget("efficient"),
+            clickerIntervalSpin=_ValueWidget(100),
+            clickerSoundEnabledCheck=_CheckWidget(False),
+            clickerSoundPresetCombo=_ComboWidget("systemAsterisk"),
+            clickerCustomSoundPathEdit=_LineEditWidget(""),
+            clickerProcessBlacklist=_ListWidget(["steam.exe", "steamwebhelper.exe"]),
+            clickerTriggerModeCombo=_ComboWidget("holdMouseButton"),
+            clickerToggleHotkeyCapture=_HotkeyWidget({"key": "F6"}),
+            clickerHoldKeyCapture=_HotkeyWidget({"key": "F7"}),
+            clickerHoldMouseCombo=_ComboWidget("x1"),
+        )
+
+        profile = collect_clicker_profile_form_data(window)
+
+        self.assertEqual(profile["processBlacklist"], ["steam.exe", "steamwebhelper.exe"])
+        self.assertEqual(profile["triggers"]["holdMouseButton"], "x1")
 
 
 if __name__ == "__main__":

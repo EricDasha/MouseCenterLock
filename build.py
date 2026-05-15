@@ -97,7 +97,7 @@ def syntax_check() -> bool:
 def run_tests() -> bool:
     step("Running unit tests")
     result = run(
-        [sys.executable, "-m", "unittest", "discover", "tests", "-v"],
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
         check=False,
     )
     if result.returncode != 0:

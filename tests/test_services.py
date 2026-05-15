@@ -132,6 +132,38 @@ class ServiceTests(unittest.TestCase):
         service.hold_state_timer.stop()
         service.clicker_timer.stop()
 
+    def test_clicker_service_process_blacklist_blocks_side_button_trigger(self):
+        profile = {
+            "enabled": True,
+            "button": "left",
+            "intervalMs": 25,
+            "processBlacklist": ["steam.exe"],
+            "sound": {"enabled": False, "preset": "systemAsterisk", "customFile": ""},
+            "triggers": {
+                "mode": "holdMouseButton",
+                "holdMouseButton": "x1",
+            },
+        }
+        service = ClickerService(
+            get_profile=lambda: profile,
+            on_state_changed=lambda: None,
+            on_notify_started=lambda _profile: None,
+            on_notify_stopped=lambda _profile: None,
+            sound_presets={"systemAsterisk": 0x40},
+            input_listener_factory=_FakeInputListener,
+        )
+
+        try:
+            with mock.patch("services.clicker_service.get_active_window_info", return_value=(123, "Steam")), \
+                 mock.patch("services.clicker_service.get_window_process_name", return_value="steam.exe"), \
+                 mock.patch("services.clicker_service.click_mouse") as click_mouse:
+                service._on_global_input_event("mouse", "x1", True)
+                self.assertFalse(service.is_running)
+                click_mouse.assert_not_called()
+        finally:
+            service.hold_state_timer.stop()
+            service.clicker_timer.stop()
+
     def test_clicker_service_falls_back_to_polling_when_hook_unavailable(self):
         class _FailedInputListener(_FakeInputListener):
             def start(self):

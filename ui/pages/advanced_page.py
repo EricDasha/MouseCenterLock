@@ -221,6 +221,51 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     custom_sound_layout.addWidget(window.clickerCustomSoundBrowseBtn)
     layout.addLayout(custom_sound_layout)
 
+    layout.addWidget(create_section_label(window.i18n.t("clicker.blacklist.title", "Auto Clicker Process Blacklist")))
+    blacklist_hint = QtWidgets.QLabel(
+        window.i18n.t(
+            "clicker.blacklist.hint",
+            "Auto clicker will not start or click while the foreground process matches this list."
+        )
+    )
+    blacklist_hint.setWordWrap(True)
+    blacklist_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(blacklist_hint)
+
+    window.clickerProcessBlacklist = QtWidgets.QListWidget()
+    window.clickerProcessBlacklist.setFixedHeight(96)
+    window.clickerProcessBlacklist.setStyleSheet("""
+        QListWidget {
+            background: #2c2c2e;
+            border: 1px solid #48484a;
+            border-radius: 6px;
+            color: #ebebf5;
+            padding: 4px;
+        }
+    """)
+    layout.addWidget(window.clickerProcessBlacklist)
+
+    blacklist_input_layout = QtWidgets.QHBoxLayout()
+    window.clickerBlacklistInputEdit = QtWidgets.QLineEdit()
+    window.clickerBlacklistInputEdit.setPlaceholderText(
+        window.i18n.t("clicker.blacklist.placeholder", "Process name, e.g. steam.exe")
+    )
+    blacklist_input_layout.addWidget(window.clickerBlacklistInputEdit)
+    window.pickClickerBlacklistProcessBtn = QtWidgets.QPushButton(window.i18n.t("window.specific.pick", "Pick Process"))
+    window.pickClickerBlacklistProcessBtn.clicked.connect(window._pick_clicker_blacklist_process)
+    blacklist_input_layout.addWidget(window.pickClickerBlacklistProcessBtn)
+    layout.addLayout(blacklist_input_layout)
+
+    blacklist_btn_layout = QtWidgets.QHBoxLayout()
+    window.addClickerBlacklistBtn = QtWidgets.QPushButton(window.i18n.t("window.specific.add", "Add"))
+    window.addClickerBlacklistBtn.clicked.connect(window._add_clicker_blacklist_process)
+    blacklist_btn_layout.addWidget(window.addClickerBlacklistBtn)
+    window.removeClickerBlacklistBtn = QtWidgets.QPushButton(window.i18n.t("window.specific.remove", "Remove"))
+    window.removeClickerBlacklistBtn.clicked.connect(window._remove_clicker_blacklist_process)
+    blacklist_btn_layout.addWidget(window.removeClickerBlacklistBtn)
+    blacklist_btn_layout.addStretch()
+    layout.addLayout(blacklist_btn_layout)
+
     window.clickerConfigHint = QtWidgets.QLabel(
         window.i18n.t(
             "clicker.config.hint",

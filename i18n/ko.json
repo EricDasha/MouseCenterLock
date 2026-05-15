@@ -163,5 +163,8 @@
   "windowTools.centerOnScreen": "창을 화면 중앙으로 이동",
   "windowTools.apply": "적용",
   "windowTools.success": "창 조정 완료!",
-  "windowTools.error": "창 조정 실패. 대상 창이 닫혔을 수 있습니다."
+  "windowTools.error": "창 조정 실패. 대상 창이 닫혔을 수 있습니다.",
+  "clicker.blacklist.title": "자동 클릭 프로세스 블랙리스트",
+  "clicker.blacklist.hint": "전면 프로세스가 이 목록과 일치하면 자동 클릭이 시작되거나 클릭하지 않습니다.",
+  "clicker.blacklist.placeholder": "프로세스 이름, 예: steam.exe"
 }

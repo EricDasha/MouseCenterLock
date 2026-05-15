@@ -173,6 +173,7 @@ class SettingsManager:
             "intervalMs": 100,
             "preset": "efficient",
             "sound": deep_copy(self.DEFAULT_CLICKER_SOUND),
+            "processBlacklist": [],
             "triggers": {
                 "mode": "toggle",
                 "toggleHotkey": deep_copy(self.DEFAULT_CLICKER_HOTKEY),
@@ -200,6 +201,15 @@ class SettingsManager:
         sound_preset = sound.get("preset", normalized["sound"]["preset"])
         normalized["sound"]["preset"] = sound_preset if sound_preset in CLICKER_SOUND_PRESETS else "systemAsterisk"
         normalized["sound"]["customFile"] = str(sound.get("customFile", "") or "")
+
+        process_blacklist = source.get("processBlacklist", [])
+        if not isinstance(process_blacklist, list):
+            process_blacklist = []
+        normalized["processBlacklist"] = [
+            str(item).strip()
+            for item in process_blacklist
+            if str(item).strip()
+        ]
 
         triggers = source.get("triggers", {})
         legacy_toggle = source.get("hotkeyToggle", {})

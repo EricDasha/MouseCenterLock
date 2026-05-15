@@ -370,6 +370,14 @@ class MainWindow(QtWidgets.QMainWindow):
             if selected:
                 self.manualInputEdit.setText(selected)
 
+    def _pick_clicker_blacklist_process(self):
+        """Pick a foreground process for the clicker blacklist."""
+        dialog = ProcessPickerDialog(self, self.i18n)
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            selected = dialog.get_selected_process()
+            if selected:
+                self.clickerBlacklistInputEdit.setText(selected)
+
     def _open_window_resize(self):
         """Open window resize & center dialog."""
         dialog = WindowResizeDialog(self, self.i18n)
@@ -395,6 +403,27 @@ class MainWindow(QtWidgets.QMainWindow):
         row = self.targetList.currentRow()
         if row >= 0:
             self.targetList.takeItem(row)
+            self._schedule_live_apply()
+
+    def _add_clicker_blacklist_process(self):
+        """Add current input to the active clicker profile process blacklist."""
+        text = self.clickerBlacklistInputEdit.text().strip()
+        if not text:
+            return
+
+        items = [self.clickerProcessBlacklist.item(i).text() for i in range(self.clickerProcessBlacklist.count())]
+        if text in items:
+            return
+
+        self.clickerProcessBlacklist.addItem(text)
+        self.clickerBlacklistInputEdit.clear()
+        self._schedule_live_apply()
+
+    def _remove_clicker_blacklist_process(self):
+        """Remove selected process from the active clicker profile blacklist."""
+        row = self.clickerProcessBlacklist.currentRow()
+        if row >= 0:
+            self.clickerProcessBlacklist.takeItem(row)
             self._schedule_live_apply()
 
     def _current_profile_form_data(self) -> Dict[str, Any]:
