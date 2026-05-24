@@ -142,6 +142,23 @@ class SettingsManagerTests(unittest.TestCase):
 
         self.assertEqual(settings.data["inputBackend"], "native-sendinput")
         self.assertEqual(settings.data["inputMode"], "scan-code")
+        self.assertEqual(settings.data["fallbackBackend"], "native-sendinput")
+        self.assertEqual(settings.data["fallbackPolicy"], "auto")
+
+    def test_virtual_hid_config_preserves_fallback_policy(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "inputBackend": "virtual-hid",
+            "fallbackBackend": "python-sendinput",
+            "fallbackPolicy": "error",
+        }
+        settings._set_defaults()
+
+        self.assertEqual(settings.data["inputBackend"], "virtual-hid")
+        self.assertEqual(settings.data["fallbackBackend"], "python-sendinput")
+        self.assertEqual(settings.data["fallbackPolicy"], "error")
 
     def test_profile_default_names_follow_language(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)

@@ -10,6 +10,12 @@ from typing import Any, Dict, List, Optional
 
 from app_logging import log_exception
 from app_paths import APP_DIR, RUN_DIR
+from services.input_backends import (
+    BACKEND_NATIVE_SENDINPUT,
+    INPUT_BACKENDS,
+    INPUT_BACKEND_ALIASES,
+    normalize_fallback_policy,
+)
 
 import os
 
@@ -17,19 +23,6 @@ CONFIG_DEFAULT_PATH = os.path.join(APP_DIR, "Mconfig.json")
 CONFIG_EXAMPLE_PATH = os.path.join(APP_DIR, "Mconfig.example.json")
 CONFIG_PATH = os.path.join(RUN_DIR, "Mconfig.json")
 LEGACY_CONFIG_PATH = os.path.join(RUN_DIR, "config.json")
-INPUT_BACKENDS = {
-    "auto",
-    "native-sendinput",
-    "python-sendinput",
-    "window-message",
-    "virtual-hid",
-    "hardware-hid",
-}
-INPUT_BACKEND_ALIASES = {
-    "sendinput": "native-sendinput",
-    "native-scancode": "native-sendinput",
-    "python-fallback": "python-sendinput",
-}
 
 CLICKER_PRESETS = {
     "custom": None,
@@ -168,6 +161,10 @@ class SettingsManager:
         backend = str(self.data.get("inputBackend", "auto") or "auto").strip().lower()
         backend = INPUT_BACKEND_ALIASES.get(backend, backend)
         self.data["inputBackend"] = backend if backend in INPUT_BACKENDS else "auto"
+        fallback_backend = str(self.data.get("fallbackBackend", BACKEND_NATIVE_SENDINPUT) or BACKEND_NATIVE_SENDINPUT).strip().lower()
+        fallback_backend = INPUT_BACKEND_ALIASES.get(fallback_backend, fallback_backend)
+        self.data["fallbackBackend"] = fallback_backend if fallback_backend in INPUT_BACKENDS - {"auto"} else BACKEND_NATIVE_SENDINPUT
+        self.data["fallbackPolicy"] = normalize_fallback_policy(self.data.get("fallbackPolicy", "auto"))
         input_mode = str(self.data.get("inputMode", "scan-code") or "scan-code").strip().lower()
         self.data["inputMode"] = input_mode if input_mode in ("virtual-key", "scan-code", "unicode") else "scan-code"
         self._ensure_mouse_macros()

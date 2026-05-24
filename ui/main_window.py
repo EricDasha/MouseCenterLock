@@ -66,7 +66,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._live_apply_timer = QtCore.QTimer(self)
         self._live_apply_timer.setSingleShot(True)
         self._live_apply_timer.timeout.connect(self._apply_live_settings)
-        self._input_service = InputService(get_backend=lambda: self.settings.data.get("inputBackend", "auto"))
+        self._input_service = InputService(
+            get_backend=lambda: self.settings.data.get("inputBackend", "auto"),
+            get_fallback_backend=lambda: self.settings.data.get("fallbackBackend", "native-sendinput"),
+            get_fallback_policy=lambda: self.settings.data.get("fallbackPolicy", "auto"),
+        )
         self._clicker_service = ClickerService(
             get_profile=self._get_active_clicker_profile,
             on_state_changed=self._on_clicker_runtime_changed,

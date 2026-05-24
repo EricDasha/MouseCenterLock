@@ -7,6 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets
 
 from services.clicker_service import ClickerService
+from services.input_backends import get_backend_status, all_backend_statuses
 from services.input_service import InputService
 from services.lock_service import LockService
 from services.macro_service import MouseMacroService
@@ -84,12 +85,38 @@ class ServiceTests(unittest.TestCase):
         python_click.assert_called_once_with("left")
 
     def test_input_service_virtual_hid_reserved_falls_back_to_native_path(self):
-        service = InputService(get_backend=lambda: "virtual-hid")
+        service = InputService(
+            get_backend=lambda: "virtual-hid",
+            get_fallback_backend=lambda: "native-sendinput",
+            get_fallback_policy=lambda: "auto",
+        )
 
         with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click:
             service.click_mouse("left")
 
         native_click.assert_called_once_with("left")
+
+    def test_input_service_virtual_hid_error_policy_does_not_silent_fallback(self):
+        service = InputService(
+            get_backend=lambda: "virtual-hid",
+            get_fallback_backend=lambda: "native-sendinput",
+            get_fallback_policy=lambda: "error",
+        )
+
+        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
+             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+            service.click_mouse("left")
+
+        native_click.assert_not_called()
+        python_click.assert_not_called()
+
+    def test_input_backend_registry_reports_virtual_hid_unavailable(self):
+        status = get_backend_status("virtual-hid")
+        self.assertEqual(status.name, "virtual-hid")
+        self.assertFalse(status.available)
+        self.assertIn(status.reason, {"driver_not_installed", "unsupported_os"})
+        self.assertTrue(status.capabilities.supportsKeyboard)
+        self.assertIn("virtual-hid", all_backend_statuses())
 
     def test_input_service_prefers_rust_unicode_text(self):
         service = InputService(get_backend=lambda: "sendinput")

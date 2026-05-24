@@ -82,6 +82,8 @@ exe 檔案將位於 `dist/MouseCenterLock.exe`。
 
 輸入後端預設仍是使用者層：Rust 原生 SendInput（掃描碼/Unicode）、Python SendInput 兜底與視窗訊息。這能提升許多桌面軟體的相容性，但不是驅動/HID 輸入，不能保證所有遊戲、Raw Input 程式、系統管理員權限視窗或反作弊保護目標都接收。虛擬 HID 與硬體 HID 作為後續後端預留。
 
+後端階段、fallback 策略與非目標見：[輸入後端路線圖](docs/backend-roadmap.md)。
+
 ## 更新日誌
 
 ### v1.1.0
