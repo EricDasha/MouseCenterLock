@@ -57,7 +57,8 @@
           "key": "1"
         }
       ],
-      "cancelOnPressRelease": false
+      "cancelOnPressRelease": false,
+      "cooldownMs": 250
     }
   ]
 }

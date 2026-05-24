@@ -50,7 +50,8 @@
           "type": "keyUp",
           "key": "1"
         }
-      ]
+      ],
+      "cooldownMs": 250
     }
   ]
 }

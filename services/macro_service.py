@@ -75,6 +75,7 @@ class MouseMacroService(QtCore.QObject):
         self._current_rule: Dict[str, Any] | None = None
         self._current_rule_key = ""
         self._held_output_keys: list[str] = []
+        self._last_rule_fire_at: dict[str, float] = {}
         self._rules_cache_key = None
         self._rules_cache: List[Dict[str, Any]] = []
         self._input_listener = input_listener_factory(
@@ -269,10 +270,19 @@ class MouseMacroService(QtCore.QObject):
                 )
                 continue
             rule_key = f"{rule.get('id') or index}:{event_type}:{pressed_name}"
+            rule_id = str(rule.get("id") or index)
+            cooldown_ms = max(0, int(rule.get("cooldownMs", 0) or 0))
+            if cooldown_ms > 0:
+                last_fire = self._last_rule_fire_at.get(rule_id, 0.0)
+                elapsed_ms = (time.monotonic() - last_fire) * 1000.0
+                if elapsed_ms < cooldown_ms:
+                    log_message(f"MouseMacro rule cooldown active: id={rule_id} elapsedMs={elapsed_ms:.0f} cooldownMs={cooldown_ms}")
+                    continue
             if rule_key in self._active_rule_keys:
                 log_message(f"MouseMacro rule suppressed until release: {rule_key}")
                 continue
             self._active_rule_keys.add(rule_key)
+            self._last_rule_fire_at[rule_id] = time.monotonic()
             actions = rule.get("actions", [])
             log_message(f"MouseMacro firing rule: {rule_key} actions={len(actions) if isinstance(actions, list) else 'invalid'}")
             self._execute_actions(actions, rule=rule, rule_key=rule_key)

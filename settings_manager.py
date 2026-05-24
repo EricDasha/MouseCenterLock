@@ -262,6 +262,7 @@ class SettingsManager:
                     "cancelOnHoldRelease": True,
                     "cancelOnPressRelease": False,
                     "cancelOnFocusLost": False,
+                    "cooldownMs": 0,
                     "interruptible": True,
                     "actions": [
                         {
@@ -320,6 +321,7 @@ class SettingsManager:
             "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),
             "cancelOnPressRelease": bool(source.get("cancelOnPressRelease", False)),
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
+            "cooldownMs": max(0, min(60000, int(source.get("cooldownMs", 0) or 0))),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
             "onCancel": [self._normalize_macro_action(action) for action in on_cancel[:16]],

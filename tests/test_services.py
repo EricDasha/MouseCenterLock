@@ -229,6 +229,40 @@ class ServiceTests(unittest.TestCase):
         finally:
             service.stop()
 
+    def test_mouse_macro_service_honors_cooldown_between_triggers(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "x1-switch",
+                    "enabled": True,
+                    "pressMouseButton": "x1",
+                    "cooldownMs": 300,
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            with mock.patch('services.macro_service.time.monotonic', side_effect=[1.0, 1.05, 1.10, 1.40, 1.41]):
+                service._on_global_input_event('mouse', 'x1', True)
+                service._on_global_input_event('mouse', 'x1', False)
+                service._on_global_input_event('mouse', 'x1', True)
+                service._on_global_input_event('mouse', 'x1', False)
+                service._on_global_input_event('mouse', 'x1', True)
+
+            self.assertEqual(input_service.keys, ["2", "2"])
+        finally:
+            service.stop()
+
     def test_mouse_macro_service_supports_press_only_mouse_rule(self):
         config = {
             "enabled": True,
