@@ -46,11 +46,26 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust/input_backend
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pyinstaller
+
+      - name: Validate JSON assets
+        run: python -c "import json, pathlib; [json.load(open(p, encoding='utf-8')) for p in pathlib.Path('i18n').glob('*.json')]; [json.load(open(p, encoding='utf-8')) for p in pathlib.Path('examples/mouse-macros').rglob('*.json')]; print('json ok')"
+
+      - name: Rust input backend check
+        working-directory: rust/input_backend
+        run: cargo check
 
       - name: Run tests and build executable
         run: python build.py
