@@ -190,5 +190,15 @@
   "macro.action.delay": "Delay",
   "macro.text.placeholder": "Text to type",
   "macro.file.title": "Select Mouse Macro JSON",
-  "macro.file.filter": "JSON Files (*.json);;All Files (*.*)"
+  "macro.file.filter": "JSON Files (*.json);;All Files (*.*)",
+  "macro.preview.empty": "Select a JSON file to preview its rules.",
+  "macro.preview.invalid": "Invalid JSON or unreadable file: {0}",
+  "macro.preview.noRules": "No usable rules array found.",
+  "macro.preview.valid": "Valid macro JSON: {0} rule(s).",
+  "macro.preview.more": "...and {0} more rule(s).",
+  "macro.preview.action.mouseClick": "Click {0}",
+  "macro.preview.action.key": "Key {0}",
+  "macro.preview.action.hotkey": "Hotkey {0}",
+  "macro.preview.action.text": "Text \"{0}\"",
+  "macro.preview.action.delay": "Delay {0}ms"
 }

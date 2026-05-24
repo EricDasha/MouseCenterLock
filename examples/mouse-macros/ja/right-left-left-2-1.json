@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "right-left-then-left-2-1",
+      "name": "Hold Right + Left = Left, 2, 1",
+      "enabled": true,
+      "holdMouseButton": "right",
+      "pressMouseButton": "left",
+      "actions": [
+        {
+          "type": "mouseClick",
+          "button": "left"
+        },
+        {
+          "type": "key",
+          "key": "2"
+        },
+        {
+          "type": "key",
+          "key": "1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "middle-right-text",
+      "name": "Hold Middle + Right = Type GG",
+      "enabled": true,
+      "holdMouseButton": "middle",
+      "pressMouseButton": "right",
+      "actions": [
+        {
+          "type": "text",
+          "text": "GG"
+        },
+        {
+          "type": "delay",
+          "ms": 80
+        },
+        {
+          "type": "key",
+          "key": "Enter"
+        }
+      ]
+    }
+  ]
+}

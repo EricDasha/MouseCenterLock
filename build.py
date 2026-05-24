@@ -36,6 +36,7 @@ SOURCE_FILES = [
     "services/clicker_service.py",
     "services/clicker_profile_controller.py",
     "services/lock_service.py",
+    "services/macro_service.py",
     "services/settings_apply_controller.py",
     "services/theme_service.py",
     "services/tray_service.py",

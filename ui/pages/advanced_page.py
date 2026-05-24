@@ -309,6 +309,7 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroConfigFileEdit = QtWidgets.QLineEdit(str(macro_cfg.get("configFile", "") or ""))
     window.mouseMacroConfigFileEdit.setPlaceholderText(window.i18n.t("macro.file.placeholder", "Select macro JSON file"))
     window.mouseMacroConfigFileEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    window.mouseMacroConfigFileEdit.textChanged.connect(lambda _text: window._update_mouse_macro_file_preview())
     file_layout.addWidget(window.mouseMacroConfigFileEdit)
     window.mouseMacroBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
     window.mouseMacroBrowseBtn.clicked.connect(window._browse_mouse_macro_file)
@@ -322,6 +323,12 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroFileHint.setWordWrap(True)
     window.mouseMacroFileHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
     layout.addWidget(window.mouseMacroFileHint)
+
+    window.mouseMacroFilePreviewLabel = QtWidgets.QLabel()
+    window.mouseMacroFilePreviewLabel.setWordWrap(True)
+    window.mouseMacroFilePreviewLabel.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+    window.mouseMacroFilePreviewLabel.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(window.mouseMacroFilePreviewLabel)
 
     window.mouseMacroBuilderGroup = QtWidgets.QGroupBox(window.i18n.t("macro.builder", "Builder Rule"))
     builder_layout = QtWidgets.QVBoxLayout(window.mouseMacroBuilderGroup)

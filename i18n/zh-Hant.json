@@ -179,5 +179,15 @@
   "macro.action.delay": "延迟",
   "macro.text.placeholder": "要输入的文本",
   "macro.file.title": "选择鼠标宏 JSON",
-  "macro.file.filter": "JSON 文件 (*.json);;所有文件 (*.*)"
+  "macro.file.filter": "JSON 文件 (*.json);;所有文件 (*.*)",
+  "macro.preview.empty": "選擇 JSON 檔案後會自動預覽規則。",
+  "macro.preview.invalid": "JSON 無效或檔案不可讀：{0}",
+  "macro.preview.noRules": "未找到可用的 rules 陣列。",
+  "macro.preview.valid": "巨集 JSON 可用：{0} 條規則。",
+  "macro.preview.more": "……另有 {0} 條規則。",
+  "macro.preview.action.mouseClick": "點擊 {0}",
+  "macro.preview.action.key": "按鍵 {0}",
+  "macro.preview.action.hotkey": "快捷鍵 {0}",
+  "macro.preview.action.text": "文字「{0}」",
+  "macro.preview.action.delay": "等待 {0}ms"
 }

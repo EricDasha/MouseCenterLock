@@ -1,4 +1,4 @@
-**语言 / Language / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
+**语言 / Language / 日本語 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 ---
 
@@ -73,22 +73,11 @@ exe 文件将位于 `dist/MouseCenterLock.exe`。
 
 如需恢复默认设置，请删除 `Mconfig.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
 
-鼠标宏外部 JSON 示例：
-```json
-{
-  "rules": [
-    {
-      "id": "x2-left-copy",
-      "name": "X2 + Left = Ctrl+C",
-      "enabled": true,
-      "holdMouseButton": "x2",
-      "pressMouseButton": "left",
-      "actions": [{ "type": "hotkey", "modCtrl": true, "key": "C" }]
-    }
-  ]
-}
-```
-动作支持 `hotkey`、`key`、`mouseClick`、`text`、`delay`。
+## 鼠标宏配置
+
+鼠标宏支持「界面拼装」和「外部 JSON 配置文件」两种方式。完整写法、示例文件、鼠标键名与键盘 `key` 名称见：
+
+- [鼠标宏示例与配置说明](examples/mouse-macros/zh-Hans/README.md)
 
 ## 更新日志
 

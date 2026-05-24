@@ -1,4 +1,4 @@
-**Language / 语言 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
+**语言 / Language / 日本語 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 ---
 
@@ -62,6 +62,12 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   mouse_center_lock_gui.py
 ```
 exe 파일은 `dist/MouseCenterLock.exe`에 생성됩니다.
+
+## 마우스 매크로 설정
+
+마우스 매크로는 UI 조립 방식과 외부 JSON 파일 방식을 모두 지원합니다. 전체 형식, 예제 파일, 마우스 버튼 이름과 키보드 `key` 이름은 다음 문서를 참고하세요.
+
+- [마우스 매크로 예제 및 설정 설명](examples/mouse-macros/ko/README.md)
 
 ## 변경 기록
 

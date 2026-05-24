@@ -1,5 +1,8 @@
+import json
+import tempfile
 import unittest
 
+from ui.main_window import MainWindow
 from ui.presenters.main_window_presenter import (
     build_clicker_button_presentation,
     build_simple_info_text,
@@ -88,6 +91,37 @@ class MainWindowPresenterTests(unittest.TestCase):
         self.assertIn("Start Auto Clicker", clicker_text)
         self.assertIn("F7", clicker_text)
         self.assertTrue(enabled)
+
+
+    def test_mouse_macro_file_preview_reads_rules(self):
+        class _I18n:
+            def t(self, _key, fallback):
+                return fallback
+
+        window = MainWindow.__new__(MainWindow)
+        window.i18n = _I18n()
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as file:
+            json.dump({
+                "rules": [{
+                    "enabled": True,
+                    "holdMouseButton": "right",
+                    "pressMouseButton": "left",
+                    "actions": [
+                        {"type": "mouseClick", "button": "left"},
+                        {"type": "key", "key": "2"},
+                    ],
+                }]
+            }, file)
+            path = file.name
+        try:
+            ok, text = window._build_mouse_macro_file_preview_text(path)
+        finally:
+            import os
+            os.unlink(path)
+
+        self.assertTrue(ok)
+        self.assertIn("right + left", text)
+        self.assertIn("Key 2", text)
 
     def test_resolve_clicker_preset_falls_back_to_custom(self):
         self.assertEqual(resolve_clicker_preset(77, {"custom": None, "efficient": 100, "extreme": 10}), "custom")

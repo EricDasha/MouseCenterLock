@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "x2-left-paste-enter",
+      "name": "Hold X2/Forward + Left = Ctrl+V, Enter",
+      "enabled": true,
+      "holdMouseButton": "x2",
+      "pressMouseButton": "left",
+      "actions": [
+        {
+          "type": "hotkey",
+          "modCtrl": true,
+          "modAlt": false,
+          "modShift": false,
+          "modWin": false,
+          "key": "V"
+        },
+        {
+          "type": "key",
+          "key": "Enter"
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-**语言 / Language / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
+**语言 / Language / 日本語 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 ---
 
@@ -71,6 +71,12 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 exe 檔案將位於 `dist/MouseCenterLock.exe`。
 
 如需恢復預設設定，請刪除 `Mconfig.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
+
+## 滑鼠巨集設定
+
+滑鼠巨集支援「介面拼裝」和「外部 JSON 設定檔」兩種方式。完整寫法、範例檔案、滑鼠鍵名與鍵盤 `key` 名稱見：
+
+- [滑鼠巨集範例與設定說明](examples/mouse-macros/zh-Hant/README.md)
 
 ## 更新日誌
 

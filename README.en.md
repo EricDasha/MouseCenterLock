@@ -1,4 +1,4 @@
-**Language / 语言 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [한국어](README.ko.md)
+**语言 / Language / 日本語 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 ---
 
@@ -71,6 +71,12 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 The exe will be in `dist/MouseCenterLock.exe`.
 
 To restore default settings, delete `Mconfig.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
+
+## Mouse macro configuration
+
+Mouse macros support both the builder UI and external JSON files. For the full schema, example files, mouse button names, and keyboard `key` names, see:
+
+- [Mouse macro examples and configuration reference](examples/mouse-macros/en/README.md)
 
 ## Changelog
 

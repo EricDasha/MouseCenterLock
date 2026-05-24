@@ -1,6 +1,7 @@
 """
 MouseCenterLock main window.
 """
+import json
 import os
 from typing import Optional, Dict, Any
 
@@ -564,6 +565,73 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clicker_service.play_sound_preview(sound_config)
 
 
+
+    def _describe_mouse_macro_action(self, action: Dict[str, Any]) -> str:
+        """Return a compact description for a macro action."""
+        action_type = str(action.get("type", "") or "")
+        if action_type == "mouseClick":
+            return self.i18n.t("macro.preview.action.mouseClick", "Click {0}").format(action.get("button", "left"))
+        if action_type == "key":
+            return self.i18n.t("macro.preview.action.key", "Key {0}").format(action.get("key", "?"))
+        if action_type == "hotkey":
+            return self.i18n.t("macro.preview.action.hotkey", "Hotkey {0}").format(format_hotkey_display(action))
+        if action_type == "text":
+            text = str(action.get("text", "") or "")
+            if len(text) > 24:
+                text = f"{text[:24]}…"
+            return self.i18n.t("macro.preview.action.text", "Text \"{0}\"").format(text)
+        if action_type == "delay":
+            return self.i18n.t("macro.preview.action.delay", "Delay {0}ms").format(action.get("ms", 0))
+        return action_type or "?"
+
+    def _build_mouse_macro_file_preview_text(self, file_path: str) -> tuple[bool, str]:
+        """Read and validate a macro JSON file, returning preview text."""
+        path = file_path.strip()
+        if not path:
+            return False, self.i18n.t("macro.preview.empty", "Select a JSON file to preview its rules.")
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                payload = json.load(file)
+        except Exception as exc:
+            return False, self.i18n.t("macro.preview.invalid", "Invalid JSON or unreadable file: {0}").format(str(exc))
+
+        if isinstance(payload, list):
+            rules = payload
+        elif isinstance(payload, dict):
+            rules = payload.get("rules", [])
+        else:
+            rules = []
+        if not isinstance(rules, list) or not rules:
+            return False, self.i18n.t("macro.preview.noRules", "No usable rules array found.")
+
+        lines = [self.i18n.t("macro.preview.valid", "Valid macro JSON: {0} rule(s).").format(len(rules))]
+        for index, rule in enumerate(rules[:5], start=1):
+            if not isinstance(rule, dict):
+                lines.append(f"{index}. ?")
+                continue
+            hold = rule.get("holdMouseButton", "?")
+            press = rule.get("pressMouseButton", "?")
+            enabled = self.i18n.t("simple.enabled", "Enabled") if rule.get("enabled", False) else self.i18n.t("simple.disabled", "Disabled")
+            actions = rule.get("actions", [])
+            if not isinstance(actions, list):
+                actions = []
+            action_text = " → ".join(self._describe_mouse_macro_action(action) for action in actions[:6] if isinstance(action, dict))
+            if len(actions) > 6:
+                action_text += " → …"
+            lines.append(f"{index}. {enabled}: {hold} + {press} → {action_text or '?'}")
+        if len(rules) > 5:
+            lines.append(self.i18n.t("macro.preview.more", "...and {0} more rule(s).").format(len(rules) - 5))
+        return True, "\n".join(lines)
+
+    def _update_mouse_macro_file_preview(self) -> None:
+        """Refresh the external JSON preview without requiring button clicks."""
+        if not hasattr(self, "mouseMacroFilePreviewLabel"):
+            return
+        ok, text = self._build_mouse_macro_file_preview_text(self.mouseMacroConfigFileEdit.text())
+        color = "rgba(48, 209, 88, 0.95)" if ok else "rgba(255, 159, 10, 0.95)"
+        self.mouseMacroFilePreviewLabel.setStyleSheet(f"color: {color}; font-size: 12px;")
+        self.mouseMacroFilePreviewLabel.setText(text)
+
     def _browse_mouse_macro_file(self) -> None:
         """Select an external mouse macro JSON file."""
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -591,6 +659,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.mouseMacroConfigFileEdit.setVisible(not builder_visible)
         self.mouseMacroBrowseBtn.setVisible(not builder_visible)
         self.mouseMacroFileHint.setVisible(not builder_visible)
+        self.mouseMacroFilePreviewLabel.setVisible(not builder_visible)
+        self._update_mouse_macro_file_preview()
 
         action_type = self.mouseMacroActionTypeCombo.currentData() or "hotkey"
         self.mouseMacroActionHotkeyCapture.setVisible(action_type in ("hotkey", "key"))

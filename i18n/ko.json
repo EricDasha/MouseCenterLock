@@ -187,5 +187,15 @@
   "macro.action.delay": "Delay",
   "macro.text.placeholder": "Text to type",
   "macro.file.title": "Select Mouse Macro JSON",
-  "macro.file.filter": "JSON Files (*.json);;All Files (*.*)"
+  "macro.file.filter": "JSON Files (*.json);;All Files (*.*)",
+  "macro.preview.empty": "JSON 파일을 선택하면 규칙을 자동으로 미리 봅니다.",
+  "macro.preview.invalid": "JSON이 잘못되었거나 파일을 읽을 수 없습니다: {0}",
+  "macro.preview.noRules": "사용 가능한 rules 배열을 찾지 못했습니다.",
+  "macro.preview.valid": "사용 가능한 매크로 JSON: 규칙 {0}개.",
+  "macro.preview.more": "...규칙 {0}개 더 있음.",
+  "macro.preview.action.mouseClick": "{0} 클릭",
+  "macro.preview.action.key": "키 {0}",
+  "macro.preview.action.hotkey": "단축키 {0}",
+  "macro.preview.action.text": "텍스트 \"{0}\"",
+  "macro.preview.action.delay": "{0}ms 대기"
 }

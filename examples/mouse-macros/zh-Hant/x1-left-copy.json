@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {
+      "id": "x1-left-copy",
+      "name": "Hold X1/Back + Left = Ctrl+C",
+      "enabled": true,
+      "holdMouseButton": "x1",
+      "pressMouseButton": "left",
+      "actions": [
+        {
+          "type": "hotkey",
+          "modCtrl": true,
+          "modAlt": false,
+          "modShift": false,
+          "modWin": false,
+          "key": "C"
+        }
+      ]
+    }
+  ]
+}
