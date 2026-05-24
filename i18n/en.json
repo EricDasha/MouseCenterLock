@@ -218,5 +218,7 @@
   "macro.preview.action.mouseUp": "Mouse up {0}",
   "macro.triggerMode": "Trigger Mode",
   "macro.trigger.hold": "Hold",
-  "macro.trigger.toggle": "Toggle"
+  "macro.trigger.toggle": "Toggle",
+  "macro.trigger.holdLoop": "Hold Loop",
+  "macro.trigger.toggleLoop": "Toggle Loop"
 }

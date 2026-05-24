@@ -51,8 +51,9 @@ class MouseMacroService(QtCore.QObject):
 
     Rules primarily use ``holdMouseButton`` + ``pressMouseButton``. For advanced
     JSON files, ``holdKey`` + ``pressKey`` is also accepted. ``triggerMode`` can
-    be ``hold`` or ``toggle``. Press/release edges are tracked so holding A and
-    repeatedly pressing B repeatedly fires the rule.
+    be ``hold``, ``toggle``, ``holdLoop`` or ``toggleLoop``. Press/release edges
+    are tracked so holding A and repeatedly pressing B repeatedly fires the
+    rule; loop modes repeat the action stream until their stop condition.
     """
 
     inputEvent = QtCore.Signal(str, str, bool)
@@ -78,6 +79,10 @@ class MouseMacroService(QtCore.QObject):
         self._held_output_keys: list[str] = []
         self._last_rule_fire_at: dict[str, float] = {}
         self._toggled_rule_ids: Set[str] = set()
+        self._loop_rule: Dict[str, Any] | None = None
+        self._loop_rule_id = ""
+        self._loop_rule_key = ""
+        self._loop_stop_requested = False
         self._rules_cache_key = None
         self._rules_cache: List[Dict[str, Any]] = []
         self._input_listener = input_listener_factory(
@@ -90,11 +95,15 @@ class MouseMacroService(QtCore.QObject):
 
         self._poll_timer = QtCore.QTimer(self)
         self._poll_timer.timeout.connect(self._poll_input_state)
+        self._loop_timer = QtCore.QTimer(self)
+        self._loop_timer.setInterval(1)
+        self._loop_timer.timeout.connect(self._run_loop_tick)
         self.sync_runtime()
 
     def stop(self) -> None:
         """Remove global hooks and stop polling."""
         log_message("MouseMacroService stopping")
+        self._stop_loop_rule("service_stopping")
         self._poll_timer.stop()
         self._input_listener.stop()
 
@@ -111,6 +120,7 @@ class MouseMacroService(QtCore.QObject):
             self._pressed_keys.clear()
             self._active_rule_keys.clear()
             self._toggled_rule_ids.clear()
+            self._stop_loop_rule("macros_disabled")
             return
         if not self._poll_timer.isActive():
             self._poll_timer.start(12)
@@ -147,12 +157,14 @@ class MouseMacroService(QtCore.QObject):
             if not was_pressed:
                 log_message(f"MouseMacro input down: type={event_type} name={normalized}")
                 self._handle_toggle_rules(event_type, normalized)
+                self._handle_loop_press_rules(event_type, normalized)
                 self._fire_matching_rules(event_type, normalized)
         else:
             target_set.discard(normalized)
             log_message(f"MouseMacro input up: type={event_type} name={normalized}")
             suffix = f":{event_type}:{normalized}"
             self._active_rule_keys = {key for key in self._active_rule_keys if not key.endswith(suffix)}
+            self._handle_loop_release_rules(event_type, normalized)
 
     def _normalize_input_name(self, event_type: str, name: str) -> str:
         """Normalize mouse aliases and key names used by hooks/config files."""
@@ -240,7 +252,7 @@ class MouseMacroService(QtCore.QObject):
         pressMouseButton=left. Prefer explicit holdKey when present; otherwise
         use holdMouseButton.
         """
-        if str(rule.get("triggerMode", "hold") or "hold").lower() == "toggle":
+        if str(rule.get("triggerMode", "hold") or "hold").lower() in {"toggle", "toggleloop"}:
             return rule_id in self._toggled_rule_ids
         hold_type, hold_name = self._rule_hold_target(rule)
         if not hold_type or not hold_name:
@@ -267,7 +279,8 @@ class MouseMacroService(QtCore.QObject):
         for index, rule in enumerate(self._load_rules(config)):
             if not isinstance(rule, dict) or not rule.get("enabled", False):
                 continue
-            if str(rule.get("triggerMode", "hold") or "hold").lower() != "toggle":
+            trigger_mode = str(rule.get("triggerMode", "hold") or "hold").lower()
+            if trigger_mode not in {"toggle", "toggleloop"}:
                 continue
             toggle_type, toggle_name = self._rule_hold_target(rule)
             if (event_type, normalized) != (toggle_type, toggle_name):
@@ -276,20 +289,100 @@ class MouseMacroService(QtCore.QObject):
             if rule_id in self._toggled_rule_ids:
                 self._toggled_rule_ids.discard(rule_id)
                 log_message(f"MouseMacro toggle off: id={rule_id} trigger={event_type}:{normalized}")
+                if trigger_mode == "toggleloop":
+                    self._stop_loop_rule("toggle_off")
                 if self._executing and self._current_rule and str(self._current_rule.get("id") or "") == rule_id:
                     self._cancel_requested = True
                     log_message(f"MouseMacro toggle-off cancellation requested: {self._current_rule_key}")
             else:
                 self._toggled_rule_ids.add(rule_id)
                 log_message(f"MouseMacro toggle on: id={rule_id} trigger={event_type}:{normalized}")
+                if trigger_mode == "toggleloop":
+                    self._start_loop_rule(rule, rule_id, event_type, normalized)
 
     def _rule_is_armed(self, rule: Dict[str, Any], rule_id: str) -> bool:
-        return str(rule.get("triggerMode", "hold") or "hold").lower() != "toggle" or rule_id in self._toggled_rule_ids
+        return str(rule.get("triggerMode", "hold") or "hold").lower() not in {"toggle", "toggleloop"} or rule_id in self._toggled_rule_ids
+
+    def _handle_loop_press_rules(self, event_type: str, normalized: str) -> None:
+        """Start hold-loop rules when their hold trigger is pressed."""
+        config = self._get_config()
+        for index, rule in enumerate(self._load_rules(config)):
+            if not isinstance(rule, dict) or not rule.get("enabled", False):
+                continue
+            if str(rule.get("triggerMode", "hold") or "hold").lower() != "holdloop":
+                continue
+            hold_type, hold_name = self._rule_hold_target(rule)
+            if (event_type, normalized) != (hold_type, hold_name):
+                continue
+            rule_id = str(rule.get("id") or index)
+            self._start_loop_rule(rule, rule_id, event_type, normalized)
+
+    def _handle_loop_release_rules(self, event_type: str, normalized: str) -> None:
+        """Stop hold-loop rules when their hold trigger is released."""
+        if not self._loop_rule:
+            return
+        if str(self._loop_rule.get("triggerMode", "hold") or "hold").lower() != "holdloop":
+            return
+        hold_type, hold_name = self._rule_hold_target(self._loop_rule)
+        if (event_type, normalized) == (hold_type, hold_name):
+            self._stop_loop_rule("hold_released")
+
+    def _start_loop_rule(self, rule: Dict[str, Any], rule_id: str, event_type: str, normalized: str) -> None:
+        """Arm a repeating macro rule without blocking the event loop between runs."""
+        if self._loop_rule_id == rule_id and self._loop_rule:
+            return
+        if self._loop_rule_id and self._loop_rule_id != rule_id:
+            self._stop_loop_rule("replaced")
+        self._loop_rule = rule
+        self._loop_rule_id = rule_id
+        self._loop_rule_key = f"{rule_id}:loop:{event_type}:{normalized}"
+        self._loop_stop_requested = False
+        interval_ms = max(1, int(rule.get("loopIntervalMs", rule.get("cooldownMs", 1)) or 1))
+        self._loop_timer.setInterval(interval_ms)
+        self._loop_timer.start()
+        log_message(f"MouseMacro loop start: {self._loop_rule_key} intervalMs={interval_ms}")
+
+    def _stop_loop_rule(self, reason: str) -> None:
+        """Stop the active repeating macro rule and request cancellation if mid-run."""
+        if not self._loop_rule and not self._loop_timer.isActive():
+            return
+        log_message(f"MouseMacro loop stop: id={self._loop_rule_id} reason={reason}")
+        self._loop_timer.stop()
+        self._loop_stop_requested = True
+        if self._executing and self._current_rule is self._loop_rule:
+            self._cancel_requested = True
+        self._loop_rule = None
+        self._loop_rule_id = ""
+        self._loop_rule_key = ""
+
+    def _run_loop_tick(self) -> None:
+        """Execute one loop iteration when the active loop rule is still armed."""
+        if not self._loop_rule:
+            self._loop_timer.stop()
+            return
+        if self._executing:
+            return
+        rule = self._loop_rule
+        rule_id = self._loop_rule_id
+        trigger_mode = str(rule.get("triggerMode", "hold") or "hold").lower()
+        if trigger_mode == "holdloop" and not self._rule_hold_is_pressed(rule, rule_id, ""):
+            self._stop_loop_rule("hold_not_pressed")
+            return
+        if trigger_mode == "toggleloop" and rule_id not in self._toggled_rule_ids:
+            self._stop_loop_rule("toggle_not_armed")
+            return
+        actions = rule.get("actions", [])
+        log_message(f"MouseMacro loop firing rule: {self._loop_rule_key} actions={len(actions) if isinstance(actions, list) else 'invalid'}")
+        self._execute_actions(actions, rule=rule, rule_key=self._loop_rule_key)
+        if self._loop_stop_requested:
+            self._stop_loop_rule("cancelled")
 
     def _fire_matching_rules(self, event_type: str, pressed_name: str) -> None:
         config = self._get_config()
         for index, rule in enumerate(self._load_rules(config)):
             if not isinstance(rule, dict) or not rule.get("enabled", False):
+                continue
+            if str(rule.get("triggerMode", "hold") or "hold").lower() in {"holdloop", "toggleloop"}:
                 continue
             press_type, press_name = self._rule_press_target(rule)
             if press_type != event_type or press_name != pressed_name:

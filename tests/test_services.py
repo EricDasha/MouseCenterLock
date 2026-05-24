@@ -375,6 +375,77 @@ class ServiceTests(unittest.TestCase):
         finally:
             service.stop()
 
+    def test_mouse_macro_service_supports_hold_loop_until_release(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "hold-loop",
+                    "enabled": True,
+                    "triggerMode": "holdLoop",
+                    "holdMouseButton": "x1",
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+        service._loop_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["2", "2"])
+
+            service._on_global_input_event("mouse", "x1", False)
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["2", "2"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_toggle_loop_until_second_press(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "toggle-loop",
+                    "enabled": True,
+                    "triggerMode": "toggleLoop",
+                    "holdMouseButton": "x1",
+                    "actions": [{"type": "key", "key": "1"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+        service._loop_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["1", "1"])
+
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["1", "1"])
+        finally:
+            service.stop()
+
     def test_mouse_macro_service_supports_mouse_down_up_actions(self):
         input_service = _FakeInputService()
         service = MouseMacroService(

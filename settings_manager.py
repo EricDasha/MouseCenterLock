@@ -308,7 +308,7 @@ class SettingsManager:
         hold = str(source.get("holdMouseButton", "x2") or "x2").lower()
         press = str(source.get("pressMouseButton", "left") or "left").lower()
         trigger_mode = str(source.get("triggerMode", "hold") or "hold").lower()
-        if trigger_mode not in ("hold", "toggle"):
+        if trigger_mode not in ("hold", "toggle", "holdloop", "toggleloop"):
             trigger_mode = "hold"
         actions = source.get("actions", [])
         if not isinstance(actions, list) or not actions:
@@ -327,6 +327,7 @@ class SettingsManager:
             "cancelOnPressRelease": bool(source.get("cancelOnPressRelease", False)),
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
             "cooldownMs": max(0, min(60000, int(source.get("cooldownMs", 0) or 0))),
+            "loopIntervalMs": max(1, min(60000, int(source.get("loopIntervalMs", source.get("cooldownMs", 1)) or 1))),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
             "onCancel": [self._normalize_macro_action(action) for action in on_cancel[:16]],

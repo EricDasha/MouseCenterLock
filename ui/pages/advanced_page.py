@@ -371,6 +371,8 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroTriggerModeCombo = QtWidgets.QComboBox()
     window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.hold", "Hold"), "hold")
     window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.toggle", "Toggle"), "toggle")
+    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.holdLoop", "Hold Loop"), "holdLoop")
+    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.toggleLoop", "Toggle Loop"), "toggleLoop")
     for i in range(window.mouseMacroTriggerModeCombo.count()):
         if window.mouseMacroTriggerModeCombo.itemData(i) == macro_rule.get("triggerMode", "hold"):
             window.mouseMacroTriggerModeCombo.setCurrentIndex(i)
