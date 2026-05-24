@@ -58,7 +58,7 @@
         }
       ],
       "cancelOnPressRelease": false,
-      "cooldownMs": 250
+      "cooldownMs": 450
     }
   ]
 }
