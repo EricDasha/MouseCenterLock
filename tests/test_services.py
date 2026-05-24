@@ -8,6 +8,7 @@ from PySide6 import QtWidgets
 
 from services.clicker_service import ClickerService
 from services.lock_service import LockService
+from services.macro_service import MouseMacroService
 from services.tray_service import TrayService
 
 
@@ -28,6 +29,35 @@ class ServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+
+    def test_mouse_macro_service_runs_combo_rule_once_until_release(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "copy",
+                    "enabled": True,
+                    "holdMouseButton": "x2",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "mouseClick", "button": "right"}],
+                }
+            ],
+        }
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+
+        with mock.patch("services.macro_service.click_mouse") as click_mouse:
+            service._on_global_input_event("mouse", "x2", True)
+            service._on_global_input_event("mouse", "left", True)
+            service._on_global_input_event("mouse", "left", True)
+            click_mouse.assert_called_once_with("right")
+
+            service._on_global_input_event("mouse", "left", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(click_mouse.call_count, 2)
+
+        service.stop()
 
     def test_clicker_service_start_stop_and_sync(self):
         profile = {

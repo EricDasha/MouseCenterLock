@@ -277,6 +277,136 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addWidget(window.clickerConfigHint)
     window._populate_clicker_profiles()
 
+
+    layout.addWidget(create_section_label(window.i18n.t("macro.section", "Mouse Macros")))
+    macro_cfg = window.settings.data.get("mouseMacros", {})
+    macro_rules = macro_cfg.get("rules", []) if isinstance(macro_cfg.get("rules", []), list) else []
+    macro_rule = macro_rules[0] if macro_rules else {}
+    macro_actions = macro_rule.get("actions", []) if isinstance(macro_rule.get("actions", []), list) else []
+    macro_action = macro_actions[0] if macro_actions else {"type": "hotkey", "modCtrl": True, "key": "C"}
+
+    window.mouseMacroEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.enabled", "Enable mouse macros"))
+    window.mouseMacroEnabledCheck.setChecked(bool(macro_cfg.get("enabled", False)))
+    window.mouseMacroEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    layout.addWidget(window.mouseMacroEnabledCheck)
+
+    macro_source_layout = QtWidgets.QHBoxLayout()
+    macro_source_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.source", "Rule Source")))
+    window.mouseMacroSourceCombo = QtWidgets.QComboBox()
+    window.mouseMacroSourceCombo.addItem(window.i18n.t("macro.source.builder", "Build in UI"), "builder")
+    window.mouseMacroSourceCombo.addItem(window.i18n.t("macro.source.file", "External JSON file"), "file")
+    for i in range(window.mouseMacroSourceCombo.count()):
+        if window.mouseMacroSourceCombo.itemData(i) == macro_cfg.get("source", "builder"):
+            window.mouseMacroSourceCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroSourceCombo.currentIndexChanged.connect(window._sync_mouse_macro_controls)
+    window.mouseMacroSourceCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    macro_source_layout.addWidget(window.mouseMacroSourceCombo)
+    macro_source_layout.addStretch()
+    layout.addLayout(macro_source_layout)
+
+    file_layout = QtWidgets.QHBoxLayout()
+    window.mouseMacroConfigFileEdit = QtWidgets.QLineEdit(str(macro_cfg.get("configFile", "") or ""))
+    window.mouseMacroConfigFileEdit.setPlaceholderText(window.i18n.t("macro.file.placeholder", "Select macro JSON file"))
+    window.mouseMacroConfigFileEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    file_layout.addWidget(window.mouseMacroConfigFileEdit)
+    window.mouseMacroBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
+    window.mouseMacroBrowseBtn.clicked.connect(window._browse_mouse_macro_file)
+    file_layout.addWidget(window.mouseMacroBrowseBtn)
+    layout.addLayout(file_layout)
+
+    window.mouseMacroFileHint = QtWidgets.QLabel(window.i18n.t(
+        "macro.file.hint",
+        "JSON supports {\"rules\":[{\"holdMouseButton\":\"x2\",\"pressMouseButton\":\"left\",\"actions\":[{\"type\":\"hotkey\",\"modCtrl\":true,\"key\":\"C\"}]}]}"
+    ))
+    window.mouseMacroFileHint.setWordWrap(True)
+    window.mouseMacroFileHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(window.mouseMacroFileHint)
+
+    window.mouseMacroBuilderGroup = QtWidgets.QGroupBox(window.i18n.t("macro.builder", "Builder Rule"))
+    builder_layout = QtWidgets.QVBoxLayout(window.mouseMacroBuilderGroup)
+
+    window.mouseMacroRuleEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.rule.enabled", "Enable this rule"))
+    window.mouseMacroRuleEnabledCheck.setChecked(bool(macro_rule.get("enabled", False)))
+    window.mouseMacroRuleEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    builder_layout.addWidget(window.mouseMacroRuleEnabledCheck)
+
+    name_layout = QtWidgets.QHBoxLayout()
+    name_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.name", "Rule Name")))
+    window.mouseMacroNameEdit = QtWidgets.QLineEdit(str(macro_rule.get("name", "X2 + Left") or ""))
+    window.mouseMacroNameEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    name_layout.addWidget(window.mouseMacroNameEdit)
+    builder_layout.addLayout(name_layout)
+
+    combo_layout = QtWidgets.QHBoxLayout()
+    combo_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.when", "When holding")))
+    window.mouseMacroHoldCombo = QtWidgets.QComboBox()
+    window.mouseMacroPressCombo = QtWidgets.QComboBox()
+    for combo in (window.mouseMacroHoldCombo, window.mouseMacroPressCombo):
+        combo.addItem(window.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"), "x1")
+        combo.addItem(window.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"), "x2")
+        combo.addItem(window.i18n.t("clicker.mouse.left", "Left Button"), "left")
+        combo.addItem(window.i18n.t("clicker.mouse.right", "Right Button"), "right")
+        combo.addItem(window.i18n.t("clicker.mouse.middle", "Middle Button"), "middle")
+        combo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    for i in range(window.mouseMacroHoldCombo.count()):
+        if window.mouseMacroHoldCombo.itemData(i) == macro_rule.get("holdMouseButton", "x2"):
+            window.mouseMacroHoldCombo.setCurrentIndex(i)
+            break
+    for i in range(window.mouseMacroPressCombo.count()):
+        if window.mouseMacroPressCombo.itemData(i) == macro_rule.get("pressMouseButton", "left"):
+            window.mouseMacroPressCombo.setCurrentIndex(i)
+            break
+    combo_layout.addWidget(window.mouseMacroHoldCombo)
+    combo_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.then.press", "then pressing")))
+    combo_layout.addWidget(window.mouseMacroPressCombo)
+    builder_layout.addLayout(combo_layout)
+
+    action_layout = QtWidgets.QHBoxLayout()
+    action_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.action", "Action")))
+    window.mouseMacroActionTypeCombo = QtWidgets.QComboBox()
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.hotkey", "Hotkey"), "hotkey")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.key", "Key"), "key")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseClick", "Mouse Click"), "mouseClick")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.text", "Type Text"), "text")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.delay", "Delay"), "delay")
+    for i in range(window.mouseMacroActionTypeCombo.count()):
+        if window.mouseMacroActionTypeCombo.itemData(i) == macro_action.get("type", "hotkey"):
+            window.mouseMacroActionTypeCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroActionTypeCombo.currentIndexChanged.connect(window._sync_mouse_macro_controls)
+    window.mouseMacroActionTypeCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    action_layout.addWidget(window.mouseMacroActionTypeCombo)
+    window.mouseMacroActionHotkeyCapture = HotkeyCapture(i18n=window.i18n)
+    window.mouseMacroActionHotkeyCapture.set_hotkey(macro_action)
+    window.mouseMacroActionHotkeyCapture.hotkeyChanged.connect(lambda _cfg: window._schedule_live_apply())
+    action_layout.addWidget(window.mouseMacroActionHotkeyCapture)
+    window.mouseMacroActionMouseCombo = QtWidgets.QComboBox()
+    for button_key in ("left", "right", "middle", "x1", "x2"):
+        window.mouseMacroActionMouseCombo.addItem(window.i18n.t(f"clicker.mouse.{button_key}", button_key), button_key)
+    for i in range(window.mouseMacroActionMouseCombo.count()):
+        if window.mouseMacroActionMouseCombo.itemData(i) == macro_action.get("button", "left"):
+            window.mouseMacroActionMouseCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroActionMouseCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    action_layout.addWidget(window.mouseMacroActionMouseCombo)
+    builder_layout.addLayout(action_layout)
+
+    text_layout = QtWidgets.QHBoxLayout()
+    window.mouseMacroActionTextEdit = QtWidgets.QLineEdit(str(macro_action.get("text", "") or ""))
+    window.mouseMacroActionTextEdit.setPlaceholderText(window.i18n.t("macro.text.placeholder", "Text to type"))
+    window.mouseMacroActionTextEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    text_layout.addWidget(window.mouseMacroActionTextEdit)
+    window.mouseMacroDelaySpin = QtWidgets.QSpinBox()
+    window.mouseMacroDelaySpin.setRange(0, 60000)
+    window.mouseMacroDelaySpin.setSuffix(" ms")
+    window.mouseMacroDelaySpin.setValue(int(macro_action.get("ms", 100)))
+    window.mouseMacroDelaySpin.valueChanged.connect(lambda _value: window._schedule_live_apply())
+    text_layout.addWidget(window.mouseMacroDelaySpin)
+    builder_layout.addLayout(text_layout)
+    layout.addWidget(window.mouseMacroBuilderGroup)
+    window._sync_mouse_macro_controls()
+
     layout.addWidget(create_section_label(window.i18n.t("position.title", "Target Position")))
     pos_layout = QtWidgets.QHBoxLayout()
     window.posCombo = QtWidgets.QComboBox()

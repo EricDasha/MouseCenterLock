@@ -123,6 +123,7 @@ def main() -> int:
     ret = app.exec()
     try:
         window.stop_clicker(show_message=False)
+        window._macro_service.stop()
         window._lock_service.release_cursor()
     finally:
         unregister_hotkeys()

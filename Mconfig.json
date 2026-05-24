@@ -77,5 +77,29 @@
   "startup": {
     "launchOnBoot": false
   },
-  "closeAction": "minimize"
+  "closeAction": "minimize",
+  "mouseMacros": {
+    "enabled": false,
+    "source": "builder",
+    "configFile": "",
+    "rules": [
+      {
+        "id": "x2-left-default",
+        "name": "X2 + Left",
+        "enabled": false,
+        "holdMouseButton": "x2",
+        "pressMouseButton": "left",
+        "actions": [
+          {
+            "type": "hotkey",
+            "modCtrl": true,
+            "modAlt": false,
+            "modShift": false,
+            "modWin": false,
+            "key": "C"
+          }
+        ]
+      }
+    ]
+  }
 }

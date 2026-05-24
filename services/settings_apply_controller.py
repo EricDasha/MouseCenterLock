@@ -23,6 +23,7 @@ class SettingsApplyController:
         get_active_clicker_profile: Callable[[], Dict[str, Any]],
         stop_clicker: Callable[..., None],
         sync_clicker_runtime: Callable[[], None],
+        sync_macro_runtime: Callable[[], None],
         unregister_hotkeys: Callable[[], None],
         register_hotkeys: Callable[[Dict[str, Any]], tuple[bool, list[str]]],
         on_hotkey_conflict: Callable[[list[str]], None],
@@ -42,6 +43,7 @@ class SettingsApplyController:
         self._get_active_clicker_profile = get_active_clicker_profile
         self._stop_clicker = stop_clicker
         self._sync_clicker_runtime = sync_clicker_runtime
+        self._sync_macro_runtime = sync_macro_runtime
         self._unregister_hotkeys = unregister_hotkeys
         self._register_hotkeys = register_hotkeys
         self._on_hotkey_conflict = on_hotkey_conflict
@@ -69,6 +71,8 @@ class SettingsApplyController:
             self._stop_clicker(show_message=False)
         else:
             self._sync_clicker_runtime()
+
+        self._sync_macro_runtime()
 
         self._unregister_hotkeys()
         success, errors = self._register_hotkeys(self._settings.data)

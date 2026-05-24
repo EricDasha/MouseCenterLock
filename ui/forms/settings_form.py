@@ -11,6 +11,42 @@ def _collect_target_windows(window) -> list[str]:
     return [window.targetList.item(i).text() for i in range(window.targetList.count())]
 
 
+def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
+    """Collect mouse macro settings from the advanced page."""
+    if not hasattr(window, "mouseMacroEnabledCheck"):
+        settings = getattr(window, "settings", None)
+        return getattr(settings, "data", {}).get("mouseMacros", {})
+
+    action_type = window.mouseMacroActionTypeCombo.currentData() or "hotkey"
+    action: Dict[str, Any] = {"type": action_type}
+    if action_type == "mouseClick":
+        action["button"] = window.mouseMacroActionMouseCombo.currentData() or "left"
+    elif action_type == "text":
+        action["text"] = window.mouseMacroActionTextEdit.text()
+    elif action_type == "delay":
+        action["ms"] = window.mouseMacroDelaySpin.value()
+    else:
+        action.update(window.mouseMacroActionHotkeyCapture.get_hotkey())
+        if action_type == "key":
+            action = {"type": "key", "key": action.get("key", "")}
+
+    return {
+        "enabled": window.mouseMacroEnabledCheck.isChecked(),
+        "source": window.mouseMacroSourceCombo.currentData() or "builder",
+        "configFile": window.mouseMacroConfigFileEdit.text().strip(),
+        "rules": [
+            {
+                "id": "builder-rule-1",
+                "name": window.mouseMacroNameEdit.text().strip() or "Mouse Macro",
+                "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
+                "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
+                "pressMouseButton": window.mouseMacroPressCombo.currentData() or "left",
+                "actions": [action],
+            }
+        ],
+    }
+
+
 def collect_general_settings_form_data(window) -> Dict[str, Any]:
     """Build a settings payload from the non-clicker controls."""
     return {
@@ -39,6 +75,7 @@ def collect_general_settings_form_data(window) -> Dict[str, Any]:
         "startup": {
             "launchOnBoot": window.startupCheck.isChecked(),
         },
+        "mouseMacros": _collect_mouse_macro_settings(window),
     }
 
 
@@ -67,3 +104,8 @@ def apply_general_settings_form_data(settings, form_data: Dict[str, Any]) -> Non
     settings.data["theme"] = form_data["theme"]
     settings.data.setdefault("startup", {})
     settings.data["startup"]["launchOnBoot"] = form_data["startup"]["launchOnBoot"]
+
+    if "mouseMacros" in form_data:
+        settings.data["mouseMacros"] = form_data["mouseMacros"]
+        if hasattr(settings, "_ensure_mouse_macros"):
+            settings._ensure_mouse_macros()

@@ -38,6 +38,8 @@ CLICKER_TRIGGER_MODES = {
 }
 
 MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
+MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "mouseClick", "text", "delay")
+
 
 DEFAULT_PROFILE_NAMES = {
     "en": "Default Profile",
@@ -149,6 +151,7 @@ class SettingsManager:
         window_specific.setdefault("resumeAfterWindowSwitch", False)
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
+        self._ensure_mouse_macros()
 
     def _language_code(self) -> str:
         """Return the current settings language or a safe fallback."""
@@ -225,6 +228,92 @@ class SettingsManager:
         hold_mouse_button = str(triggers.get("holdMouseButton", "middle") or "middle").lower()
         normalized["triggers"]["holdMouseButton"] = hold_mouse_button if hold_mouse_button in MOUSE_TRIGGER_BUTTONS else "middle"
         return normalized
+
+
+    def _default_mouse_macro_config(self) -> Dict[str, Any]:
+        """Return the default mouse macro configuration."""
+        return {
+            "enabled": False,
+            "source": "builder",
+            "configFile": "",
+            "rules": [
+                {
+                    "id": "x2-left-default",
+                    "name": "X2 + Left",
+                    "enabled": False,
+                    "holdMouseButton": "x2",
+                    "pressMouseButton": "left",
+                    "actions": [
+                        {
+                            "type": "hotkey",
+                            "modCtrl": True,
+                            "modAlt": False,
+                            "modShift": False,
+                            "modWin": False,
+                            "key": "C",
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def _normalize_macro_action(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a macro action from config."""
+        source = action if isinstance(action, dict) else {}
+        action_type = str(source.get("type", "hotkey") or "hotkey")
+        if action_type not in MOUSE_MACRO_ACTION_TYPES:
+            action_type = "hotkey"
+        normalized: Dict[str, Any] = {"type": action_type}
+        if action_type in ("hotkey", "key"):
+            normalized.update(normalize_hotkey(source, {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": ""}))
+        elif action_type == "mouseClick":
+            button = str(source.get("button", "left") or "left").lower()
+            normalized["button"] = button if button in MOUSE_TRIGGER_BUTTONS else "left"
+        elif action_type == "text":
+            normalized["text"] = str(source.get("text", "") or "")
+        elif action_type == "delay":
+            try:
+                normalized["ms"] = max(0, min(60000, int(source.get("ms", 0))))
+            except Exception:
+                normalized["ms"] = 0
+        return normalized
+
+    def _normalize_macro_rule(self, rule: Dict[str, Any], index: int = 0) -> Dict[str, Any]:
+        """Normalize a mouse macro rule."""
+        source = rule if isinstance(rule, dict) else {}
+        hold = str(source.get("holdMouseButton", "x2") or "x2").lower()
+        press = str(source.get("pressMouseButton", "left") or "left").lower()
+        actions = source.get("actions", [])
+        if not isinstance(actions, list) or not actions:
+            actions = [{"type": "hotkey", "modCtrl": True, "key": "C"}]
+        return {
+            "id": str(source.get("id") or f"macro-{index + 1}"),
+            "name": str(source.get("name") or f"Macro {index + 1}"),
+            "enabled": bool(source.get("enabled", False)),
+            "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
+            "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
+            "actions": [self._normalize_macro_action(action) for action in actions[:32]],
+        }
+
+    def _ensure_mouse_macros(self) -> None:
+        """Normalize mouse macro configuration."""
+        default = self._default_mouse_macro_config()
+        source = self.data.get("mouseMacros", {})
+        if not isinstance(source, dict):
+            source = {}
+        rules = source.get("rules", default["rules"])
+        if not isinstance(rules, list):
+            rules = default["rules"]
+        normalized_rules = [self._normalize_macro_rule(rule, idx) for idx, rule in enumerate(rules)]
+        if not normalized_rules:
+            normalized_rules = [self._normalize_macro_rule(default["rules"][0], 0)]
+        source_mode = str(source.get("source", "builder") or "builder")
+        self.data["mouseMacros"] = {
+            "enabled": bool(source.get("enabled", False)),
+            "source": source_mode if source_mode in ("builder", "file") else "builder",
+            "configFile": str(source.get("configFile", "") or ""),
+            "rules": normalized_rules,
+        }
 
     def _resolve_preset(self, interval_ms: int) -> str:
         """Resolve a click interval to its preset label."""

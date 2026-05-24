@@ -105,6 +105,32 @@ class SettingsManagerTests(unittest.TestCase):
 
         self.assertEqual(saved["processBlacklist"], ["steam.exe", "steamwebhelper"])
 
+
+    def test_mouse_macros_are_defaulted_and_normalized(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "mouseMacros": {
+                "enabled": True,
+                "source": "builder",
+                "rules": [
+                    {
+                        "enabled": True,
+                        "holdMouseButton": "bad",
+                        "pressMouseButton": "left",
+                        "actions": [{"type": "mouseClick", "button": "x2"}],
+                    }
+                ],
+            }
+        }
+        settings._set_defaults()
+
+        macro = settings.data["mouseMacros"]
+        self.assertTrue(macro["enabled"])
+        self.assertEqual(macro["rules"][0]["holdMouseButton"], "x2")
+        self.assertEqual(macro["rules"][0]["actions"][0]["button"], "x2")
+
     def test_profile_default_names_follow_language(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

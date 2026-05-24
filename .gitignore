@@ -6,6 +6,7 @@ __pycache__/
 .Python
 
 # Virtual Environment
+.venv/
 venv/
 env/
 ENV/
@@ -36,3 +37,13 @@ config.json
 
 # Local test artifacts
 tests_tmp/
+
+# Local macro configs
+macros/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

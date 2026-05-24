@@ -20,6 +20,7 @@
 - 多语言支持：English, 简体中文, 繁體中文, 日本語, 한국어
 - 浅色/深色主题
 - 多显示器支持
+- 鼠标宏：支持按住一个鼠标键再按另一个鼠标键触发规则，可通过界面拼装或外部 JSON 配置文件自定义动作
 
 ## 项目结构
 
@@ -71,6 +72,23 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 exe 文件将位于 `dist/MouseCenterLock.exe`。
 
 如需恢复默认设置，请删除 `Mconfig.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
+
+鼠标宏外部 JSON 示例：
+```json
+{
+  "rules": [
+    {
+      "id": "x2-left-copy",
+      "name": "X2 + Left = Ctrl+C",
+      "enabled": true,
+      "holdMouseButton": "x2",
+      "pressMouseButton": "left",
+      "actions": [{ "type": "hotkey", "modCtrl": true, "key": "C" }]
+    }
+  ]
+}
+```
+动作支持 `hotkey`、`key`、`mouseClick`、`text`、`delay`。
 
 ## 更新日志
 

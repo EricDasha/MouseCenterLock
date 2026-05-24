@@ -16,6 +16,7 @@ from win_api import (
 from services.clicker_service import ClickerService
 from services.clicker_profile_controller import ClickerProfileController
 from services.lock_service import LockService
+from services.macro_service import MouseMacroService
 from services.settings_apply_controller import SettingsApplyController
 from services.theme_service import ThemeService
 from services.tray_service import TrayService
@@ -71,6 +72,10 @@ class MainWindow(QtWidgets.QMainWindow):
             sound_presets=CLICKER_SOUND_PRESETS,
             parent=self,
         )
+        self._macro_service = MouseMacroService(
+            get_config=lambda: self.settings.data.get("mouseMacros", {}),
+            parent=self,
+        )
         self._lock_service = LockService(
             get_settings=lambda: self.settings.data,
             on_state_changed=self._on_lock_state_changed,
@@ -104,6 +109,7 @@ class MainWindow(QtWidgets.QMainWindow):
             get_active_clicker_profile=self._get_active_clicker_profile,
             stop_clicker=self.stop_clicker,
             sync_clicker_runtime=self._clicker_service.sync_runtime,
+            sync_macro_runtime=self._macro_service.sync_runtime,
             unregister_hotkeys=unregister_hotkeys,
             register_hotkeys=register_hotkeys,
             on_hotkey_conflict=self._register_hotkeys_or_warn,
@@ -557,6 +563,41 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         self._clicker_service.play_sound_preview(sound_config)
 
+
+    def _browse_mouse_macro_file(self) -> None:
+        """Select an external mouse macro JSON file."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            self.i18n.t("macro.file.title", "Select Mouse Macro JSON"),
+            "",
+            self.i18n.t("macro.file.filter", "JSON Files (*.json);;All Files (*.*)"),
+        )
+        if path:
+            self.mouseMacroConfigFileEdit.setText(path)
+            for i in range(self.mouseMacroSourceCombo.count()):
+                if self.mouseMacroSourceCombo.itemData(i) == "file":
+                    self.mouseMacroSourceCombo.setCurrentIndex(i)
+                    break
+            self._sync_mouse_macro_controls()
+            self._schedule_live_apply()
+
+    def _sync_mouse_macro_controls(self):
+        """Show controls relevant to builder/file macro mode and action type."""
+        if not hasattr(self, "mouseMacroSourceCombo"):
+            return
+        source = self.mouseMacroSourceCombo.currentData() or "builder"
+        builder_visible = source == "builder"
+        self.mouseMacroBuilderGroup.setVisible(builder_visible)
+        self.mouseMacroConfigFileEdit.setVisible(not builder_visible)
+        self.mouseMacroBrowseBtn.setVisible(not builder_visible)
+        self.mouseMacroFileHint.setVisible(not builder_visible)
+
+        action_type = self.mouseMacroActionTypeCombo.currentData() or "hotkey"
+        self.mouseMacroActionHotkeyCapture.setVisible(action_type in ("hotkey", "key"))
+        self.mouseMacroActionMouseCombo.setVisible(action_type == "mouseClick")
+        self.mouseMacroActionTextEdit.setVisible(action_type == "text")
+        self.mouseMacroDelaySpin.setVisible(action_type == "delay")
+
     def _sync_clicker_trigger_controls(self):
         """Only show trigger inputs relevant to the selected trigger mode."""
         mode = self.clickerTriggerModeCombo.currentData() or "toggle"
@@ -811,6 +852,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Quit the application."""
         try:
             self.stop_clicker(show_message=False)
+            self._macro_service.stop()
             self._lock_service.release_cursor()
         finally:
             unregister_hotkeys()
