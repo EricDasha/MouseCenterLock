@@ -11,6 +11,7 @@
    - Current stage: interface and detection only.
    - First status: `unavailable: driver_not_installed`.
    - Later work: service/device detection, installer/uninstaller, signing, permission checks, OS compatibility, and recovery.
+   - Cost and rollout notes: see [Virtual HID Development Cost](virtual-hid-development-cost.md).
 
 3. **Hardware HID**
    - Future advanced mode for devices such as RP2040.
