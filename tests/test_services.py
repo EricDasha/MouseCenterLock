@@ -197,6 +197,38 @@ class ServiceTests(unittest.TestCase):
 
         service.stop()
 
+    def test_mouse_macro_cancel_on_hold_release_ignores_press_release_by_default(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "hold-left",
+                    "enabled": True,
+                    "holdMouseButton": "x1",
+                    "pressMouseButton": "left",
+                    "cancelOnHoldRelease": True,
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=_FakeInputService(),
+        )
+        service._poll_timer.stop()
+
+        try:
+            rule = config["rules"][0]
+            service._current_rule = rule
+            self.assertFalse(service._current_rule_cancel_matches("mouse", "left"))
+            self.assertTrue(service._current_rule_cancel_matches("mouse", "x1"))
+            rule["cancelOnPressRelease"] = True
+            self.assertTrue(service._current_rule_cancel_matches("mouse", "left"))
+        finally:
+            service.stop()
+
     def test_mouse_macro_service_supports_press_only_mouse_rule(self):
         config = {
             "enabled": True,

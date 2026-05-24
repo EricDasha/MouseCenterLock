@@ -260,6 +260,7 @@ class SettingsManager:
                     "holdMouseButton": "x2",
                     "pressMouseButton": "left",
                     "cancelOnHoldRelease": True,
+                    "cancelOnPressRelease": False,
                     "cancelOnFocusLost": False,
                     "interruptible": True,
                     "actions": [
@@ -317,6 +318,7 @@ class SettingsManager:
             "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
             "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
             "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),
+            "cancelOnPressRelease": bool(source.get("cancelOnPressRelease", False)),
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],

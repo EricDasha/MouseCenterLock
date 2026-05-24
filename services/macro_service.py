@@ -248,10 +248,11 @@ class MouseMacroService(QtCore.QObject):
             return False
         press_type, press_name = self._rule_press_target(self._current_rule)
         hold_type, hold_name = self._rule_hold_target(self._current_rule)
-        cancel_inputs = {(press_type, press_name)}
-        if hold_type and hold_name:
-            cancel_inputs.add((hold_type, hold_name))
-        return (event_type, normalized) in cancel_inputs
+        if hold_type and hold_name and (event_type, normalized) == (hold_type, hold_name):
+            return True
+        if self._current_rule.get("cancelOnPressRelease"):
+            return (event_type, normalized) == (press_type, press_name)
+        return False
 
     def _fire_matching_rules(self, event_type: str, pressed_name: str) -> None:
         config = self._get_config()

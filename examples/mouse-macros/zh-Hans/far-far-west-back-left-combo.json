@@ -16,7 +16,7 @@
         },
         {
           "type": "delay",
-          "ms": 54
+          "ms": 50
         },
         {
           "type": "keyDown",
@@ -56,7 +56,8 @@
           "type": "keyUp",
           "key": "1"
         }
-      ]
+      ],
+      "cancelOnPressRelease": false
     }
   ]
 }

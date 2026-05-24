@@ -131,6 +131,7 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertEqual(macro["rules"][0]["holdMouseButton"], "x2")
         self.assertEqual(macro["rules"][0]["actions"][0]["button"], "x2")
         self.assertTrue(macro["rules"][0]["cancelOnHoldRelease"])
+        self.assertFalse(macro["rules"][0]["cancelOnPressRelease"])
         self.assertTrue(macro["rules"][0]["interruptible"])
 
     def test_mouse_macro_normalizes_key_down_up_and_cancel_actions(self):
