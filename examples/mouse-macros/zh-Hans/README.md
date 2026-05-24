@@ -8,6 +8,9 @@
 - `x1-left-copy.json`：按住 `x1` 后退侧键，再点左键 → `Ctrl+C`。
 - `x2-left-paste-enter.json`：按住 `x2` 前进侧键，再点左键 → `Ctrl+V`、`Enter`。
 - `middle-right-text.json`：按住中键，再点右键 → 输入 `GG`、等待 80ms、`Enter`。
+- `middle-left-test.json`：运行时诊断用；按住中键，再点左键 → 主键盘 `1`。
+- `back-left-2-delay-1.json`：按住鼠标后侧键（`back`/`x1`），每次点左键 → 主键盘 `2`、等待 100ms、主键盘 `1`；左键本身由真实点击产生，动作里不再额外点击左键。
+- `key-delay-key.json`：按住键盘 `A`，每次按下 `B` → `A`、等待 50ms、`B`；不松开 `A` 时，重复按 `B` 会重复执行。
 
 ## 鼠标键名称
 
@@ -27,6 +30,24 @@
 - 主键盘数字：`0` ~ `9`（键盘上排数字，不是小键盘）
 - 功能键：`F1` ~ `F24`
 - 特殊键：`Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+
+## 键盘触发规则
+
+外部 JSON 也支持键盘按住/触发规则：
+
+```json
+{
+  "holdKey": "A",
+  "pressKey": "B",
+  "actions": [
+    { "type": "key", "key": "A" },
+    { "type": "delay", "ms": 50 },
+    { "type": "key", "key": "B" }
+  ]
+}
+```
+
+按住 `A` 不松开时，每次重新按下 `B` 都会重新执行动作序列。
 
 ## 动作类型
 

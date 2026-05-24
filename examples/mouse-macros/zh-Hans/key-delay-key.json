@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "hold-a-press-b-then-a-delay-b",
+      "name": "Hold A + B = A, delay 50ms, B",
+      "enabled": true,
+      "holdKey": "A",
+      "pressKey": "B",
+      "actions": [
+        {
+          "type": "key",
+          "key": "A"
+        },
+        {
+          "type": "delay",
+          "ms": 50
+        },
+        {
+          "type": "key",
+          "key": "B"
+        }
+      ]
+    }
+  ]
+}

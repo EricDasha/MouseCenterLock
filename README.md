@@ -31,7 +31,7 @@
 - `tests/` – 最小單元測試集
 - `i18n/` – 語言檔案
 - `assets/` – 圖示和資源
-- `Mconfig.json` – 預設設定（相容讀取舊版 `config.json`）
+- `Mconfig.example.json` – 可提交的預設設定範本；執行時 `Mconfig.json` 僅作本機設定（相容讀取舊版 `config.json`）
 
 ## 系統需求
 
@@ -72,13 +72,15 @@ exe 檔案將位於 `dist/MouseCenterLock.exe`。
 - `python build.py --dev` — 開發建置（含除錯資訊）
 - `python build.py --clean-only` — 僅清理建置產物
 
-如需恢復預設設定，請刪除 `Mconfig.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
+如需恢復預設設定，請刪除本機 `Mconfig.json`，程式會回退讀取 `Mconfig.example.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
 
 ## 滑鼠巨集設定
 
 滑鼠巨集支援「介面拼裝」和「外部 JSON 設定檔」兩種方式。完整寫法、範例檔案、滑鼠鍵名與鍵盤 `key` 名稱見：
 
 - [滑鼠巨集範例與設定說明](examples/mouse-macros/zh-Hant/README.md)
+
+輸入後端預設仍是使用者層：Rust 原生 SendInput（掃描碼/Unicode）、Python SendInput 兜底與視窗訊息。這能提升許多桌面軟體的相容性，但不是驅動/HID 輸入，不能保證所有遊戲、Raw Input 程式、系統管理員權限視窗或反作弊保護目標都接收。虛擬 HID 與硬體 HID 作為後續後端預留。
 
 ## 更新日誌
 

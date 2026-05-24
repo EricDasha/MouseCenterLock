@@ -197,5 +197,12 @@
   "macro.preview.action.key": "키 {0}",
   "macro.preview.action.hotkey": "단축키 {0}",
   "macro.preview.action.text": "텍스트 \"{0}\"",
-  "macro.preview.action.delay": "{0}ms 대기"
+  "macro.preview.action.delay": "{0}ms 대기",
+  "inputBackend.title": "입력 백엔드",
+  "inputBackend.auto": "자동",
+  "inputBackend.windowMessage": "윈도우 메시지",
+  "inputBackend.nativeSendInput": "Native SendInput (Rust scan-code)",
+  "inputBackend.pythonSendInput": "Python SendInput fallback",
+  "inputBackend.virtualHid": "Virtual HID (planned)",
+  "inputBackend.hardwareHid": "Hardware HID (planned)"
 }

@@ -32,7 +32,7 @@
 - `tests/` – 最小单元测试集
 - `pythonProject/i18n/` – 语言文件
 - `pythonProject/assets/` – 图标和资源
-- `Mconfig.json` – 默认配置（兼容读取旧版 `config.json`）
+- `Mconfig.example.json` – 可提交的默认配置模板；运行时 `Mconfig.json` 仅作本地配置（兼容读取旧版 `config.json`）
 
 ## 系统要求
 
@@ -71,13 +71,15 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 ```
 exe 文件将位于 `dist/MouseCenterLock.exe`。
 
-如需恢复默认设置，请删除 `Mconfig.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
+如需恢复默认设置，请删除本地 `Mconfig.json`，程序会回退读取 `Mconfig.example.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
 
 ## 鼠标宏配置
 
 鼠标宏支持「界面拼装」和「外部 JSON 配置文件」两种方式。完整写法、示例文件、鼠标键名与键盘 `key` 名称见：
 
 - [鼠标宏示例与配置说明](examples/mouse-macros/zh-Hans/README.md)
+
+输入后端默认仍是用户层：Rust 原生 SendInput（扫描码/Unicode）、Python SendInput 兜底与窗口消息。这能提升许多桌面软件的兼容性，但不是驱动/HID 输入，不能保证所有游戏、Raw Input 程序、管理员权限窗口或反作弊保护目标都接收。虚拟 HID 与硬件 HID 作为后续后端预留。
 
 ## 更新日志
 

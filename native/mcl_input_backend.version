@@ -1,0 +1,4 @@
+name=mcl_input_backend
+version=0.1.0
+arch=x86_64
+profile=release

@@ -7,6 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets
 
 from services.clicker_service import ClickerService
+from services.input_service import InputService
 from services.lock_service import LockService
 from services.macro_service import MouseMacroService
 from services.tray_service import TrayService
@@ -25,11 +26,246 @@ class _FakeInputListener:
         self.stopped = True
 
 
+class _FakeInputService:
+    def __init__(self):
+        self.clicks = []
+        self.keys = []
+        self.hotkeys = []
+        self.texts = []
+
+    def click_mouse(self, button="left"):
+        self.clicks.append(button)
+
+    def press_key(self, key):
+        self.keys.append(key)
+
+    def press_hotkey(self, action):
+        self.hotkeys.append(action)
+
+    def type_text(self, text):
+        self.texts.append(text)
+
+
 class ServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
+
+    def test_input_service_prefers_rust_backend_for_sendinput_clicks(self):
+        service = InputService(get_backend=lambda: "sendinput")
+
+        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
+             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+            service.click_mouse("right")
+
+        native_click.assert_called_once_with("right")
+        python_click.assert_not_called()
+
+    def test_input_service_falls_back_when_rust_backend_unavailable(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch("services.input_service.native_input.press_vk", return_value=False) as native_press, \
+             mock.patch("services.input_service.key_to_vk", return_value=0x41), \
+             mock.patch("services.input_service.sendinput_press_vk") as python_press:
+            service.press_key("A")
+
+        native_press.assert_called_once_with(0x41)
+        python_press.assert_called_once_with(0x41)
+
+    def test_input_service_python_sendinput_skips_rust_backend(self):
+        service = InputService(get_backend=lambda: "python-sendinput")
+
+        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
+             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+            service.click_mouse("left")
+
+        native_click.assert_not_called()
+        python_click.assert_called_once_with("left")
+
+    def test_input_service_virtual_hid_reserved_falls_back_to_native_path(self):
+        service = InputService(get_backend=lambda: "virtual-hid")
+
+        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click:
+            service.click_mouse("left")
+
+        native_click.assert_called_once_with("left")
+
+    def test_input_service_prefers_rust_unicode_text(self):
+        service = InputService(get_backend=lambda: "sendinput")
+
+        with mock.patch("services.input_service.native_input.type_text", return_value=True) as native_type, \
+             mock.patch("services.input_service.user32.VkKeyScanW") as vk_scan:
+            service.type_text("Hello 玄")
+
+        native_type.assert_called_once_with("Hello 玄")
+        vk_scan.assert_not_called()
+
+    def test_input_service_falls_back_text_per_character(self):
+        service = InputService(get_backend=lambda: "sendinput")
+
+        with mock.patch("services.input_service.native_input.type_text", return_value=False), \
+             mock.patch("services.input_service.user32.VkKeyScanW", return_value=0x41), \
+             mock.patch("services.input_service.native_input.press_vk", return_value=False), \
+             mock.patch("services.input_service.sendinput_press_vk") as python_press:
+            service.type_text("A")
+
+        python_press.assert_called_once_with(0x41)
+
+
+    def test_mouse_macro_service_alias_and_repeated_press_edges(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "back-left",
+                    "enabled": True,
+                    "holdMouseButton": "back",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "mouseClick", "button": "right"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        service._on_global_input_event("mouse", "x1", True)
+        service._on_global_input_event("mouse", "left", True)
+        service._on_global_input_event("mouse", "left", True)
+        self.assertEqual(input_service.clicks, ["right"])
+
+        service._on_global_input_event("mouse", "left", False)
+        service._on_global_input_event("mouse", "left", True)
+        self.assertEqual(input_service.clicks, ["right", "right"])
+
+        service.stop()
+
+
+
+    def test_mouse_macro_service_loads_external_json_rules(self):
+        import json
+        import tempfile
+        import os
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as file:
+            json.dump({
+                "rules": [{
+                    "id": "external-middle-left",
+                    "enabled": True,
+                    "holdMouseButton": "middle",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "key", "key": "2"}],
+                }]
+            }, file)
+            path = file.name
+
+        config = {"enabled": True, "source": "file", "configFile": path, "rules": []}
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        service._poll_timer.stop()
+
+        try:
+            with mock.patch.object(service, "_send_key") as send_key:
+                service._on_global_input_event("mouse", "middle", True)
+                service._on_global_input_event("mouse", "left", True)
+                send_key.assert_called_once_with("2")
+        finally:
+            service.stop()
+            os.unlink(path)
+
+    def test_mouse_macro_service_supports_hold_key_press_mouse(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "alt-left",
+                    "enabled": True,
+                    "holdKey": "Alt",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "key", "key": "1"}],
+                }
+            ],
+        }
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        service._poll_timer.stop()
+
+        with mock.patch.object(service, "_send_key") as send_key:
+            service._on_global_input_event("key", "Alt", True)
+            service._on_global_input_event("mouse", "left", True)
+            send_key.assert_called_once_with("1")
+
+            service._on_global_input_event("mouse", "left", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(send_key.call_count, 2)
+
+        service.stop()
+
+    def test_mouse_macro_service_supports_hold_key_press_key_repeat(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "a-b",
+                    "enabled": True,
+                    "holdKey": "A",
+                    "pressKey": "B",
+                    "actions": [{"type": "key", "key": "1"}],
+                }
+            ],
+        }
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        service._poll_timer.stop()
+
+        with mock.patch.object(service, "_send_key") as send_key:
+            service._on_global_input_event("key", "A", True)
+            service._on_global_input_event("key", "B", True)
+            service._on_global_input_event("key", "B", True)
+            send_key.assert_called_once_with("1")
+
+            service._on_global_input_event("key", "B", False)
+            service._on_global_input_event("key", "B", True)
+            self.assertEqual(send_key.call_count, 2)
+
+        service.stop()
+
+    def test_mouse_macro_service_executes_delay_between_actions(self):
+        config = {"enabled": True, "source": "builder", "rules": []}
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        service._poll_timer.stop()
+
+        with mock.patch.object(service, "_send_key") as send_key, \
+             mock.patch("services.macro_service.time.sleep") as sleep:
+            service._execute_actions([
+                {"type": "key", "key": "A"},
+                {"type": "delay", "ms": 50},
+                {"type": "key", "key": "B"},
+            ])
+
+        self.assertEqual(send_key.mock_calls, [mock.call("A"), mock.call("B")])
+        self.assertEqual(sleep.mock_calls, [mock.call(0.025), mock.call(0.025)])
+        service.stop()
+
+    def test_mouse_macro_service_interruptible_rule_can_cancel_scheduler(self):
+        config = {"enabled": True, "source": "builder", "rules": []}
+        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        service._poll_timer.stop()
+        with mock.patch.object(service, "_send_key") as send_key, \
+             mock.patch.object(service, "_should_cancel_actions", return_value=True):
+            service._execute_actions(
+                [{"type": "key", "key": "A"}],
+                rule={"interruptible": True, "cancelOnHoldRelease": True},
+                rule_key="cancel:key:a",
+            )
+
+        send_key.assert_not_called()
+        service.stop()
 
     def test_mouse_macro_service_runs_combo_rule_once_until_release(self):
         config = {
@@ -45,17 +281,21 @@ class ServiceTests(unittest.TestCase):
                 }
             ],
         }
-        service = MouseMacroService(get_config=lambda: config, input_listener_factory=_FakeInputListener)
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
 
-        with mock.patch("services.macro_service.click_mouse") as click_mouse:
-            service._on_global_input_event("mouse", "x2", True)
-            service._on_global_input_event("mouse", "left", True)
-            service._on_global_input_event("mouse", "left", True)
-            click_mouse.assert_called_once_with("right")
+        service._on_global_input_event("mouse", "x2", True)
+        service._on_global_input_event("mouse", "left", True)
+        service._on_global_input_event("mouse", "left", True)
+        self.assertEqual(input_service.clicks, ["right"])
 
-            service._on_global_input_event("mouse", "left", False)
-            service._on_global_input_event("mouse", "left", True)
-            self.assertEqual(click_mouse.call_count, 2)
+        service._on_global_input_event("mouse", "left", False)
+        service._on_global_input_event("mouse", "left", True)
+        self.assertEqual(input_service.clicks, ["right", "right"])
 
         service.stop()
 
@@ -110,23 +350,24 @@ class ServiceTests(unittest.TestCase):
                 },
             },
         }
+        click_mouse = mock.Mock()
         service = ClickerService(
             get_profile=lambda: profile,
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
             sound_presets={"systemAsterisk": 0x40},
+            click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
 
-        with mock.patch("services.clicker_service.click_mouse") as click_mouse:
-            service._on_global_input_event("key", "ctrl", True)
-            service._on_global_input_event("key", "f7", True)
-            self.assertTrue(service.is_running)
-            click_mouse.assert_called_once_with("left")
+        service._on_global_input_event("key", "ctrl", True)
+        service._on_global_input_event("key", "f7", True)
+        self.assertTrue(service.is_running)
+        click_mouse.assert_called_once_with("left")
 
-            service._on_global_input_event("key", "f7", False)
-            self.assertFalse(service.is_running)
+        service._on_global_input_event("key", "f7", False)
+        self.assertFalse(service.is_running)
 
         service.hold_state_timer.stop()
         service.clicker_timer.stop()
@@ -142,22 +383,23 @@ class ServiceTests(unittest.TestCase):
                 "holdMouseButton": "x1",
             },
         }
+        click_mouse = mock.Mock()
         service = ClickerService(
             get_profile=lambda: profile,
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
             sound_presets={"systemAsterisk": 0x40},
+            click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
 
-        with mock.patch("services.clicker_service.click_mouse") as click_mouse:
-            service._on_global_input_event("mouse", "x1", True)
-            self.assertTrue(service.is_running)
-            click_mouse.assert_called_once_with("middle")
+        service._on_global_input_event("mouse", "x1", True)
+        self.assertTrue(service.is_running)
+        click_mouse.assert_called_once_with("middle")
 
-            service._on_global_input_event("mouse", "x1", False)
-            self.assertFalse(service.is_running)
+        service._on_global_input_event("mouse", "x1", False)
+        self.assertFalse(service.is_running)
 
         service.hold_state_timer.stop()
         service.clicker_timer.stop()
@@ -174,19 +416,20 @@ class ServiceTests(unittest.TestCase):
                 "holdMouseButton": "x1",
             },
         }
+        click_mouse = mock.Mock()
         service = ClickerService(
             get_profile=lambda: profile,
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
             sound_presets={"systemAsterisk": 0x40},
+            click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
 
         try:
             with mock.patch("services.clicker_service.get_active_window_info", return_value=(123, "Steam")), \
-                 mock.patch("services.clicker_service.get_window_process_name", return_value="steam.exe"), \
-                 mock.patch("services.clicker_service.click_mouse") as click_mouse:
+                 mock.patch("services.clicker_service.get_window_process_name", return_value="steam.exe"):
                 service._on_global_input_event("mouse", "x1", True)
                 self.assertFalse(service.is_running)
                 click_mouse.assert_not_called()
@@ -216,18 +459,19 @@ class ServiceTests(unittest.TestCase):
                 },
             },
         }
+        click_mouse = mock.Mock()
         service = ClickerService(
             get_profile=lambda: profile,
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
             sound_presets={"systemAsterisk": 0x40},
+            click_mouse_func=click_mouse,
             input_listener_factory=_FailedInputListener,
         )
 
         self.assertTrue(service.hold_state_timer.isActive())
-        with mock.patch.object(service, "_modifier_pressed", side_effect=lambda vk: vk == 0x76), \
-             mock.patch("services.clicker_service.click_mouse") as click_mouse:
+        with mock.patch.object(service, "_modifier_pressed", side_effect=lambda vk: vk == 0x76):
             service._poll_hold_trigger_state()
             self.assertTrue(service.is_running)
             click_mouse.assert_called_once_with("left")

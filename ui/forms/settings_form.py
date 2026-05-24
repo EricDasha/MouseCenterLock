@@ -5,6 +5,9 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+VALID_INPUT_BACKENDS = {"auto", "native-sendinput", "python-sendinput", "window-message", "virtual-hid", "hardware-hid"}
+INPUT_BACKEND_ALIASES = {"sendinput": "native-sendinput", "native-scancode": "native-sendinput", "python-fallback": "python-sendinput"}
+
 
 def _collect_target_windows(window) -> list[str]:
     """Collect target-window entries from the list widget."""
@@ -75,6 +78,7 @@ def collect_general_settings_form_data(window) -> Dict[str, Any]:
         "startup": {
             "launchOnBoot": window.startupCheck.isChecked(),
         },
+        "inputBackend": window.inputBackendCombo.currentData() if hasattr(window, "inputBackendCombo") else "auto",
         "mouseMacros": _collect_mouse_macro_settings(window),
     }
 
@@ -104,6 +108,11 @@ def apply_general_settings_form_data(settings, form_data: Dict[str, Any]) -> Non
     settings.data["theme"] = form_data["theme"]
     settings.data.setdefault("startup", {})
     settings.data["startup"]["launchOnBoot"] = form_data["startup"]["launchOnBoot"]
+
+    if "inputBackend" in form_data:
+        backend = str(form_data.get("inputBackend") or "auto").strip().lower()
+        backend = INPUT_BACKEND_ALIASES.get(backend, backend)
+        settings.data["inputBackend"] = backend if backend in VALID_INPUT_BACKENDS else "auto"
 
     if "mouseMacros" in form_data:
         settings.data["mouseMacros"] = form_data["mouseMacros"]

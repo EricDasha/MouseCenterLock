@@ -55,12 +55,17 @@ GWL_STYLE = -16
 GWL_EXSTYLE = -20
 
 # Mouse event flags
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 MOUSEEVENTF_RIGHTDOWN = 0x0008
 MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_MIDDLEDOWN = 0x0020
 MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_XDOWN = 0x0080
+MOUSEEVENTF_XUP = 0x0100
 XBUTTON1 = 0x0001
 XBUTTON2 = 0x0002
 
@@ -69,6 +74,7 @@ WH_KEYBOARD_LL = 13
 WH_MOUSE_LL = 14
 HC_ACTION = 0
 LLMHF_INJECTED = 0x00000001
+LLKHF_INJECTED = 0x00000010
 WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 WM_SYSKEYDOWN = 0x0104
@@ -174,6 +180,54 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
     ]
 
 
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [
+        ("uMsg", wintypes.DWORD),
+        ("wParamL", wintypes.WORD),
+        ("wParamH", wintypes.WORD),
+    ]
+
+
+class INPUTUNION(ctypes.Union):
+    _fields_ = [
+        ("mi", MOUSEINPUT),
+        ("ki", KEYBDINPUT),
+        ("hi", HARDWAREINPUT),
+    ]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [
+        ("type", wintypes.DWORD),
+        ("union", INPUTUNION),
+    ]
+
+
+user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
+user32.SendInput.restype = wintypes.UINT
+
+
 # --- Single Instance Detection ---
 _mutex_handle: Optional[int] = None
 MUTEX_NAME = "Global\\MouseCenterLock_SingleInstance"
@@ -253,21 +307,85 @@ def unclip_cursor() -> None:
         raise ctypes.WinError()
 
 
+def _send_input(inputs: List[INPUT]) -> bool:
+    """Send one or more INPUT records through the standard Windows SendInput API."""
+    if not inputs:
+        return True
+    array_type = INPUT * len(inputs)
+    array = array_type(*inputs)
+    sent = user32.SendInput(len(inputs), array, ctypes.sizeof(INPUT))
+    if sent != len(inputs):
+        log_message(f"SendInput sent {sent}/{len(inputs)} events (error {ctypes.get_last_error()})")
+        return False
+    return True
+
+
+def _mouse_input(flags: int, mouse_data: int = 0) -> INPUT:
+    item = INPUT()
+    item.type = INPUT_MOUSE
+    item.union.mi = MOUSEINPUT(0, 0, mouse_data, flags, 0, 0)
+    return item
+
+
+def _keyboard_input(vk: int, flags: int = 0) -> INPUT:
+    item = INPUT()
+    item.type = INPUT_KEYBOARD
+    item.union.ki = KEYBDINPUT(vk, 0, flags, 0, 0)
+    return item
+
+
+def key_down_vk(vk: int) -> bool:
+    """Press a virtual key using SendInput."""
+    return bool(vk and _send_input([_keyboard_input(int(vk), 0)]))
+
+
+def key_up_vk(vk: int) -> bool:
+    """Release a virtual key using SendInput."""
+    return bool(vk and _send_input([_keyboard_input(int(vk), KEYEVENTF_KEYUP)]))
+
+
+def press_vk(vk: int) -> bool:
+    """Press and release a virtual key using SendInput."""
+    return bool(vk and _send_input([
+        _keyboard_input(int(vk), 0),
+        _keyboard_input(int(vk), KEYEVENTF_KEYUP),
+    ]))
+
+
+def press_key(key: str) -> bool:
+    """Press and release a configured key name using SendInput."""
+    vk = key_to_vk(key)
+    return press_vk(vk or 0)
+
+
 def click_mouse(button: str = "left") -> None:
-    """Send a mouse click for the current cursor position."""
+    """Send a mouse click for the current cursor position using SendInput."""
     button_name = (button or "left").lower()
+    mouse_data = 0
     if button_name == "right":
         down_flag = MOUSEEVENTF_RIGHTDOWN
         up_flag = MOUSEEVENTF_RIGHTUP
     elif button_name == "middle":
         down_flag = MOUSEEVENTF_MIDDLEDOWN
         up_flag = MOUSEEVENTF_MIDDLEUP
+    elif button_name in ("x1", "back"):
+        down_flag = MOUSEEVENTF_XDOWN
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON1
+    elif button_name in ("x2", "forward"):
+        down_flag = MOUSEEVENTF_XDOWN
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON2
     else:
         down_flag = MOUSEEVENTF_LEFTDOWN
         up_flag = MOUSEEVENTF_LEFTUP
 
-    user32.mouse_event(down_flag, 0, 0, 0, 0)
-    user32.mouse_event(up_flag, 0, 0, 0, 0)
+    if _send_input([_mouse_input(down_flag, mouse_data), _mouse_input(up_flag, mouse_data)]):
+        return
+
+    # Fallback for older systems or API failure.
+    user32.mouse_event(down_flag, 0, 0, mouse_data, 0)
+    user32.mouse_event(up_flag, 0, 0, mouse_data, 0)
 
 
 def is_primary_mouse_button_pressed() -> bool:
@@ -612,6 +730,8 @@ class GlobalInputListener:
     def _keyboard_callback(self, code, w_param, l_param):
         if code == HC_ACTION and self.on_key_event:
             data = ctypes.cast(l_param, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            if data.flags & LLKHF_INJECTED:
+                return user32.CallNextHookEx(self._keyboard_hook, code, w_param, l_param)
             key_name = vk_to_key(data.vkCode)
             if key_name:
                 is_pressed = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)

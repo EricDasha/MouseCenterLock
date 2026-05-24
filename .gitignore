@@ -16,6 +16,11 @@ build/
 dist/
 build_*/
 dist_*/
+rust/**/target/
+
+# Local runtime config; keep the portable template instead.
+Mconfig.json
+!Mconfig.example.json
 
 # IDE
 .vscode/

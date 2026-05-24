@@ -97,6 +97,7 @@ class ClickerService(QtCore.QObject):
         on_notify_started: Callable[[Dict[str, Any]], None],
         on_notify_stopped: Callable[[Dict[str, Any]], None],
         sound_presets: Dict[str, Any],
+        click_mouse_func: Optional[Callable[[str], None]] = None,
         input_listener_factory: Callable[..., GlobalInputListener] = GlobalInputListener,
         parent=None,
     ):
@@ -109,6 +110,7 @@ class ClickerService(QtCore.QObject):
         self._hold_trigger_pressed = False
         self._pressed_keys: Set[str] = set()
         self._pressed_mouse_buttons: Set[str] = set()
+        self._click_mouse = click_mouse_func or click_mouse
         self._sound_player = ClickerSoundPlayer(sound_presets, self)
 
         self.clicker_timer = QtCore.QTimer(self)
@@ -228,7 +230,7 @@ class ClickerService(QtCore.QObject):
             if self._running:
                 self.stop(show_message=False)
             return
-        click_mouse(profile.get("button", "left"))
+        self._click_mouse(profile.get("button", "left"))
 
     def _modifier_pressed(self, vk: int) -> bool:
         """Return whether a modifier virtual key is currently pressed."""

@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "back-left-2-delay-1",
+      "name": "Hold Back Side Button + Left = 2, delay 100ms, 1",
+      "enabled": true,
+      "holdMouseButton": "back",
+      "pressMouseButton": "left",
+      "actions": [
+        {
+          "type": "key",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 100
+        },
+        {
+          "type": "key",
+          "key": "1"
+        }
+      ]
+    }
+  ]
+}

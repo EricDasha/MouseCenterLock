@@ -200,5 +200,12 @@
   "macro.preview.action.key": "Key {0}",
   "macro.preview.action.hotkey": "Hotkey {0}",
   "macro.preview.action.text": "Text \"{0}\"",
-  "macro.preview.action.delay": "Delay {0}ms"
+  "macro.preview.action.delay": "Delay {0}ms",
+  "inputBackend.title": "Input Backend",
+  "inputBackend.auto": "Auto",
+  "inputBackend.windowMessage": "Window Message",
+  "inputBackend.nativeSendInput": "Native SendInput (Rust scan-code)",
+  "inputBackend.pythonSendInput": "Python SendInput fallback",
+  "inputBackend.virtualHid": "Virtual HID (planned)",
+  "inputBackend.hardwareHid": "Hardware HID (planned)"
 }

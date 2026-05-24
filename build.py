@@ -23,6 +23,10 @@ SPEC_FILE = ROOT_DIR / "MouseCenterLock.spec"
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
 EXE_NAME = "MouseCenterLock.exe"
+NATIVE_CRATE_DIR = ROOT_DIR / "rust" / "input_backend"
+NATIVE_OUTPUT_DIR = ROOT_DIR / "native"
+NATIVE_DLL_NAME = "mcl_input_backend.dll"
+NATIVE_VERSION_NAME = "mcl_input_backend.version"
 
 SOURCE_FILES = [
     "app_logging.py",
@@ -33,8 +37,11 @@ SOURCE_FILES = [
     "settings_manager.py",
     "win_api.py",
     "widgets.py",
+    "services/action_scheduler.py",
     "services/clicker_service.py",
     "services/clicker_profile_controller.py",
+    "services/input_service.py",
+    "services/native_input.py",
     "services/lock_service.py",
     "services/macro_service.py",
     "services/settings_apply_controller.py",
@@ -105,6 +112,44 @@ def run_tests() -> bool:
         print("  Tests FAILED.")
         return False
     print("  All tests passed.")
+    return True
+
+
+def build_native_input_backend() -> bool:
+    step("Building Rust input backend")
+    if os.name != "nt":
+        print("  SKIP: native input backend is Windows-only.")
+        return True
+    if not (NATIVE_CRATE_DIR / "Cargo.toml").exists():
+        print(f"  SKIP: Rust crate not found: {NATIVE_CRATE_DIR}")
+        return True
+    if shutil.which("cargo") is None:
+        print("  FAIL: cargo not found; install Rust or provide native/mcl_input_backend.dll.")
+        return False
+
+    result = run(["cargo", "build", "--release"], check=False, cwd=NATIVE_CRATE_DIR)
+    if result.returncode != 0:
+        existing_dll = NATIVE_OUTPUT_DIR / NATIVE_DLL_NAME
+        if existing_dll.exists():
+            print(f"  WARN: Rust backend build failed; keeping existing {existing_dll}.")
+            return True
+        print("  WARN: Rust backend build failed; continuing with Python SendInput fallback.")
+        print("        Install Visual Studio Build Tools (C++ workload) to produce native/mcl_input_backend.dll.")
+        return True
+
+    built_dll = NATIVE_CRATE_DIR / "target" / "release" / NATIVE_DLL_NAME
+    if not built_dll.exists():
+        print(f"  FAIL: expected DLL not found: {built_dll}")
+        return False
+
+    NATIVE_OUTPUT_DIR.mkdir(exist_ok=True)
+    target_dll = NATIVE_OUTPUT_DIR / NATIVE_DLL_NAME
+    shutil.copy2(built_dll, target_dll)
+    (NATIVE_OUTPUT_DIR / NATIVE_VERSION_NAME).write_text(
+        "name=mcl_input_backend\nversion=0.1.0\narch=x86_64\nprofile=release\n",
+        encoding="utf-8",
+    )
+    print(f"  OK: {target_dll}")
     return True
 
 
@@ -189,6 +234,9 @@ def main() -> int:
             return 1
     else:
         step("Skipping unit tests (--skip-test)")
+
+    if not build_native_input_backend():
+        return 1
 
     if not build_exe(dev=args.dev):
         return 1

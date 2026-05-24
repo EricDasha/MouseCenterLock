@@ -197,5 +197,12 @@
   "macro.preview.action.key": "キー {0}",
   "macro.preview.action.hotkey": "ホットキー {0}",
   "macro.preview.action.text": "テキスト「{0}」",
-  "macro.preview.action.delay": "{0}ms 待機"
+  "macro.preview.action.delay": "{0}ms 待機",
+  "inputBackend.title": "入力バックエンド",
+  "inputBackend.auto": "自動",
+  "inputBackend.windowMessage": "ウィンドウメッセージ",
+  "inputBackend.nativeSendInput": "Native SendInput (Rust scan-code)",
+  "inputBackend.pythonSendInput": "Python SendInput fallback",
+  "inputBackend.virtualHid": "Virtual HID (planned)",
+  "inputBackend.hardwareHid": "Hardware HID (planned)"
 }

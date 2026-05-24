@@ -200,5 +200,12 @@
   "macro.preview.action.key": "按键 {0}",
   "macro.preview.action.hotkey": "快捷键 {0}",
   "macro.preview.action.text": "文本“{0}”",
-  "macro.preview.action.delay": "等待 {0}ms"
+  "macro.preview.action.delay": "等待 {0}ms",
+  "inputBackend.title": "输入后端",
+  "inputBackend.auto": "自动",
+  "inputBackend.windowMessage": "窗口消息",
+  "inputBackend.nativeSendInput": "原生 SendInput（Rust 扫描码）",
+  "inputBackend.pythonSendInput": "Python SendInput 兜底",
+  "inputBackend.virtualHid": "虚拟 HID（预留）",
+  "inputBackend.hardwareHid": "硬件 HID（预留）"
 }

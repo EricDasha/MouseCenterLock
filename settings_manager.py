@@ -14,8 +14,22 @@ from app_paths import APP_DIR, RUN_DIR
 import os
 
 CONFIG_DEFAULT_PATH = os.path.join(APP_DIR, "Mconfig.json")
+CONFIG_EXAMPLE_PATH = os.path.join(APP_DIR, "Mconfig.example.json")
 CONFIG_PATH = os.path.join(RUN_DIR, "Mconfig.json")
 LEGACY_CONFIG_PATH = os.path.join(RUN_DIR, "config.json")
+INPUT_BACKENDS = {
+    "auto",
+    "native-sendinput",
+    "python-sendinput",
+    "window-message",
+    "virtual-hid",
+    "hardware-hid",
+}
+INPUT_BACKEND_ALIASES = {
+    "sendinput": "native-sendinput",
+    "native-scancode": "native-sendinput",
+    "python-fallback": "python-sendinput",
+}
 
 CLICKER_PRESETS = {
     "custom": None,
@@ -108,7 +122,7 @@ class SettingsManager:
         self.loaded_from_path = ""
         self.last_error = ""
         data = None
-        for candidate in [CONFIG_PATH, LEGACY_CONFIG_PATH, CONFIG_DEFAULT_PATH]:
+        for candidate in [CONFIG_PATH, LEGACY_CONFIG_PATH, CONFIG_DEFAULT_PATH, CONFIG_EXAMPLE_PATH]:
             loaded = load_json(candidate, None)
             if isinstance(loaded, dict):
                 self.loaded_from_path = candidate
@@ -151,6 +165,11 @@ class SettingsManager:
         window_specific.setdefault("resumeAfterWindowSwitch", False)
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
+        backend = str(self.data.get("inputBackend", "auto") or "auto").strip().lower()
+        backend = INPUT_BACKEND_ALIASES.get(backend, backend)
+        self.data["inputBackend"] = backend if backend in INPUT_BACKENDS else "auto"
+        input_mode = str(self.data.get("inputMode", "scan-code") or "scan-code").strip().lower()
+        self.data["inputMode"] = input_mode if input_mode in ("virtual-key", "scan-code", "unicode") else "scan-code"
         self._ensure_mouse_macros()
 
     def _language_code(self) -> str:
@@ -243,6 +262,9 @@ class SettingsManager:
                     "enabled": False,
                     "holdMouseButton": "x2",
                     "pressMouseButton": "left",
+                    "cancelOnHoldRelease": True,
+                    "cancelOnFocusLost": False,
+                    "interruptible": True,
                     "actions": [
                         {
                             "type": "hotkey",
@@ -292,6 +314,9 @@ class SettingsManager:
             "enabled": bool(source.get("enabled", False)),
             "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
             "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
+            "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),
+            "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
+            "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
         }
 

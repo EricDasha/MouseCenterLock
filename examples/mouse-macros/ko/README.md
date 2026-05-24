@@ -8,6 +8,7 @@
 - `x1-left-copy.json`: `x1` 뒤로가기 사이드 버튼을 누른 채 왼쪽 클릭 → `Ctrl+C`.
 - `x2-left-paste-enter.json`: `x2` 앞으로가기 사이드 버튼을 누른 채 왼쪽 클릭 → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: 가운데 버튼을 누른 채 오른쪽 클릭 → `GG` 입력, 80ms 대기, `Enter`.
+- `key-delay-key.json`: 키보드 `A`를 누른 채 `B`를 누를 때마다 → `A`, 50ms 대기, `B`; `A`를 계속 누른 상태에서 `B`를 반복 입력하면 반복 실행됩니다.
 
 ## 마우스 버튼 이름
 
@@ -27,6 +28,24 @@
 - 상단 숫자: `0` ~ `9` (숫자패드 아님)
 - 기능키: `F1` ~ `F24`
 - 특수키: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+
+## 키보드 트리거 규칙
+
+외부 JSON은 키보드 hold/press 규칙도 지원합니다.
+
+```json
+{
+  "holdKey": "A",
+  "pressKey": "B",
+  "actions": [
+    { "type": "key", "key": "A" },
+    { "type": "delay", "ms": 50 },
+    { "type": "key", "key": "B" }
+  ]
+}
+```
+
+`A`를 계속 누른 상태에서 `B`를 새로 누를 때마다 액션 시퀀스가 다시 실행됩니다.
 
 ## 액션 타입
 

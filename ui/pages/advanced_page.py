@@ -279,6 +279,27 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
 
 
     layout.addWidget(create_section_label(window.i18n.t("macro.section", "Mouse Macros")))
+
+    input_backend_layout = QtWidgets.QHBoxLayout()
+    input_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("inputBackend.title", "Input Backend")))
+    window.inputBackendCombo = QtWidgets.QComboBox()
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.auto", "Auto"), "auto")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.nativeSendInput", "Native SendInput"), "native-sendinput")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.pythonSendInput", "Python SendInput"), "python-sendinput")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.windowMessage", "Window Message"), "window-message")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.virtualHid", "Virtual HID (planned)"), "virtual-hid")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.hardwareHid", "Hardware HID (planned)"), "hardware-hid")
+    current_backend = window.settings.data.get("inputBackend", "auto")
+    current_backend = {"sendinput": "native-sendinput", "native-scancode": "native-sendinput", "python-fallback": "python-sendinput"}.get(current_backend, current_backend)
+    for i in range(window.inputBackendCombo.count()):
+        if window.inputBackendCombo.itemData(i) == current_backend:
+            window.inputBackendCombo.setCurrentIndex(i)
+            break
+    window.inputBackendCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    input_backend_layout.addWidget(window.inputBackendCombo)
+    input_backend_layout.addStretch()
+    layout.addLayout(input_backend_layout)
+
     macro_cfg = window.settings.data.get("mouseMacros", {})
     macro_rules = macro_cfg.get("rules", []) if isinstance(macro_cfg.get("rules", []), list) else []
     macro_rule = macro_rules[0] if macro_rules else {}

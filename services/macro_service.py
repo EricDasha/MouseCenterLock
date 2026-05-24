@@ -10,7 +10,10 @@ from typing import Any, Callable, Dict, List, Set
 
 from PySide6 import QtCore
 
-from win_api import GlobalInputListener, click_mouse, key_to_vk, user32
+from app_logging import log_exception, log_message
+from services.action_scheduler import ActionScheduler
+from services.input_service import InputService
+from win_api import GlobalInputListener, key_to_vk, user32
 
 
 MODIFIER_VKS = {
@@ -20,9 +23,36 @@ MODIFIER_VKS = {
     "modWin": 0x5B,
 }
 
+MOUSE_BUTTON_ALIASES = {
+    "left": "left",
+    "right": "right",
+    "middle": "middle",
+    "x1": "x1",
+    "xbutton1": "x1",
+    "button4": "x1",
+    "back": "x1",
+    "x2": "x2",
+    "xbutton2": "x2",
+    "button5": "x2",
+    "forward": "x2",
+}
+
+MOUSE_BUTTON_VKS = {
+    "left": 0x01,
+    "right": 0x02,
+    "middle": 0x04,
+    "x1": 0x05,
+    "x2": 0x06,
+}
+
 
 class MouseMacroService(QtCore.QObject):
-    """Execute configured mouse-combo macro rules from global input events."""
+    """Execute configured mouse/key combo macro rules from global input events.
+
+    Rules primarily use ``holdMouseButton`` + ``pressMouseButton``. For advanced
+    JSON files, ``holdKey`` + ``pressKey`` is also accepted. Press/release edges
+    are tracked so holding A and repeatedly pressing B repeatedly fires the rule.
+    """
 
     inputEvent = QtCore.Signal(str, str, bool)
 
@@ -31,48 +61,107 @@ class MouseMacroService(QtCore.QObject):
         *,
         get_config: Callable[[], Dict[str, Any]],
         input_listener_factory: Callable[..., GlobalInputListener] = GlobalInputListener,
+        input_service: InputService | None = None,
         parent=None,
     ):
         super().__init__(parent)
         self._get_config = get_config
+        self._input_service = input_service or InputService()
         self._pressed_mouse_buttons: Set[str] = set()
+        self._pressed_keys: Set[str] = set()
         self._active_rule_keys: Set[str] = set()
         self._executing = False
-        self._input_listener = input_listener_factory(on_mouse_event=self._emit_mouse_event)
+        self._cancel_requested = False
+        self._current_rule: Dict[str, Any] | None = None
+        self._current_rule_key = ""
+        self._rules_cache_key = None
+        self._rules_cache: List[Dict[str, Any]] = []
+        self._input_listener = input_listener_factory(
+            on_key_event=self._emit_key_event,
+            on_mouse_event=self._emit_mouse_event,
+        )
         self.inputEvent.connect(self._on_global_input_event)
         self._hook_mode_active = self._input_listener.start()
+        log_message(f"MouseMacroService started: hook_mode={self._hook_mode_active}")
+
+        self._poll_timer = QtCore.QTimer(self)
+        self._poll_timer.timeout.connect(self._poll_input_state)
+        self.sync_runtime()
 
     def stop(self) -> None:
-        """Remove global hooks."""
+        """Remove global hooks and stop polling."""
+        log_message("MouseMacroService stopping")
+        self._poll_timer.stop()
         self._input_listener.stop()
 
     def sync_runtime(self) -> None:
-        """Drop transient state when macros are disabled or source changes."""
+        """Apply current runtime state and keep polling as a hook fallback."""
         config = self._get_config()
+        log_message(
+            f"MouseMacroService sync: enabled={bool(config.get('enabled', False))} "
+            f"source={config.get('source')} configFile={config.get('configFile', '')}"
+        )
         if not config.get("enabled", False):
+            self._poll_timer.stop()
             self._pressed_mouse_buttons.clear()
+            self._pressed_keys.clear()
             self._active_rule_keys.clear()
+            return
+        if not self._poll_timer.isActive():
+            self._poll_timer.start(12)
+            log_message("MouseMacroService polling fallback active: interval=12ms")
+
+    def _emit_key_event(self, key_name: str, is_pressed: bool) -> None:
+        """Bridge low-level keyboard input into the Qt thread."""
+        self.inputEvent.emit("key", key_name, is_pressed)
 
     def _emit_mouse_event(self, button_name: str, is_pressed: bool) -> None:
-        """Bridge low-level input into the Qt thread."""
+        """Bridge low-level mouse input into the Qt thread."""
         self.inputEvent.emit("mouse", button_name, is_pressed)
 
     def _on_global_input_event(self, event_type: str, name: str, is_pressed: bool) -> None:
-        """Track mouse state and fire matching rules."""
-        if event_type != "mouse" or self._executing:
+        """Track input state and fire matching rules on press edges."""
+        normalized = self._normalize_input_name(event_type, name)
+        if not normalized:
             return
-        button = str(name or "").lower().strip()
-        if not button:
+        if self._executing:
+            if not is_pressed and self._current_rule_key.endswith(f":{event_type}:{normalized}"):
+                if self._current_rule and self._current_rule.get("cancelOnHoldRelease"):
+                    self._cancel_requested = True
+                    log_message(f"MouseMacro cancellation requested during execution: {self._current_rule_key}")
             return
 
+        target_set = self._pressed_mouse_buttons if event_type == "mouse" else self._pressed_keys
         if is_pressed:
-            self._pressed_mouse_buttons.add(button)
-            self._fire_matching_rules(button)
+            was_pressed = normalized in target_set
+            target_set.add(normalized)
+            if not was_pressed:
+                log_message(f"MouseMacro input down: type={event_type} name={normalized}")
+                self._fire_matching_rules(event_type, normalized)
         else:
-            self._pressed_mouse_buttons.discard(button)
-            self._active_rule_keys = {
-                key for key in self._active_rule_keys if not key.endswith(f":{button}")
-            }
+            target_set.discard(normalized)
+            log_message(f"MouseMacro input up: type={event_type} name={normalized}")
+            suffix = f":{event_type}:{normalized}"
+            if (
+                self._executing
+                and self._current_rule_key.endswith(suffix)
+                and self._current_rule
+                and self._current_rule.get("cancelOnHoldRelease")
+            ):
+                self._cancel_requested = True
+                log_message(f"MouseMacro cancellation requested on hold/press release: {self._current_rule_key}")
+            self._active_rule_keys = {key for key in self._active_rule_keys if not key.endswith(suffix)}
+
+    def _normalize_input_name(self, event_type: str, name: str) -> str:
+        """Normalize mouse aliases and key names used by hooks/config files."""
+        raw = str(name or "").strip().lower()
+        if not raw:
+            return ""
+        if event_type == "mouse":
+            return MOUSE_BUTTON_ALIASES.get(raw, raw)
+        if event_type == "key":
+            return raw
+        return ""
 
     def _load_rules(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Load macro rules from builder config or an external JSON file."""
@@ -84,95 +173,189 @@ class MouseMacroService(QtCore.QObject):
 
         file_path = str(config.get("configFile", "") or "").strip()
         if not file_path:
+            cache_key = ("file", "")
+            if self._rules_cache_key != cache_key:
+                log_message("MouseMacro external file source selected but configFile is empty")
+                self._rules_cache_key = cache_key
+                self._rules_cache = []
             return []
-        try:
-            payload = json.loads(Path(file_path).read_text(encoding="utf-8"))
-        except Exception:
-            return []
-        if isinstance(payload, list):
-            return payload
-        if isinstance(payload, dict):
-            rules = payload.get("rules", [])
-            return rules if isinstance(rules, list) else []
-        return []
 
-    def _fire_matching_rules(self, pressed_button: str) -> None:
+        path = Path(file_path)
+        try:
+            stat = path.stat()
+            cache_key = ("file", str(path), stat.st_mtime_ns, stat.st_size)
+        except Exception as exc:
+            cache_key = ("file-error", str(path), str(exc))
+            if self._rules_cache_key != cache_key:
+                log_exception(f"MouseMacro external JSON is not accessible: {file_path}", exc)
+                self._rules_cache_key = cache_key
+                self._rules_cache = []
+            return []
+
+        if self._rules_cache_key == cache_key:
+            return self._rules_cache
+
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self._rules_cache_key = cache_key
+            self._rules_cache = []
+            log_exception(f"MouseMacro failed to load external JSON: {file_path}", exc)
+            return []
+
+        if isinstance(payload, list):
+            rules = payload
+        elif isinstance(payload, dict):
+            rules = payload.get("rules", [])
+        else:
+            rules = []
+
+        if not isinstance(rules, list):
+            rules = []
+        self._rules_cache_key = cache_key
+        self._rules_cache = rules
+        log_message(f"MouseMacro loaded external JSON rules: file={file_path} count={len(rules)}")
+        return self._rules_cache
+
+    def _rule_press_target(self, rule: Dict[str, Any]) -> tuple[str, str]:
+        """Return (event_type, normalized_name) for a rule trigger press."""
+        if "pressKey" in rule:
+            return "key", self._normalize_input_name("key", str(rule.get("pressKey", "")))
+        return "mouse", self._normalize_input_name("mouse", str(rule.get("pressMouseButton", "")))
+
+    def _rule_hold_is_pressed(self, rule: Dict[str, Any], _event_type: str) -> bool:
+        """Return whether the hold side of a rule is currently pressed.
+
+        Hold and press may be different input types, e.g. holdKey=Alt +
+        pressMouseButton=left. Prefer explicit holdKey when present; otherwise
+        use holdMouseButton.
+        """
+        if "holdKey" in rule:
+            hold_key = self._normalize_input_name("key", str(rule.get("holdKey", "")))
+            return bool(hold_key and hold_key in self._pressed_keys)
+        hold_button = self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
+        return bool(hold_button and hold_button in self._pressed_mouse_buttons)
+
+    def _fire_matching_rules(self, event_type: str, pressed_name: str) -> None:
         config = self._get_config()
         for index, rule in enumerate(self._load_rules(config)):
             if not isinstance(rule, dict) or not rule.get("enabled", False):
                 continue
-            hold = str(rule.get("holdMouseButton", "") or "").lower()
-            press = str(rule.get("pressMouseButton", "") or "").lower()
-            if press != pressed_button or hold not in self._pressed_mouse_buttons:
+            press_type, press_name = self._rule_press_target(rule)
+            if press_type != event_type or press_name != pressed_name:
                 continue
-            rule_key = f"{rule.get('id') or index}:{press}"
+            if not self._rule_hold_is_pressed(rule, event_type):
+                log_message(
+                    f"MouseMacro rule press matched but hold missing: id={rule.get('id') or index} "
+                    f"press={event_type}:{pressed_name}"
+                )
+                continue
+            rule_key = f"{rule.get('id') or index}:{event_type}:{pressed_name}"
             if rule_key in self._active_rule_keys:
+                log_message(f"MouseMacro rule suppressed until release: {rule_key}")
                 continue
             self._active_rule_keys.add(rule_key)
-            self._execute_actions(rule.get("actions", []))
+            actions = rule.get("actions", [])
+            log_message(f"MouseMacro firing rule: {rule_key} actions={len(actions) if isinstance(actions, list) else 'invalid'}")
+            self._execute_actions(actions, rule=rule, rule_key=rule_key)
 
-    def _execute_actions(self, actions: Any) -> None:
+    def _iter_rule_inputs(self) -> tuple[Set[str], Set[str]]:
+        """Return mouse/key names that polling should watch for active rules."""
+        mouse_names: Set[str] = set()
+        key_names: Set[str] = set()
+        for rule in self._load_rules(self._get_config()):
+            if not isinstance(rule, dict) or not rule.get("enabled", False):
+                continue
+            for field in ("holdMouseButton", "pressMouseButton"):
+                value = self._normalize_input_name("mouse", str(rule.get(field, "")))
+                if value:
+                    mouse_names.add(value)
+            for field in ("holdKey", "pressKey"):
+                value = self._normalize_input_name("key", str(rule.get(field, "")))
+                if value:
+                    key_names.add(value)
+        return mouse_names, key_names
+
+    def _poll_input_state(self) -> None:
+        """Poll input state so macros still work when hooks are unavailable/missed."""
+        if not self._get_config().get("enabled", False):
+            self.sync_runtime()
+            return
+        mouse_names, key_names = self._iter_rule_inputs()
+        for button in mouse_names:
+            is_pressed = self._mouse_button_pressed(button)
+            if is_pressed != (button in self._pressed_mouse_buttons):
+                self._on_global_input_event("mouse", button, is_pressed)
+        for key in key_names:
+            is_pressed = self._key_pressed(key)
+            if is_pressed != (key in self._pressed_keys):
+                self._on_global_input_event("key", key, is_pressed)
+
+    def _mouse_button_pressed(self, button_name: str) -> bool:
+        """Return whether a mouse button is currently pressed."""
+        vk = MOUSE_BUTTON_VKS.get(self._normalize_input_name("mouse", button_name))
+        return bool(vk and user32.GetAsyncKeyState(vk) & 0x8000)
+
+    def _key_pressed(self, key_name: str) -> bool:
+        """Return whether a key is currently pressed."""
+        key = self._normalize_input_name("key", key_name)
+        modifier_vks = {"ctrl": 0x11, "control": 0x11, "alt": 0x12, "shift": 0x10, "win": 0x5B, "meta": 0x5B}
+        vk = modifier_vks.get(key) or key_to_vk(key)
+        return bool(vk and user32.GetAsyncKeyState(vk) & 0x8000)
+
+    def _execute_actions(
+        self,
+        actions: Any,
+        *,
+        rule: Dict[str, Any] | None = None,
+        rule_key: str = "",
+    ) -> None:
         """Execute a bounded sequence of macro actions."""
         if not isinstance(actions, list):
             return
         self._executing = True
+        self._cancel_requested = False
+        self._current_rule = rule or {}
+        self._current_rule_key = rule_key
         try:
-            for action in actions[:32]:
-                if isinstance(action, dict):
-                    self._execute_action(action)
+            scheduler = ActionScheduler(
+                self._execute_logged_action,
+                should_cancel=self._should_cancel_actions,
+                sleep=time.sleep,
+            )
+            scheduler.run(actions)
         finally:
             self._executing = False
+            self._cancel_requested = False
+            self._current_rule = None
+            self._current_rule_key = ""
+
+    def _should_cancel_actions(self) -> bool:
+        return bool(self._current_rule and self._current_rule.get("interruptible") and self._cancel_requested)
+
+    def _execute_logged_action(self, action: Dict[str, Any]) -> None:
+        log_message(f"MouseMacro action: {action}")
+        self._execute_action(action)
 
     def _execute_action(self, action: Dict[str, Any]) -> None:
         action_type = str(action.get("type", "") or "")
         if action_type == "mouseClick":
-            click_mouse(str(action.get("button", "left") or "left"))
+            self._input_service.click_mouse(str(action.get("button", "left") or "left"))
         elif action_type == "key":
             self._send_key(str(action.get("key", "") or ""))
         elif action_type == "hotkey":
             self._send_hotkey(action)
         elif action_type == "text":
             self._send_text(str(action.get("text", "") or ""))
-        elif action_type == "delay":
-            time.sleep(max(0, min(60000, int(action.get("ms", 0)))) / 1000.0)
 
     def _send_key(self, key: str) -> None:
         vk = key_to_vk(key)
         if not vk:
             return
-        user32.keybd_event(vk, 0, 0, 0)
-        user32.keybd_event(vk, 0, 0x0002, 0)
+        self._input_service.press_key(key)
 
     def _send_hotkey(self, action: Dict[str, Any]) -> None:
-        pressed_mods = [vk for flag, vk in MODIFIER_VKS.items() if action.get(flag)]
-        key = str(action.get("key", "") or "")
-        vk = key_to_vk(key)
-        if not vk:
-            return
-        for mod_vk in pressed_mods:
-            user32.keybd_event(mod_vk, 0, 0, 0)
-        user32.keybd_event(vk, 0, 0, 0)
-        user32.keybd_event(vk, 0, 0x0002, 0)
-        for mod_vk in reversed(pressed_mods):
-            user32.keybd_event(mod_vk, 0, 0x0002, 0)
+        self._input_service.press_hotkey(action)
 
     def _send_text(self, text: str) -> None:
-        for char in text[:1024]:
-            vk_combo = user32.VkKeyScanW(ord(char))
-            if vk_combo == -1:
-                continue
-            vk = vk_combo & 0xFF
-            shift_state = (vk_combo >> 8) & 0xFF
-            mods = []
-            if shift_state & 1:
-                mods.append(0x10)
-            if shift_state & 2:
-                mods.append(0x11)
-            if shift_state & 4:
-                mods.append(0x12)
-            for mod_vk in mods:
-                user32.keybd_event(mod_vk, 0, 0, 0)
-            user32.keybd_event(vk, 0, 0, 0)
-            user32.keybd_event(vk, 0, 0x0002, 0)
-            for mod_vk in reversed(mods):
-                user32.keybd_event(mod_vk, 0, 0x0002, 0)
+        self._input_service.type_text(text)

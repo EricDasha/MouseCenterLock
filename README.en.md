@@ -31,7 +31,7 @@ A Windows utility that locks the mouse cursor to the screen center while you wat
 - `tests/` – minimal unit test suite
 - `pythonProject/i18n/` – language files
 - `pythonProject/assets/` – icons and assets
-- `Mconfig.json` – default config (legacy `config.json` is still read for compatibility)
+- `Mconfig.example.json` – portable default config template; runtime `Mconfig.json` is local-only (legacy `config.json` is still read for compatibility)
 
 ## Requirements
 
@@ -70,13 +70,15 @@ pyinstaller --noconfirm --clean --onefile --windowed \
 ```
 The exe will be in `dist/MouseCenterLock.exe`.
 
-To restore default settings, delete `Mconfig.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
+To restore default settings, delete local `Mconfig.json`; the app falls back to `Mconfig.example.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
 
 ## Mouse macro configuration
 
 Mouse macros support both the builder UI and external JSON files. For the full schema, example files, mouse button names, and keyboard `key` names, see:
 
 - [Mouse macro examples and configuration reference](examples/mouse-macros/en/README.md)
+
+Input backends are user-mode by default: native Rust SendInput (scan-code/Unicode), Python SendInput fallback, and window messages. These improve compatibility for many desktop apps, but they are not driver/HID input and cannot guarantee support for every game, Raw Input target, elevated window, or anti-cheat-protected program. Virtual HID and hardware HID are reserved as future backends.
 
 ## Changelog
 

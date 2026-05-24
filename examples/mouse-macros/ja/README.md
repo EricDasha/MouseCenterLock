@@ -8,6 +8,7 @@
 - `x1-left-copy.json`: `x1` 戻るサイドボタンを押しながら左クリック → `Ctrl+C`。
 - `x2-left-paste-enter.json`: `x2` 進むサイドボタンを押しながら左クリック → `Ctrl+V`, `Enter`。
 - `middle-right-text.json`: 中ボタンを押しながら右クリック → `GG` 入力、80ms 待機、`Enter`。
+- `key-delay-key.json`: キーボード `A` を押しながら `B` を押すたびに → `A`、50ms 待機、`B`。`A` を離さず `B` を繰り返すと毎回実行されます。
 
 ## マウスボタン名
 
@@ -27,6 +28,24 @@
 - 上段数字: `0` ~ `9`（テンキーではありません）
 - ファンクションキー: `F1` ~ `F24`
 - 特殊キー: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+
+## キーボードトリガールール
+
+外部 JSON はキーボードの hold/press ルールにも対応しています。
+
+```json
+{
+  "holdKey": "A",
+  "pressKey": "B",
+  "actions": [
+    { "type": "key", "key": "A" },
+    { "type": "delay", "ms": 50 },
+    { "type": "key", "key": "B" }
+  ]
+}
+```
+
+`A` を押し続けている間、`B` を新しく押すたびにアクション列が再実行されます。
 
 ## アクションタイプ
 

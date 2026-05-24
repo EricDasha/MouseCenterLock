@@ -16,6 +16,7 @@ from win_api import (
 )
 from services.clicker_service import ClickerService
 from services.clicker_profile_controller import ClickerProfileController
+from services.input_service import InputService
 from services.lock_service import LockService
 from services.macro_service import MouseMacroService
 from services.settings_apply_controller import SettingsApplyController
@@ -65,16 +66,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._live_apply_timer = QtCore.QTimer(self)
         self._live_apply_timer.setSingleShot(True)
         self._live_apply_timer.timeout.connect(self._apply_live_settings)
+        self._input_service = InputService(get_backend=lambda: self.settings.data.get("inputBackend", "auto"))
         self._clicker_service = ClickerService(
             get_profile=self._get_active_clicker_profile,
             on_state_changed=self._on_clicker_runtime_changed,
             on_notify_started=self._notify_clicker_started,
             on_notify_stopped=self._notify_clicker_stopped,
             sound_presets=CLICKER_SOUND_PRESETS,
+            click_mouse_func=self._input_service.click_mouse,
             parent=self,
         )
         self._macro_service = MouseMacroService(
             get_config=lambda: self.settings.data.get("mouseMacros", {}),
+            input_service=self._input_service,
             parent=self,
         )
         self._lock_service = LockService(

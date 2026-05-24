@@ -41,6 +41,7 @@
         "preset": "systemAsterisk",
         "customFile": ""
       },
+      "processBlacklist": [],
       "triggers": {
         "mode": "toggle",
         "toggleHotkey": {
@@ -84,7 +85,7 @@
     "configFile": "",
     "rules": [
       {
-        "id": "x2-left-default",
+        "id": "builder-rule-1",
         "name": "X2 + Left",
         "enabled": false,
         "holdMouseButton": "x2",
@@ -101,5 +102,7 @@
         ]
       }
     ]
-  }
+  },
+  "inputBackend": "auto",
+  "inputMode": "scan-code"
 }

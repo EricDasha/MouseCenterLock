@@ -130,6 +130,18 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertTrue(macro["enabled"])
         self.assertEqual(macro["rules"][0]["holdMouseButton"], "x2")
         self.assertEqual(macro["rules"][0]["actions"][0]["button"], "x2")
+        self.assertTrue(macro["rules"][0]["cancelOnHoldRelease"])
+        self.assertTrue(macro["rules"][0]["interruptible"])
+
+    def test_input_backend_aliases_are_canonicalized(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {"inputBackend": "native-scancode", "inputMode": "bad"}
+        settings._set_defaults()
+
+        self.assertEqual(settings.data["inputBackend"], "native-sendinput")
+        self.assertEqual(settings.data["inputMode"], "scan-code")
 
     def test_profile_default_names_follow_language(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)

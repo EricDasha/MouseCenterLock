@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "id": "middle-left-test",
+      "name": "Hold Middle + Left = 1",
+      "enabled": true,
+      "holdMouseButton": "middle",
+      "pressMouseButton": "left",
+      "actions": [
+        {
+          "type": "key",
+          "key": "1"
+        }
+      ]
+    }
+  ]
+}

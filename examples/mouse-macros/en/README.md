@@ -8,6 +8,7 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - `x1-left-copy.json`: hold `x1` Back side button, click left → `Ctrl+C`.
 - `x2-left-paste-enter.json`: hold `x2` Forward side button, click left → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: hold middle button, click right → type `GG`, wait 80ms, `Enter`.
+- `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` stays held, repeated `B` presses repeat the sequence.
 
 ## Mouse button names
 
@@ -27,6 +28,24 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - Top-row numbers: `0` ~ `9` (not numpad keys)
 - Function keys: `F1` ~ `F24`
 - Special keys: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+
+## Keyboard trigger rules
+
+External JSON also supports keyboard hold/press rules:
+
+```json
+{
+  "holdKey": "A",
+  "pressKey": "B",
+  "actions": [
+    { "type": "key", "key": "A" },
+    { "type": "delay", "ms": 50 },
+    { "type": "key", "key": "B" }
+  ]
+}
+```
+
+While `A` remains held, each new `B` press runs the action sequence again.
 
 ## Action types
 
