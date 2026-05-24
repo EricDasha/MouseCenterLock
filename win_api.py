@@ -361,30 +361,93 @@ def press_key(key: str) -> bool:
 def click_mouse(button: str = "left") -> None:
     """Send a mouse click for the current cursor position using SendInput."""
     button_name = (button or "left").lower()
-    mouse_data = 0
-    if button_name == "right":
-        down_flag = MOUSEEVENTF_RIGHTDOWN
-        up_flag = MOUSEEVENTF_RIGHTUP
-    elif button_name == "middle":
-        down_flag = MOUSEEVENTF_MIDDLEDOWN
-        up_flag = MOUSEEVENTF_MIDDLEUP
-    elif button_name in ("x1", "back"):
-        down_flag = MOUSEEVENTF_XDOWN
-        up_flag = MOUSEEVENTF_XUP
-        mouse_data = XBUTTON1
-    elif button_name in ("x2", "forward"):
-        down_flag = MOUSEEVENTF_XDOWN
-        up_flag = MOUSEEVENTF_XUP
-        mouse_data = XBUTTON2
-    else:
-        down_flag = MOUSEEVENTF_LEFTDOWN
-        up_flag = MOUSEEVENTF_LEFTUP
-
-    if _send_input([_mouse_input(down_flag, mouse_data), _mouse_input(up_flag, mouse_data)]):
+    if mouse_down(button_name) and mouse_up(button_name):
         return
 
     # Fallback for older systems or API failure.
+    mouse_down_fallback(button_name)
+    mouse_up_fallback(button_name)
+
+
+def mouse_down(button: str = "left") -> bool:
+    """Press a mouse button using SendInput."""
+    button_name = (button or "left").lower()
+    mouse_data = 0
+    if button_name == "right":
+        down_flag = MOUSEEVENTF_RIGHTDOWN
+    elif button_name == "middle":
+        down_flag = MOUSEEVENTF_MIDDLEDOWN
+    elif button_name in ("x1", "back"):
+        down_flag = MOUSEEVENTF_XDOWN
+        mouse_data = XBUTTON1
+    elif button_name in ("x2", "forward"):
+        down_flag = MOUSEEVENTF_XDOWN
+        mouse_data = XBUTTON2
+    else:
+        down_flag = MOUSEEVENTF_LEFTDOWN
+
+    if _send_input([_mouse_input(down_flag, mouse_data)]):
+        return True
+    mouse_down_fallback(button_name)
+    return False
+
+
+def mouse_up(button: str = "left") -> bool:
+    """Release a mouse button using SendInput."""
+    button_name = (button or "left").lower()
+    mouse_data = 0
+    if button_name == "right":
+        up_flag = MOUSEEVENTF_RIGHTUP
+    elif button_name == "middle":
+        up_flag = MOUSEEVENTF_MIDDLEUP
+    elif button_name in ("x1", "back"):
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON1
+    elif button_name in ("x2", "forward"):
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON2
+    else:
+        up_flag = MOUSEEVENTF_LEFTUP
+
+    if _send_input([_mouse_input(up_flag, mouse_data)]):
+        return True
+    mouse_up_fallback(button_name)
+    return False
+
+
+def mouse_down_fallback(button_name: str) -> None:
+    """Fallback to mouse_event for button press."""
+    mouse_data = 0
+    if button_name == "right":
+        down_flag = MOUSEEVENTF_RIGHTDOWN
+    elif button_name == "middle":
+        down_flag = MOUSEEVENTF_MIDDLEDOWN
+    elif button_name in ("x1", "back"):
+        down_flag = MOUSEEVENTF_XDOWN
+        mouse_data = XBUTTON1
+    elif button_name in ("x2", "forward"):
+        down_flag = MOUSEEVENTF_XDOWN
+        mouse_data = XBUTTON2
+    else:
+        down_flag = MOUSEEVENTF_LEFTDOWN
     user32.mouse_event(down_flag, 0, 0, mouse_data, 0)
+
+
+def mouse_up_fallback(button_name: str) -> None:
+    """Fallback to mouse_event for button release."""
+    mouse_data = 0
+    if button_name == "right":
+        up_flag = MOUSEEVENTF_RIGHTUP
+    elif button_name == "middle":
+        up_flag = MOUSEEVENTF_MIDDLEUP
+    elif button_name in ("x1", "back"):
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON1
+    elif button_name in ("x2", "forward"):
+        up_flag = MOUSEEVENTF_XUP
+        mouse_data = XBUTTON2
+    else:
+        up_flag = MOUSEEVENTF_LEFTUP
     user32.mouse_event(up_flag, 0, 0, mouse_data, 0)
 
 

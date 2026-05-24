@@ -397,6 +397,8 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.key", "Key"), "key")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.keyDown", "Key Down"), "keyDown")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.keyUp", "Key Up"), "keyUp")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseDown", "Mouse Down"), "mouseDown")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseUp", "Mouse Up"), "mouseUp")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseClick", "Mouse Click"), "mouseClick")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.text", "Type Text"), "text")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.delay", "Delay"), "delay")

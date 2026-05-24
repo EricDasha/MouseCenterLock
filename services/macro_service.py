@@ -376,6 +376,10 @@ class MouseMacroService(QtCore.QObject):
         action_type = str(action.get("type", "") or "")
         if action_type == "mouseClick":
             self._input_service.click_mouse(str(action.get("button", "left") or "left"))
+        elif action_type == "mouseDown":
+            self._input_service.mouse_down(str(action.get("button", "left") or "left"))
+        elif action_type == "mouseUp":
+            self._input_service.mouse_up(str(action.get("button", "left") or "left"))
         elif action_type == "key":
             self._send_key(str(action.get("key", "") or ""))
         elif action_type == "keyDown":
@@ -420,7 +424,7 @@ class MouseMacroService(QtCore.QObject):
             if not isinstance(action, dict):
                 continue
             action_type = str(action.get("type", "") or "")
-            if action_type in {"keyUp", "mouseClick", "key", "hotkey", "text"}:
+            if action_type in {"keyUp", "mouseClick", "mouseDown", "mouseUp", "key", "hotkey", "text"}:
                 log_message(f"MouseMacro cancel action: {action}")
                 self._execute_action(action)
 

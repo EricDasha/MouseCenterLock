@@ -208,5 +208,9 @@
   "macro.action.keyDown": "Key Down",
   "macro.action.keyUp": "Key Up",
   "macro.preview.action.keyDown": "キー押下 {0}",
-  "macro.preview.action.keyUp": "キー解放 {0}"
+  "macro.preview.action.keyUp": "キー解放 {0}",
+  "macro.action.mouseDown": "Mouse Down",
+  "macro.action.mouseUp": "Mouse Up",
+  "macro.preview.action.mouseDown": "マウス押下 {0}",
+  "macro.preview.action.mouseUp": "マウス解放 {0}"
 }

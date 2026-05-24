@@ -208,5 +208,9 @@
   "macro.action.keyDown": "Key Down",
   "macro.action.keyUp": "Key Up",
   "macro.preview.action.keyDown": "키 누름 {0}",
-  "macro.preview.action.keyUp": "키 뗌 {0}"
+  "macro.preview.action.keyUp": "키 뗌 {0}",
+  "macro.action.mouseDown": "Mouse Down",
+  "macro.action.mouseUp": "Mouse Up",
+  "macro.preview.action.mouseDown": "마우스 누름 {0}",
+  "macro.preview.action.mouseUp": "마우스 뗌 {0}"
 }

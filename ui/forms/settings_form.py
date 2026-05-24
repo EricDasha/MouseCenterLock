@@ -22,7 +22,7 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
 
     action_type = window.mouseMacroActionTypeCombo.currentData() or "hotkey"
     action: Dict[str, Any] = {"type": action_type}
-    if action_type == "mouseClick":
+    if action_type in ("mouseDown", "mouseUp", "mouseClick"):
         action["button"] = window.mouseMacroActionMouseCombo.currentData() or "left"
     elif action_type == "text":
         action["text"] = window.mouseMacroActionTextEdit.text()

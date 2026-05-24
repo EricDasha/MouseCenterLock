@@ -211,5 +211,9 @@
   "macro.action.keyDown": "按下按键",
   "macro.action.keyUp": "松开按键",
   "macro.preview.action.keyDown": "按下 {0}",
-  "macro.preview.action.keyUp": "松开 {0}"
+  "macro.preview.action.keyUp": "松开 {0}",
+  "macro.action.mouseDown": "鼠标按下",
+  "macro.action.mouseUp": "鼠标松开",
+  "macro.preview.action.mouseDown": "鼠标按下 {0}",
+  "macro.preview.action.mouseUp": "鼠标松开 {0}"
 }

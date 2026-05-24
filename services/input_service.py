@@ -40,6 +40,8 @@ from win_api import (
     POINT,
     click_mouse as sendinput_click_mouse,
     get_active_window_info,
+    mouse_down as sendinput_mouse_down,
+    mouse_up as sendinput_mouse_up,
     key_down_vk,
     key_to_vk,
     key_up_vk,
@@ -121,6 +123,9 @@ class InputService:
         log_message(f"InputService action={action}{requested_text} backend={backend} route={route}{reason_text}{suffix}")
 
     def click_mouse(self, button: str = "left") -> None:
+        self.mouse_click(button)
+
+    def mouse_click(self, button: str = "left") -> None:
         button_name = (button or "left").lower()
         requested = self.backend()
         backend, fallback_reason = self._resolve_backend(requested)
@@ -128,7 +133,7 @@ class InputService:
             self._log_route("mouseClick", backend, "unavailable", f"button={button_name}", requested=requested, reason=fallback_reason)
             return
         if backend == BACKEND_WINDOW_MESSAGE:
-            if self._click_mouse_window_message(button_name):
+            if self._mouse_button_window_message(button_name, down=True, up=True):
                 self._log_route("mouseClick", backend, "window-message", f"button={button_name}", requested=requested, reason=fallback_reason)
                 return
             log_message(f"InputService window-message click failed: button={button_name}")
@@ -138,6 +143,44 @@ class InputService:
             return
         sendinput_click_mouse(button_name)
         self._log_route("mouseClick", backend, "python-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+
+    def mouse_down(self, button: str = "left") -> None:
+        self._mouse_button(button, down=True, up=False, action="mouseDown")
+
+    def mouse_up(self, button: str = "left") -> None:
+        self._mouse_button(button, down=False, up=True, action="mouseUp")
+
+    def _mouse_button(self, button: str, *, down: bool, up: bool, action: str) -> None:
+        button_name = (button or "left").lower()
+        requested = self.backend()
+        backend, fallback_reason = self._resolve_backend(requested)
+        if fallback_reason and backend == requested:
+            self._log_route(action, backend, "unavailable", f"button={button_name}", requested=requested, reason=fallback_reason)
+            return
+        if backend == BACKEND_WINDOW_MESSAGE:
+            if self._mouse_button_window_message(button_name, down=down, up=up):
+                self._log_route(action, backend, "window-message", f"button={button_name}", requested=requested, reason=fallback_reason)
+                return
+            log_message(f"InputService window-message {action} failed: button={button_name}")
+            return
+        if down and not up:
+            if self._native_enabled(backend) and native_input.mouse_down(button_name):
+                self._log_route(action, backend, "native-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+                return
+        elif up and not down:
+            if self._native_enabled(backend) and native_input.mouse_up(button_name):
+                self._log_route(action, backend, "native-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+                return
+        elif self._native_enabled(backend) and native_input.click_mouse(button_name):
+            self._log_route(action, backend, "native-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+            return
+        if down and not up:
+            sendinput_mouse_down(button_name)
+        elif up and not down:
+            sendinput_mouse_up(button_name)
+        else:
+            sendinput_click_mouse(button_name)
+        self._log_route(action, backend, "python-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
 
     def press_key(self, key: str) -> None:
         vk = key_to_vk(key)
@@ -280,13 +323,12 @@ class InputService:
     def _post_message(self, hwnd: int, msg: int, wparam: int, lparam: int) -> bool:
         return bool(hwnd and user32.PostMessageW(hwnd, msg, int(wparam), int(lparam)))
 
-    def _click_mouse_window_message(self, button: str) -> bool:
+    def _mouse_button_window_message(self, button: str, *, down: bool, up: bool) -> bool:
         if button not in _MOUSE_MESSAGES:
             return False
         hwnd = self._foreground_hwnd()
         if not hwnd:
             return False
-        # Convert the current cursor position to client coordinates.
         try:
             pt = POINT()
             user32.GetCursorPos(byref(pt))
@@ -295,9 +337,12 @@ class InputService:
         except Exception:
             lparam = 0
         down_msg, up_msg, wparam = _MOUSE_MESSAGES[button]
-        ok_down = self._post_message(hwnd, down_msg, wparam, lparam)
-        ok_up = self._post_message(hwnd, up_msg, 0, lparam)
-        return ok_down and ok_up
+        ok = True
+        if down:
+            ok = self._post_message(hwnd, down_msg, wparam, lparam) and ok
+        if up:
+            ok = self._post_message(hwnd, up_msg, 0, lparam) and ok
+        return ok
 
     def _press_vk_window_message(self, vk: int) -> bool:
         hwnd = self._foreground_hwnd()

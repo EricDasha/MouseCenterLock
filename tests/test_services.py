@@ -39,6 +39,12 @@ class _FakeInputService:
     def click_mouse(self, button="left"):
         self.clicks.append(button)
 
+    def mouse_down(self, button="left"):
+        self.clicks.append(f"{button}:down")
+
+    def mouse_up(self, button="left"):
+        self.clicks.append(f"{button}:up")
+
     def press_key(self, key):
         self.keys.append(key)
 
@@ -97,6 +103,21 @@ class ServiceTests(unittest.TestCase):
         native_up.assert_called_once_with(0x32)
         python_down.assert_not_called()
         python_up.assert_called_once_with(0x32)
+
+    def test_input_service_mouse_down_up_use_native_then_python_fallback(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch("services.input_service.native_input.mouse_down", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.mouse_up", return_value=False) as native_up, \
+             mock.patch("services.input_service.sendinput_mouse_down") as python_down, \
+             mock.patch("services.input_service.sendinput_mouse_up") as python_up:
+            service.mouse_down("left")
+            service.mouse_up("left")
+
+        native_down.assert_called_once_with("left")
+        native_up.assert_called_once_with("left")
+        python_down.assert_not_called()
+        python_up.assert_called_once_with("left")
 
     def test_input_service_python_sendinput_skips_rust_backend(self):
         service = InputService(get_backend=lambda: "python-sendinput")
@@ -315,6 +336,26 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(input_service.key_downs, ["2", "1"])
             self.assertEqual(input_service.key_ups, ["2", "1"])
             self.assertEqual(service._held_output_keys, [])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_mouse_down_up_actions(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "mouseDown", "button": "left"},
+                {"type": "delay", "ms": 10},
+                {"type": "mouseUp", "button": "left"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.clicks, ["left:down", "left:up"])
         finally:
             service.stop()
 

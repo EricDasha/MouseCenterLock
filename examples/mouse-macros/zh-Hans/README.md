@@ -10,7 +10,7 @@
 - `middle-right-text.json`：按住中键，再点右键 → 输入 `GG`、等待 80ms、`Enter`。
 - `middle-left-test.json`：运行时诊断用；按住中键，再点左键 → 主键盘 `1`。
 - `back-left-2-delay-1.json`：按住鼠标后侧键（`back`/`x1`），每次点左键 → 主键盘 `2`、等待 100ms、主键盘 `1`；左键本身由真实点击产生，动作里不再额外点击左键。
-- `far-far-west-back-left-combo.json`：按住鼠标后侧键 `x1`，点左键 → 左键点击、54ms、按下 `2`、80ms、按下 `1`、27ms、松开 `2`、66ms、松开 `1`；取消时自动补 `KeyUp 2/1`。建议 `cooldownMs=450`，避免连续触发撞进切枪冷却。
+- `far-far-west-back-left-combo.json`：按住鼠标后侧键 `x1`，点左键 → 左键 `mouseDown`、60ms、`mouseUp`、120ms、按下 `2`、80ms、按下 `1`、27ms、松开 `2`、66ms、松开 `1`；取消时自动补 `KeyUp 2/1`。建议 `cooldownMs=450`，避免连续触发撞进切枪冷却。
 - `far-far-west-x1-switch-combo.json`：单独按下鼠标后侧键 `x1` → `2`、等待、`1`，不再依赖左键触发，也不模拟左键开火。
 - `key-delay-key.json`：按住键盘 `A`，每次按下 `B` → `A`、等待 50ms、`B`；不松开 `A` 时，重复按 `B` 会重复执行。
 

@@ -11,12 +11,20 @@
       "interruptible": true,
       "actions": [
         {
-          "type": "mouseClick",
+          "type": "mouseDown",
           "button": "left"
         },
         {
           "type": "delay",
-          "ms": 50
+          "ms": 60
+        },
+        {
+          "type": "mouseUp",
+          "button": "left"
+        },
+        {
+          "type": "delay",
+          "ms": 120
         },
         {
           "type": "keyDown",

@@ -45,7 +45,7 @@ CLICKER_TRIGGER_MODES = {
 }
 
 MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
-MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "keyDown", "keyUp", "mouseClick", "text", "delay")
+MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "keyDown", "keyUp", "mouseDown", "mouseUp", "mouseClick", "text", "delay")
 
 
 DEFAULT_PROFILE_NAMES = {
@@ -289,7 +289,7 @@ class SettingsManager:
             normalized.update(normalize_hotkey(source, {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": ""}))
         elif action_type in ("key", "keyDown", "keyUp"):
             normalized["key"] = str(source.get("key", "") or "")
-        elif action_type == "mouseClick":
+        elif action_type in ("mouseDown", "mouseUp", "mouseClick"):
             button = str(source.get("button", "left") or "left").lower()
             normalized["button"] = button if button in MOUSE_TRIGGER_BUTTONS else "left"
         elif action_type == "text":
