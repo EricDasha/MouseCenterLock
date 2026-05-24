@@ -366,6 +366,20 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     name_layout.addWidget(window.mouseMacroNameEdit)
     builder_layout.addLayout(name_layout)
 
+    trigger_mode_layout = QtWidgets.QHBoxLayout()
+    trigger_mode_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.triggerMode", "Trigger Mode")))
+    window.mouseMacroTriggerModeCombo = QtWidgets.QComboBox()
+    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.hold", "Hold"), "hold")
+    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.toggle", "Toggle"), "toggle")
+    for i in range(window.mouseMacroTriggerModeCombo.count()):
+        if window.mouseMacroTriggerModeCombo.itemData(i) == macro_rule.get("triggerMode", "hold"):
+            window.mouseMacroTriggerModeCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroTriggerModeCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    trigger_mode_layout.addWidget(window.mouseMacroTriggerModeCombo)
+    trigger_mode_layout.addStretch()
+    builder_layout.addLayout(trigger_mode_layout)
+
     combo_layout = QtWidgets.QHBoxLayout()
     combo_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.when", "When holding")))
     window.mouseMacroHoldCombo = QtWidgets.QComboBox()

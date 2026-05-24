@@ -212,5 +212,8 @@
   "macro.action.mouseDown": "Mouse Down",
   "macro.action.mouseUp": "Mouse Up",
   "macro.preview.action.mouseDown": "マウス押下 {0}",
-  "macro.preview.action.mouseUp": "マウス解放 {0}"
+  "macro.preview.action.mouseUp": "マウス解放 {0}",
+  "macro.triggerMode": "トリガーモード",
+  "macro.trigger.hold": "押し続ける",
+  "macro.trigger.toggle": "切り替え"
 }

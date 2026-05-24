@@ -4,6 +4,7 @@
       "id": "far-far-west-back-left-combo",
       "name": "Far Far West: Back + Left timing combo",
       "enabled": true,
+      "triggerMode": "toggle",
       "holdMouseButton": "x1",
       "pressMouseButton": "left",
       "cancelOnHoldRelease": true,

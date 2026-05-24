@@ -42,6 +42,7 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
                 "id": "builder-rule-1",
                 "name": window.mouseMacroNameEdit.text().strip() or "Mouse Macro",
                 "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
+                "triggerMode": window.mouseMacroTriggerModeCombo.currentData() or "hold",
                 "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
                 "pressMouseButton": window.mouseMacroPressCombo.currentData() or "left",
                 "actions": [action],

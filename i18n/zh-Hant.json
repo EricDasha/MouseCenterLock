@@ -204,5 +204,8 @@
   "macro.action.mouseDown": "滑鼠按下",
   "macro.action.mouseUp": "滑鼠鬆開",
   "macro.preview.action.mouseDown": "滑鼠按下 {0}",
-  "macro.preview.action.mouseUp": "滑鼠鬆開 {0}"
+  "macro.preview.action.mouseUp": "滑鼠鬆開 {0}",
+  "macro.triggerMode": "觸發方式",
+  "macro.trigger.hold": "按住",
+  "macro.trigger.toggle": "切換"
 }

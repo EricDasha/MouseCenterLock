@@ -257,6 +257,7 @@ class SettingsManager:
                     "id": "x2-left-default",
                     "name": "X2 + Left",
                     "enabled": False,
+                    "triggerMode": "hold",
                     "holdMouseButton": "x2",
                     "pressMouseButton": "left",
                     "cancelOnHoldRelease": True,
@@ -306,6 +307,9 @@ class SettingsManager:
         source = rule if isinstance(rule, dict) else {}
         hold = str(source.get("holdMouseButton", "x2") or "x2").lower()
         press = str(source.get("pressMouseButton", "left") or "left").lower()
+        trigger_mode = str(source.get("triggerMode", "hold") or "hold").lower()
+        if trigger_mode not in ("hold", "toggle"):
+            trigger_mode = "hold"
         actions = source.get("actions", [])
         if not isinstance(actions, list) or not actions:
             actions = [{"type": "hotkey", "modCtrl": True, "key": "C"}]
@@ -316,6 +320,7 @@ class SettingsManager:
             "id": str(source.get("id") or f"macro-{index + 1}"),
             "name": str(source.get("name") or f"Macro {index + 1}"),
             "enabled": bool(source.get("enabled", False)),
+            "triggerMode": trigger_mode,
             "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
             "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
             "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),

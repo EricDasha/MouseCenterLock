@@ -212,5 +212,8 @@
   "macro.action.mouseDown": "Mouse Down",
   "macro.action.mouseUp": "Mouse Up",
   "macro.preview.action.mouseDown": "마우스 누름 {0}",
-  "macro.preview.action.mouseUp": "마우스 뗌 {0}"
+  "macro.preview.action.mouseUp": "마우스 뗌 {0}",
+  "macro.triggerMode": "트리거 방식",
+  "macro.trigger.hold": "누르고 있기",
+  "macro.trigger.toggle": "토글"
 }

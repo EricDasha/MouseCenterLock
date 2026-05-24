@@ -215,5 +215,8 @@
   "macro.action.mouseDown": "Mouse Down",
   "macro.action.mouseUp": "Mouse Up",
   "macro.preview.action.mouseDown": "Mouse down {0}",
-  "macro.preview.action.mouseUp": "Mouse up {0}"
+  "macro.preview.action.mouseUp": "Mouse up {0}",
+  "macro.triggerMode": "Trigger Mode",
+  "macro.trigger.hold": "Hold",
+  "macro.trigger.toggle": "Toggle"
 }

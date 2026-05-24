@@ -339,6 +339,42 @@ class ServiceTests(unittest.TestCase):
         finally:
             service.stop()
 
+    def test_mouse_macro_service_supports_toggle_arm_and_fire(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "toggle-left",
+                    "enabled": True,
+                    "triggerMode": "toggle",
+                    "holdMouseButton": "x1",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(input_service.keys, ["2"])
+
+            service._on_global_input_event("mouse", "x1", True)
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(input_service.keys, ["2"])
+        finally:
+            service.stop()
+
     def test_mouse_macro_service_supports_mouse_down_up_actions(self):
         input_service = _FakeInputService()
         service = MouseMacroService(

@@ -166,6 +166,7 @@ class SettingsManagerTests(unittest.TestCase):
         ])
         self.assertEqual(rule["onCancel"], [{"type": "keyUp", "key": "2"}])
         self.assertEqual(rule["cooldownMs"], 250)
+        self.assertEqual(rule["triggerMode"], "hold")
 
     def test_input_backend_aliases_are_canonicalized(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
