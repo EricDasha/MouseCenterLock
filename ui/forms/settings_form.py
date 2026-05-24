@@ -30,8 +30,8 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         action["ms"] = window.mouseMacroDelaySpin.value()
     else:
         action.update(window.mouseMacroActionHotkeyCapture.get_hotkey())
-        if action_type == "key":
-            action = {"type": "key", "key": action.get("key", "")}
+        if action_type in ("key", "keyDown", "keyUp"):
+            action = {"type": action_type, "key": action.get("key", "")}
 
     return {
         "enabled": window.mouseMacroEnabledCheck.isChecked(),

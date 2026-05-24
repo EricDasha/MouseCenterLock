@@ -204,5 +204,9 @@
   "inputBackend.nativeSendInput": "Native SendInput (Rust scan-code)",
   "inputBackend.pythonSendInput": "Python SendInput fallback",
   "inputBackend.virtualHid": "Virtual HID (planned)",
-  "inputBackend.hardwareHid": "Hardware HID (planned)"
+  "inputBackend.hardwareHid": "Hardware HID (planned)",
+  "macro.action.keyDown": "Key Down",
+  "macro.action.keyUp": "Key Up",
+  "macro.preview.action.keyDown": "キー押下 {0}",
+  "macro.preview.action.keyUp": "キー解放 {0}"
 }

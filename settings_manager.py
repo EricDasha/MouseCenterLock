@@ -45,7 +45,7 @@ CLICKER_TRIGGER_MODES = {
 }
 
 MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
-MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "mouseClick", "text", "delay")
+MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "keyDown", "keyUp", "mouseClick", "text", "delay")
 
 
 DEFAULT_PROFILE_NAMES = {
@@ -283,8 +283,10 @@ class SettingsManager:
         if action_type not in MOUSE_MACRO_ACTION_TYPES:
             action_type = "hotkey"
         normalized: Dict[str, Any] = {"type": action_type}
-        if action_type in ("hotkey", "key"):
+        if action_type == "hotkey":
             normalized.update(normalize_hotkey(source, {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": ""}))
+        elif action_type in ("key", "keyDown", "keyUp"):
+            normalized["key"] = str(source.get("key", "") or "")
         elif action_type == "mouseClick":
             button = str(source.get("button", "left") or "left").lower()
             normalized["button"] = button if button in MOUSE_TRIGGER_BUTTONS else "left"
@@ -305,6 +307,9 @@ class SettingsManager:
         actions = source.get("actions", [])
         if not isinstance(actions, list) or not actions:
             actions = [{"type": "hotkey", "modCtrl": True, "key": "C"}]
+        on_cancel = source.get("onCancel", [])
+        if not isinstance(on_cancel, list):
+            on_cancel = []
         return {
             "id": str(source.get("id") or f"macro-{index + 1}"),
             "name": str(source.get("name") or f"Macro {index + 1}"),
@@ -315,6 +320,7 @@ class SettingsManager:
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
+            "onCancel": [self._normalize_macro_action(action) for action in on_cancel[:16]],
         }
 
     def _ensure_mouse_macros(self) -> None:

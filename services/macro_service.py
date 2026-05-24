@@ -74,6 +74,7 @@ class MouseMacroService(QtCore.QObject):
         self._cancel_requested = False
         self._current_rule: Dict[str, Any] | None = None
         self._current_rule_key = ""
+        self._held_output_keys: list[str] = []
         self._rules_cache_key = None
         self._rules_cache: List[Dict[str, Any]] = []
         self._input_listener = input_listener_factory(
@@ -125,10 +126,14 @@ class MouseMacroService(QtCore.QObject):
         if not normalized:
             return
         if self._executing:
-            if not is_pressed and self._current_rule_key.endswith(f":{event_type}:{normalized}"):
-                if self._current_rule and self._current_rule.get("cancelOnHoldRelease"):
-                    self._cancel_requested = True
-                    log_message(f"MouseMacro cancellation requested during execution: {self._current_rule_key}")
+            if (
+                not is_pressed
+                and self._current_rule
+                and self._current_rule.get("cancelOnHoldRelease")
+                and self._current_rule_cancel_matches(event_type, normalized)
+            ):
+                self._cancel_requested = True
+                log_message(f"MouseMacro cancellation requested during execution: {self._current_rule_key}")
             return
 
         target_set = self._pressed_mouse_buttons if event_type == "mouse" else self._pressed_keys
@@ -142,14 +147,6 @@ class MouseMacroService(QtCore.QObject):
             target_set.discard(normalized)
             log_message(f"MouseMacro input up: type={event_type} name={normalized}")
             suffix = f":{event_type}:{normalized}"
-            if (
-                self._executing
-                and self._current_rule_key.endswith(suffix)
-                and self._current_rule
-                and self._current_rule.get("cancelOnHoldRelease")
-            ):
-                self._cancel_requested = True
-                log_message(f"MouseMacro cancellation requested on hold/press release: {self._current_rule_key}")
             self._active_rule_keys = {key for key in self._active_rule_keys if not key.endswith(suffix)}
 
     def _normalize_input_name(self, event_type: str, name: str) -> str:
@@ -223,6 +220,12 @@ class MouseMacroService(QtCore.QObject):
             return "key", self._normalize_input_name("key", str(rule.get("pressKey", "")))
         return "mouse", self._normalize_input_name("mouse", str(rule.get("pressMouseButton", "")))
 
+    def _rule_hold_target(self, rule: Dict[str, Any]) -> tuple[str, str]:
+        """Return (event_type, normalized_name) for a rule hold input."""
+        if "holdKey" in rule:
+            return "key", self._normalize_input_name("key", str(rule.get("holdKey", "")))
+        return "mouse", self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
+
     def _rule_hold_is_pressed(self, rule: Dict[str, Any], _event_type: str) -> bool:
         """Return whether the hold side of a rule is currently pressed.
 
@@ -230,11 +233,18 @@ class MouseMacroService(QtCore.QObject):
         pressMouseButton=left. Prefer explicit holdKey when present; otherwise
         use holdMouseButton.
         """
-        if "holdKey" in rule:
-            hold_key = self._normalize_input_name("key", str(rule.get("holdKey", "")))
-            return bool(hold_key and hold_key in self._pressed_keys)
-        hold_button = self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
-        return bool(hold_button and hold_button in self._pressed_mouse_buttons)
+        hold_type, hold_name = self._rule_hold_target(rule)
+        if hold_type == "key":
+            return bool(hold_name and hold_name in self._pressed_keys)
+        return bool(hold_name and hold_name in self._pressed_mouse_buttons)
+
+    def _current_rule_cancel_matches(self, event_type: str, normalized: str) -> bool:
+        """Return whether an input release should cancel the current interruptible rule."""
+        if not self._current_rule:
+            return False
+        press_type, press_name = self._rule_press_target(self._current_rule)
+        hold_type, hold_name = self._rule_hold_target(self._current_rule)
+        return (event_type, normalized) in {(press_type, press_name), (hold_type, hold_name)}
 
     def _fire_matching_rules(self, event_type: str, pressed_name: str) -> None:
         config = self._get_config()
@@ -315,8 +325,10 @@ class MouseMacroService(QtCore.QObject):
             return
         self._executing = True
         self._cancel_requested = False
+        self._held_output_keys.clear()
         self._current_rule = rule or {}
         self._current_rule_key = rule_key
+        cancelled = False
         try:
             scheduler = ActionScheduler(
                 self._execute_logged_action,
@@ -324,7 +336,12 @@ class MouseMacroService(QtCore.QObject):
                 sleep=time.sleep,
             )
             scheduler.run(actions)
+            cancelled = self._should_cancel_actions()
         finally:
+            cancelled = cancelled or self._should_cancel_actions()
+            if cancelled:
+                self._execute_cancel_actions(self._current_rule.get("onCancel", []) if self._current_rule else [])
+            self._release_held_output_keys()
             self._executing = False
             self._cancel_requested = False
             self._current_rule = None
@@ -343,6 +360,10 @@ class MouseMacroService(QtCore.QObject):
             self._input_service.click_mouse(str(action.get("button", "left") or "left"))
         elif action_type == "key":
             self._send_key(str(action.get("key", "") or ""))
+        elif action_type == "keyDown":
+            self._send_key_down(str(action.get("key", "") or ""))
+        elif action_type == "keyUp":
+            self._send_key_up(str(action.get("key", "") or ""))
         elif action_type == "hotkey":
             self._send_hotkey(action)
         elif action_type == "text":
@@ -353,6 +374,44 @@ class MouseMacroService(QtCore.QObject):
         if not vk:
             return
         self._input_service.press_key(key)
+
+    def _send_key_down(self, key: str) -> None:
+        vk = key_to_vk(key)
+        if not vk:
+            return
+        key_name = str(key or "")
+        self._input_service.key_down(key_name)
+        normalized = key_name.strip().lower()
+        if normalized and normalized not in self._held_output_keys:
+            self._held_output_keys.append(normalized)
+
+    def _send_key_up(self, key: str) -> None:
+        vk = key_to_vk(key)
+        if not vk:
+            return
+        key_name = str(key or "")
+        self._input_service.key_up(key_name)
+        normalized = key_name.strip().lower()
+        self._held_output_keys = [held for held in self._held_output_keys if held != normalized]
+
+    def _execute_cancel_actions(self, actions: Any) -> None:
+        """Run bounded cleanup actions without delays when a macro is cancelled."""
+        if not isinstance(actions, list):
+            return
+        for action in actions[:16]:
+            if not isinstance(action, dict):
+                continue
+            action_type = str(action.get("type", "") or "")
+            if action_type in {"keyUp", "mouseClick", "key", "hotkey", "text"}:
+                log_message(f"MouseMacro cancel action: {action}")
+                self._execute_action(action)
+
+    def _release_held_output_keys(self) -> None:
+        """Best-effort keyUp cleanup for any keyDown emitted by this macro run."""
+        while self._held_output_keys:
+            key = self._held_output_keys.pop()
+            log_message(f"MouseMacro releasing held output key: {key}")
+            self._input_service.key_up(key)
 
     def _send_hotkey(self, action: Dict[str, Any]) -> None:
         self._input_service.press_hotkey(action)

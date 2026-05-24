@@ -8,6 +8,7 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - `x1-left-copy.json`: hold `x1` Back side button, click left → `Ctrl+C`.
 - `x2-left-paste-enter.json`: hold `x2` Forward side button, click left → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: hold middle button, click right → type `GG`, wait 80ms, `Enter`.
+- `far-far-west-back-left-combo.json`: hold mouse back side button `x1`, press left → left click, 54ms, KeyDown `2`, 80ms, KeyDown `1`, 27ms, KeyUp `2`, 66ms, KeyUp `1`; cancel cleanup sends `KeyUp 2/1`.
 - `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` stays held, repeated `B` presses repeat the sequence.
 
 ## Mouse button names

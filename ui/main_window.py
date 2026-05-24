@@ -581,6 +581,10 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.i18n.t("macro.preview.action.mouseClick", "Click {0}").format(action.get("button", "left"))
         if action_type == "key":
             return self.i18n.t("macro.preview.action.key", "Key {0}").format(action.get("key", "?"))
+        if action_type == "keyDown":
+            return self.i18n.t("macro.preview.action.keyDown", "Key down {0}").format(action.get("key", "?"))
+        if action_type == "keyUp":
+            return self.i18n.t("macro.preview.action.keyUp", "Key up {0}").format(action.get("key", "?"))
         if action_type == "hotkey":
             return self.i18n.t("macro.preview.action.hotkey", "Hotkey {0}").format(format_hotkey_display(action))
         if action_type == "text":
@@ -671,7 +675,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_mouse_macro_file_preview()
 
         action_type = self.mouseMacroActionTypeCombo.currentData() or "hotkey"
-        self.mouseMacroActionHotkeyCapture.setVisible(action_type in ("hotkey", "key"))
+        self.mouseMacroActionHotkeyCapture.setVisible(action_type in ("hotkey", "key", "keyDown", "keyUp"))
         self.mouseMacroActionMouseCombo.setVisible(action_type == "mouseClick")
         self.mouseMacroActionTextEdit.setVisible(action_type == "text")
         self.mouseMacroDelaySpin.setVisible(action_type == "delay")

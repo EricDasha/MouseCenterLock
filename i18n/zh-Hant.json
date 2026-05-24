@@ -196,5 +196,9 @@
   "inputBackend.nativeSendInput": "原生 SendInput（Rust 掃描碼）",
   "inputBackend.pythonSendInput": "Python SendInput 兜底",
   "inputBackend.virtualHid": "虛擬 HID（預留）",
-  "inputBackend.hardwareHid": "硬體 HID（預留）"
+  "inputBackend.hardwareHid": "硬體 HID（預留）",
+  "macro.action.keyDown": "按下按鍵",
+  "macro.action.keyUp": "鬆開按鍵",
+  "macro.preview.action.keyDown": "按下 {0}",
+  "macro.preview.action.keyUp": "鬆開 {0}"
 }

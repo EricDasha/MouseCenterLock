@@ -133,6 +133,37 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertTrue(macro["rules"][0]["cancelOnHoldRelease"])
         self.assertTrue(macro["rules"][0]["interruptible"])
 
+    def test_mouse_macro_normalizes_key_down_up_and_cancel_actions(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "mouseMacros": {
+                "enabled": True,
+                "source": "builder",
+                "rules": [
+                    {
+                        "enabled": True,
+                        "holdMouseButton": "x1",
+                        "pressMouseButton": "left",
+                        "actions": [
+                            {"type": "keyDown", "key": "2", "modCtrl": True},
+                            {"type": "keyUp", "key": "2"},
+                        ],
+                        "onCancel": [{"type": "keyUp", "key": "2"}],
+                    }
+                ],
+            }
+        }
+        settings._set_defaults()
+
+        rule = settings.data["mouseMacros"]["rules"][0]
+        self.assertEqual(rule["actions"], [
+            {"type": "keyDown", "key": "2"},
+            {"type": "keyUp", "key": "2"},
+        ])
+        self.assertEqual(rule["onCancel"], [{"type": "keyUp", "key": "2"}])
+
     def test_input_backend_aliases_are_canonicalized(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

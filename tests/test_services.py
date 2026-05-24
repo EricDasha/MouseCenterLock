@@ -33,12 +33,20 @@ class _FakeInputService:
         self.keys = []
         self.hotkeys = []
         self.texts = []
+        self.key_downs = []
+        self.key_ups = []
 
     def click_mouse(self, button="left"):
         self.clicks.append(button)
 
     def press_key(self, key):
         self.keys.append(key)
+
+    def key_down(self, key):
+        self.key_downs.append(key)
+
+    def key_up(self, key):
+        self.key_ups.append(key)
 
     def press_hotkey(self, action):
         self.hotkeys.append(action)
@@ -73,6 +81,22 @@ class ServiceTests(unittest.TestCase):
 
         native_press.assert_called_once_with(0x41)
         python_press.assert_called_once_with(0x41)
+
+    def test_input_service_key_down_up_use_native_then_python_fallback(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch("services.input_service.key_to_vk", return_value=0x32), \
+             mock.patch("services.input_service.native_input.key_down_vk", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.key_up_vk", return_value=False) as native_up, \
+             mock.patch("services.input_service.key_down_vk") as python_down, \
+             mock.patch("services.input_service.key_up_vk") as python_up:
+            service.key_down("2")
+            service.key_up("2")
+
+        native_down.assert_called_once_with(0x32)
+        native_up.assert_called_once_with(0x32)
+        python_down.assert_not_called()
+        python_up.assert_called_once_with(0x32)
 
     def test_input_service_python_sendinput_skips_rust_backend(self):
         service = InputService(get_backend=lambda: "python-sendinput")
@@ -172,6 +196,50 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(input_service.clicks, ["right", "right"])
 
         service.stop()
+
+    def test_mouse_macro_service_supports_key_down_up_actions(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "keyDown", "key": "2"},
+                {"type": "delay", "ms": 0},
+                {"type": "keyDown", "key": "1"},
+                {"type": "keyUp", "key": "2"},
+                {"type": "keyUp", "key": "1"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.key_downs, ["2", "1"])
+            self.assertEqual(input_service.key_ups, ["2", "1"])
+            self.assertEqual(service._held_output_keys, [])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_releases_key_down_on_cleanup(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "keyDown", "key": "2"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.key_downs, ["2"])
+            self.assertEqual(input_service.key_ups, ["2"])
+            self.assertEqual(service._held_output_keys, [])
+        finally:
+            service.stop()
 
 
 

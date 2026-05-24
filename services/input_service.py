@@ -161,6 +161,52 @@ class InputService:
         sendinput_press_vk(vk)
         self._log_route("key", backend, "python-sendinput", f"key={key}", requested=requested, reason=fallback_reason)
 
+    def key_down(self, key: str) -> None:
+        vk = key_to_vk(key)
+        if not vk:
+            log_message(f"InputService invalid keyDown key: {key}")
+            return
+        requested = self.backend()
+        backend, fallback_reason = self._resolve_backend(requested)
+        if fallback_reason and backend == requested:
+            self._log_route("keyDown", backend, "unavailable", f"key={key}", requested=requested, reason=fallback_reason)
+            return
+        if backend == BACKEND_WINDOW_MESSAGE:
+            hwnd = self._foreground_hwnd()
+            if self._post_message(hwnd, WM_KEYDOWN, vk, 0):
+                self._log_route("keyDown", backend, "window-message", f"key={key}", requested=requested, reason=fallback_reason)
+                return
+            log_message(f"InputService window-message keyDown failed: key={key}")
+            return
+        if self._native_enabled(backend) and native_input.key_down_vk(vk):
+            self._log_route("keyDown", backend, "native-scancode", f"key={key}", requested=requested, reason=fallback_reason)
+            return
+        key_down_vk(vk)
+        self._log_route("keyDown", backend, "python-sendinput", f"key={key}", requested=requested, reason=fallback_reason)
+
+    def key_up(self, key: str) -> None:
+        vk = key_to_vk(key)
+        if not vk:
+            log_message(f"InputService invalid keyUp key: {key}")
+            return
+        requested = self.backend()
+        backend, fallback_reason = self._resolve_backend(requested)
+        if fallback_reason and backend == requested:
+            self._log_route("keyUp", backend, "unavailable", f"key={key}", requested=requested, reason=fallback_reason)
+            return
+        if backend == BACKEND_WINDOW_MESSAGE:
+            hwnd = self._foreground_hwnd()
+            if self._post_message(hwnd, WM_KEYUP, vk, 0):
+                self._log_route("keyUp", backend, "window-message", f"key={key}", requested=requested, reason=fallback_reason)
+                return
+            log_message(f"InputService window-message keyUp failed: key={key}")
+            return
+        if self._native_enabled(backend) and native_input.key_up_vk(vk):
+            self._log_route("keyUp", backend, "native-scancode", f"key={key}", requested=requested, reason=fallback_reason)
+            return
+        key_up_vk(vk)
+        self._log_route("keyUp", backend, "python-sendinput", f"key={key}", requested=requested, reason=fallback_reason)
+
     def press_hotkey(self, action: Dict[str, Any]) -> None:
         key = str(action.get("key", "") or "")
         vk = key_to_vk(key)
