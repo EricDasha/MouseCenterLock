@@ -9,6 +9,7 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - `x2-left-paste-enter.json`: hold `x2` Forward side button, click left → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: hold middle button, click right → type `GG`, wait 80ms, `Enter`.
 - `far-far-west-back-left-combo.json`: hold mouse back side button `x1`, press left → left click, 54ms, KeyDown `2`, 80ms, KeyDown `1`, 27ms, KeyUp `2`, 66ms, KeyUp `1`; cancel cleanup sends `KeyUp 2/1`.
+- `far-far-west-x1-switch-combo.json`: press mouse back side button `x1` alone → `2`, delay, `1`; no left-click trigger and no simulated firing.
 - `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` stays held, repeated `B` presses repeat the sequence.
 
 ## Mouse button names
@@ -29,6 +30,19 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - Top-row numbers: `0` ~ `9` (not numpad keys)
 - Function keys: `F1` ~ `F24`
 - Special keys: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+
+## Single-input trigger rules
+
+External JSON may use only `pressMouseButton` or `pressKey` without `holdMouseButton` / `holdKey`, meaning the single press fires the rule.
+
+```json
+{
+  "pressMouseButton": "x1",
+  "actions": [
+    { "type": "key", "key": "2" }
+  ]
+}
+```
 
 ## Keyboard trigger rules
 

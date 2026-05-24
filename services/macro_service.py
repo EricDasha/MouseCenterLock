@@ -224,7 +224,9 @@ class MouseMacroService(QtCore.QObject):
         """Return (event_type, normalized_name) for a rule hold input."""
         if "holdKey" in rule:
             return "key", self._normalize_input_name("key", str(rule.get("holdKey", "")))
-        return "mouse", self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
+        if "holdMouseButton" in rule:
+            return "mouse", self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
+        return "", ""
 
     def _rule_hold_is_pressed(self, rule: Dict[str, Any], _event_type: str) -> bool:
         """Return whether the hold side of a rule is currently pressed.
@@ -234,6 +236,8 @@ class MouseMacroService(QtCore.QObject):
         use holdMouseButton.
         """
         hold_type, hold_name = self._rule_hold_target(rule)
+        if not hold_type or not hold_name:
+            return True
         if hold_type == "key":
             return bool(hold_name and hold_name in self._pressed_keys)
         return bool(hold_name and hold_name in self._pressed_mouse_buttons)
@@ -244,7 +248,10 @@ class MouseMacroService(QtCore.QObject):
             return False
         press_type, press_name = self._rule_press_target(self._current_rule)
         hold_type, hold_name = self._rule_hold_target(self._current_rule)
-        return (event_type, normalized) in {(press_type, press_name), (hold_type, hold_name)}
+        cancel_inputs = {(press_type, press_name)}
+        if hold_type and hold_name:
+            cancel_inputs.add((hold_type, hold_name))
+        return (event_type, normalized) in cancel_inputs
 
     def _fire_matching_rules(self, event_type: str, pressed_name: str) -> None:
         config = self._get_config()

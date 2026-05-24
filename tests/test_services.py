@@ -197,6 +197,37 @@ class ServiceTests(unittest.TestCase):
 
         service.stop()
 
+    def test_mouse_macro_service_supports_press_only_mouse_rule(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "x1-switch",
+                    "enabled": True,
+                    "pressMouseButton": "x1",
+                    "actions": [
+                        {"type": "keyDown", "key": "2"},
+                        {"type": "keyUp", "key": "2"},
+                    ],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            self.assertEqual(input_service.key_downs, ["2"])
+            self.assertEqual(input_service.key_ups, ["2"])
+        finally:
+            service.stop()
+
     def test_mouse_macro_service_supports_key_down_up_actions(self):
         input_service = _FakeInputService()
         service = MouseMacroService(
