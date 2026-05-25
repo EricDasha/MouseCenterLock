@@ -55,6 +55,10 @@ from widgets import ProcessPickerDialog, CloseActionDialog, WindowResizeDialog
 
 class MainWindow(QtWidgets.QMainWindow):
     """Main application window."""
+
+    _BASE_SCREEN_SIZE = (1920, 1080)
+    _BASE_WINDOW_SIZE = (570, 700)
+    _MIN_WINDOW_SIZE = (450, 500)
     
     def __init__(self, settings: SettingsManager, i18n: I18n):
         super().__init__()
@@ -308,8 +312,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def _setup_window(self):
         """Configure window properties."""
         self.setWindowTitle(self.i18n.t("app.title", "MCL - Mouse Control Layer"))
-        self.setMinimumSize(450, 500)
-        self.resize(550, 700)
+        self.setMinimumSize(*self._MIN_WINDOW_SIZE)
+        self.resize(self._resolve_default_window_size())
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
         
         # Load window icon
@@ -317,6 +321,32 @@ class MainWindow(QtWidgets.QMainWindow):
         icon = self._custom_icon or self._make_icon(False)
         QtWidgets.QApplication.setWindowIcon(icon)
         self.setWindowIcon(icon)
+
+    def _resolve_default_window_size(self) -> QtCore.QSize:
+        """Scale the default window from a 1920x1080 baseline."""
+        screen = QtWidgets.QApplication.primaryScreen()
+        if screen is None:
+            return QtCore.QSize(*self._BASE_WINDOW_SIZE)
+
+        available = screen.availableGeometry()
+        scale = screen.devicePixelRatio()
+        if scale <= 0:
+            scale = 1.0
+
+        effective_width = max(1.0, available.width() * scale)
+        effective_height = max(1.0, available.height() * scale)
+        width_ratio = effective_width / self._BASE_SCREEN_SIZE[0]
+        height_ratio = effective_height / self._BASE_SCREEN_SIZE[1]
+        ratio = max(1.0, min(width_ratio, height_ratio))
+
+        width = int(round(self._BASE_WINDOW_SIZE[0] * ratio))
+        height = int(round(self._BASE_WINDOW_SIZE[1] * ratio))
+
+        max_width = max(self._MIN_WINDOW_SIZE[0], int(round(available.width() * 0.9)))
+        max_height = max(self._MIN_WINDOW_SIZE[1], int(round(available.height() * 0.9)))
+        width = max(self._MIN_WINDOW_SIZE[0], min(width, max_width))
+        height = max(self._MIN_WINDOW_SIZE[1], min(height, max_height))
+        return QtCore.QSize(width, height)
     
     def _setup_timers(self):
         """Setup timers for recentering and window focus checking."""
