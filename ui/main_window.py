@@ -238,14 +238,14 @@ class MainWindow(QtWidgets.QMainWindow):
         """Show a Windows notification using the configured fallback chain."""
         if self._tray_service is not None:
             self._tray_service.show_notification(
-                self.i18n.t("app.title", "鼠标中心锁定"),
+                self.i18n.t("app.title", "MCL - Mouse Control Layer"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
             )
         elif hasattr(self, "_tray_service") and self._tray_service is not None:
             self._tray_service.tray.showMessage(
-                self.i18n.t("app.title", "鼠标中心锁定"),
+                self.i18n.t("app.title", "MCL - Mouse Control Layer"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
@@ -311,7 +311,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _setup_window(self):
         """Configure window properties."""
-        self.setWindowTitle(self.i18n.t("app.title", "鼠标中心锁定"))
+        self.setWindowTitle(self.i18n.t("app.title", "MCL - Mouse Control Layer"))
         self.setMinimumSize(*self._MIN_WINDOW_SIZE)
         self.resize(self._resolve_initial_window_size())
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
