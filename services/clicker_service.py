@@ -235,7 +235,10 @@ class ClickerService(QtCore.QObject):
             if self._running:
                 self.stop(show_message=False)
             return
-        self._action_executor.click_mouse(profile.get("button", "left"))
+        self._action_executor.execute({
+            "type": "mouseClick",
+            "button": profile.get("button", "left"),
+        })
 
     def _modifier_pressed(self, vk: int) -> bool:
         """Return whether a modifier virtual key is currently pressed."""
