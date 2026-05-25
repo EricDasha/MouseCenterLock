@@ -1,5 +1,5 @@
 """
-Internationalization helpers for MouseCenterLock.
+Internationalization helpers for MCL.
 """
 from __future__ import annotations
 

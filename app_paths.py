@@ -18,4 +18,4 @@ RUN_DIR = _RUN_DIR
 ASSETS_DIR = os.path.join(APP_DIR, "assets")
 I18N_DIR = os.path.join(APP_DIR, "i18n")
 
-INSTANCE_SERVER_NAME = "MouseCenterLockActivation"
+INSTANCE_SERVER_NAME = "MCLActivation"

@@ -10,7 +10,7 @@ on:
       release_name:
         description: "Release title"
         required: false
-        default: "MouseCenterLock latest build"
+        default: "MCL latest build"
       release_notes:
         description: "Release notes. Leave empty to use the default generated notes."
         required: false
@@ -84,16 +84,16 @@ jobs:
 
           $releaseName = "${{ github.event.inputs.release_name }}"
           if ([string]::IsNullOrWhiteSpace($releaseName)) {
-            $releaseName = "MouseCenterLock $tag"
+            $releaseName = "MCL $tag"
           }
 
-          $exe = "dist/MouseCenterLock.exe"
+          $exe = "dist/MCL.exe"
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Build output $exe was not created."
           }
 
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          $zip = "release/MouseCenterLock-$tag-windows-x64.zip"
+          $zip = "release/MCL-$tag-windows-x64.zip"
           if (Test-Path -LiteralPath $zip) {
             Remove-Item -LiteralPath $zip -Force
           }
@@ -124,7 +124,7 @@ jobs:
           Automated Windows build for ``$env:TAG_NAME``.
 
           Assets:
-          - ``MouseCenterLock-$env:TAG_NAME-windows-x64.zip``
+          - ``MCL-$env:TAG_NAME-windows-x64.zip``
           - SHA256 checksum
 
           Source commit: ${{ github.sha }}

@@ -59,7 +59,7 @@ python -m unittest discover tests
 
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
+  --name MCL \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "Mconfig.json;." \
@@ -69,7 +69,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   mouse_center_lock_gui.py
 ```
 
-exe は `dist/MouseCenterLock.exe` に出力されます。
+exe は `dist/MCL.exe` に出力されます。
 
 ## マウスマクロ設定
 

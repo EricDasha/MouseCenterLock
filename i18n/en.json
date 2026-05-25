@@ -1,5 +1,5 @@
 {
-  "app.title": "Mouse Center Lock",
+  "app.title": "MCL - Mouse Control Layer",
   "status.locked": "Locked",
   "status.unlocked": "Unlocked",
   "status.locked.manual": "LOCKED (Manual)",

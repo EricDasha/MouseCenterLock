@@ -1,5 +1,5 @@
 """
-Lock runtime service for MouseCenterLock.
+Lock runtime service for MCL.
 """
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 """
-MouseCenterLock application entry point.
+MCL application entry point.
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def main() -> int:
         log_message("A second instance started, but activation request could not reach the running instance.")
         QtWidgets.QMessageBox.information(
             None,
-            i18n.t("app.title", "Mouse Center Lock"),
+            i18n.t("app.title", "MCL - Mouse Control Layer"),
             i18n.t("single_instance.running", "Application is already running.\nCheck the system tray."),
         )
         return 0

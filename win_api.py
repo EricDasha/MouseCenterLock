@@ -1,5 +1,5 @@
 """
-Windows API helpers for MouseCenterLock.
+Windows API helpers for MCL.
 Provides cursor control, hotkey management, window information, and single instance detection.
 """
 import ctypes
@@ -230,7 +230,7 @@ user32.SendInput.restype = wintypes.UINT
 
 # --- Single Instance Detection ---
 _mutex_handle: Optional[int] = None
-MUTEX_NAME = "Global\\MouseCenterLock_SingleInstance"
+MUTEX_NAME = "Global\\MCL_SingleInstance"
 
 
 def acquire_single_instance() -> bool:
@@ -858,7 +858,7 @@ def is_startup_enabled() -> bool:
     try:
         key = get_startup_registry_key()
         try:
-            winreg.QueryValueEx(key, "MouseCenterLock")
+            winreg.QueryValueEx(key, "MCL")
             return True
         except FileNotFoundError:
             return False
@@ -894,11 +894,11 @@ def set_startup_enabled(enabled: bool) -> Tuple[bool, Optional[str]]:
         try:
             if enabled:
                 command = get_startup_command()
-                winreg.SetValueEx(key, "MouseCenterLock", 0, winreg.REG_SZ, command)
+                winreg.SetValueEx(key, "MCL", 0, winreg.REG_SZ, command)
                 log_message(f"Updated startup registry entry: enabled -> {command}")
             else:
                 try:
-                    winreg.DeleteValue(key, "MouseCenterLock")
+                    winreg.DeleteValue(key, "MCL")
                 except FileNotFoundError:
                     pass
                 log_message("Updated startup registry entry: disabled")

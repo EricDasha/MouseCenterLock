@@ -1,5 +1,5 @@
 """
-Custom widgets for MouseCenterLock.
+Custom widgets for MCL.
 Includes Minecraft-style hotkey capture input and enhanced process picker.
 """
 from PySide6 import QtCore, QtGui, QtWidgets

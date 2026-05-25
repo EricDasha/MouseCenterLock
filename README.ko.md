@@ -2,7 +2,7 @@
 
 ---
 
-# 마우스 중앙 잠금
+# MCL 마우스 제어 레이어
 
 동영상 시청이나 게임 중 멀티태스킹 시 마우스 커서를 화면 중앙에 고정하는 Windows 유틸리티입니다. 전역 단축키, 트레이 메뉴, 간단/고급 UI, 다국어 지원, 재설정 주기/위치 설정을 지원합니다.
 
@@ -52,7 +52,7 @@ python mouse_center_lock_gui.py
 가상 환경 생성 (권장) 후 윈도우 exe 빌드:
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
+  --name MCL \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "config.json;." \
@@ -61,7 +61,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
-exe 파일은 `dist/MouseCenterLock.exe`에 생성됩니다.
+exe 파일은 `dist/MCL.exe`에 생성됩니다.
 
 ## 마우스 매크로 설정
 
@@ -74,7 +74,7 @@ exe 파일은 `dist/MouseCenterLock.exe`에 생성됩니다.
 ### v1.0.7
 - 신규: 창 특정 잠금에 "수동으로 잠금 해제 후 대상 창을 떠났다 다시 돌아오면 자동으로 다시 잠금" 옵션을 추가하여 기존 동작과 자동 재잠금 중에서 선택할 수 있습니다.
 - 개선: 간단 모드의 "현재 설정" 카드에 창 특정 잠금 및 자동 재잠금 상태를 더 분명하게 표시합니다.
-- 빌드: PyInstaller 단일 파일 빌드 구성을 업데이트하여 아이콘이 포함된 `MouseCenterLock.exe`를 `dist` 폴더에 생성합니다.
+- 빌드: PyInstaller 단일 파일 빌드 구성을 업데이트하여 아이콘이 포함된 `MCL.exe`를 `dist` 폴더에 생성합니다.
 
 ### v1.0.6
 - 버그 수정: 창 특정 잠금 활성화 시 비대상 창에서 단축키 사용 시 마우스가 이동/잠기는 문제 수정.

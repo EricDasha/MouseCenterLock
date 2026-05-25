@@ -2,7 +2,7 @@
 
 ---
 
-# Mouse Center Lock
+# MCL - Mouse Control Layer
 
 A Windows utility that locks the mouse cursor to the screen center while you watch videos or multitask during games. Global hotkeys, tray menu, Simple/Advanced UI, i18n, and configurable recenter frequency/position.
 
@@ -59,7 +59,7 @@ python -m unittest discover tests
 Create a virtual environment (recommended) and build a windowed exe:
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
+  --name MCL \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "Mconfig.json;." \
@@ -68,7 +68,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
-The exe will be in `dist/MouseCenterLock.exe`.
+The exe will be in `dist/MCL.exe`.
 
 To restore default settings, delete local `Mconfig.json`; the app falls back to `Mconfig.example.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
 
@@ -95,7 +95,7 @@ See [Input Backend Roadmap](docs/backend-roadmap.md) for backend stages, fallbac
 ### v1.0.7
 - New: Window-specific locking now has an option "Auto re-lock after leaving and re-entering target window (for manual unlock)", so you can choose between keeping the old behavior or auto re-lock.
 - Improved: Simple mode "Current Configuration" now shows clearer status for window-specific locking and the auto re-lock behavior.
-- Build: Updated PyInstaller one-file build to produce a single `MouseCenterLock.exe` with icon in the `dist` directory.
+- Build: Updated PyInstaller one-file build to produce a single `MCL.exe` with icon in the `dist` directory.
 
 ### v1.0.6
 - Fixed BUG: Shortcuts would still move/lock the cursor in non-target windows when window-specific locking was enabled.

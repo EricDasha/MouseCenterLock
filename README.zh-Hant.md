@@ -2,7 +2,7 @@
 
 ---
 
-# 滑鼠中心鎖定
+# MCL 滑鼠控制層
 
 一款 Windows 工具，可在觀看影片或遊戲多工時將滑鼠游標鎖定到螢幕中心。支援全域熱鍵、系統匣選單、簡單/進階介面、多語言，以及可設定的重置頻率/位置。
 
@@ -59,7 +59,7 @@ python -m unittest discover tests
 建立虛擬環境（建議）並建置視窗化 exe：
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
+  --name MCL \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "Mconfig.json;." \
@@ -68,7 +68,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
-exe 檔案將位於 `dist/MouseCenterLock.exe`。
+exe 檔案將位於 `dist/MCL.exe`。
 
 如需恢復預設設定，請刪除 `Mconfig.json`。若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取。
 
@@ -91,7 +91,7 @@ exe 檔案將位於 `dist/MouseCenterLock.exe`。
 ### v1.0.7
 - 新功能：視窗特定鎖定新增「手動解鎖後，切換回目標視窗時重新自動鎖定」選項，可在保留原有行為與自動重鎖之間自由切換。
 - 改善：簡單模式「目前配置」中增加視窗特定鎖定與自動重鎖狀態的視覺化提示。
-- 建置：更新 PyInstaller 單檔打包流程，產生附帶圖示的 `MouseCenterLock.exe`（位於 dist 目錄）。
+- 建置：更新 PyInstaller 單檔打包流程，產生附帶圖示的 `MCL.exe`（位於 dist 目錄）。
 
 ### v1.0.6
 - 修復 BUG：在啟用特定窗口鎖定時，在非目標窗口使用快捷鍵仍會導致鼠標移動/鎖定的問題。

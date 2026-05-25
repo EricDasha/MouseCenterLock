@@ -2,7 +2,7 @@
 
 ---
 
-# 鼠标中心锁定
+# MCL 鼠标控制层
 
 一款 Windows 工具，可在观看视频或游戏多任务时将鼠标光标锁定到屏幕中心。支持全局热键、托盘菜单、简单/高级界面、多语言，以及可配置的重置频率/位置。
 
@@ -60,7 +60,7 @@ python -m unittest discover tests
 创建虚拟环境（推荐）并构建窗口化 exe：
 ```bash
 pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MouseCenterLock \
+  --name MCL \
   --icon pythonProject/assets/app.ico \
   --add-data "pythonProject/i18n;i18n" \
   --add-data "Mconfig.json;." \
@@ -69,7 +69,7 @@ pyinstaller --noconfirm --clean --onefile --windowed \
   --hidden-import widgets \
   mouse_center_lock_gui.py
 ```
-exe 文件将位于 `dist/MouseCenterLock.exe`。
+exe 文件将位于 `dist/MCL.exe`。
 
 如需恢复默认设置，请删除本地 `Mconfig.json`，程序会回退读取 `Mconfig.example.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
 
@@ -96,7 +96,7 @@ exe 文件将位于 `dist/MouseCenterLock.exe`。
 ### v1.0.7
 - 新功能：特定窗口锁定增加「手动解锁后，切换回目标窗口时重新自动锁定」选项，可在保留原有行为和自动重锁之间自由切换。
 - 改进：简单模式「当前配置」中增加对特定窗口锁定及自动重锁状态的可视化提示。
-- 构建：更新 PyInstaller 单文件打包流程，生成带图标的 `MouseCenterLock.exe`（位于 dist 目录）。
+- 构建：更新 PyInstaller 单文件打包流程，生成带图标的 `MCL.exe`（位于 dist 目录）。
 
 ### v1.0.6
 - 修复 BUG：在启用特定窗口锁定时，在非目标窗口使用快捷键仍会导致鼠标移动/锁定的问题。

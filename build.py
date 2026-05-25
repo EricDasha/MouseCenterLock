@@ -1,5 +1,5 @@
 """
-MouseCenterLock build script.
+MCL build script.
 
 Usage:
     python build.py              # Full build (clean + test + package)
@@ -19,10 +19,10 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-SPEC_FILE = ROOT_DIR / "MouseCenterLock.spec"
+SPEC_FILE = ROOT_DIR / "MCL.spec"
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
-EXE_NAME = "MouseCenterLock.exe"
+EXE_NAME = "MCL.exe"
 NATIVE_CRATE_DIR = ROOT_DIR / "rust" / "input_backend"
 NATIVE_OUTPUT_DIR = ROOT_DIR / "native"
 NATIVE_DLL_NAME = "mcl_input_backend.dll"
@@ -210,7 +210,7 @@ def verify_build() -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="MouseCenterLock build script")
+    parser = argparse.ArgumentParser(description="MCL build script")
     parser.add_argument("--skip-test", action="store_true", help="Skip unit tests")
     parser.add_argument("--clean-only", action="store_true", help="Only clean build artifacts")
     parser.add_argument("--dev", action="store_true", help="Development build (debug info, no UPX)")
@@ -218,7 +218,7 @@ def main() -> int:
     args = parser.parse_args()
 
     version = extract_version()
-    print(f"MouseCenterLock Build Script — version {version}")
+    print(f"MCL Build Script — version {version}")
 
     if args.clean_only:
         clean()

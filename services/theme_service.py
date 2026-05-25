@@ -1,5 +1,5 @@
 """
-Theme application service for MouseCenterLock.
+Theme application service for MCL.
 """
 from __future__ import annotations
 

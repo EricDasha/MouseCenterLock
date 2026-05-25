@@ -51,8 +51,8 @@ jobs:
       - name: Verify built executable
         shell: pwsh
         run: |
-          if (-not (Test-Path -LiteralPath "dist/MouseCenterLock.exe")) {
-            throw "Build output dist/MouseCenterLock.exe was not created."
+          if (-not (Test-Path -LiteralPath "dist/MCL.exe")) {
+            throw "Build output dist/MCL.exe was not created."
           }
           if (-not (Test-Path -LiteralPath "native/mcl_input_backend.dll")) {
             throw "Rust backend native/mcl_input_backend.dll was not created."
@@ -64,7 +64,7 @@ jobs:
       - name: Upload smoke-build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MouseCenterLock-windows-smoke
+          name: MCL-windows-smoke
           path: |
-            dist/MouseCenterLock.exe
+            dist/MCL.exe
             native/mcl_input_backend.version

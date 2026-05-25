@@ -1,5 +1,5 @@
 {
-  "app.title": "마우스 중앙 잠금",
+  "app.title": "MCL 마우스 제어 레이어",
   "status.locked": "잠김",
   "status.unlocked": "잠금 해제",
   "status.locked.manual": "잠김 (수동)",

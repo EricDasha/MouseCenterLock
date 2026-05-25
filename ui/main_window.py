@@ -1,5 +1,5 @@
 """
-MouseCenterLock main window.
+MCL main window.
 """
 import json
 import os
@@ -234,14 +234,14 @@ class MainWindow(QtWidgets.QMainWindow):
         """Show a Windows notification using the configured fallback chain."""
         if self._tray_service is not None:
             self._tray_service.show_notification(
-                self.i18n.t("app.title", "Mouse Center Lock"),
+                self.i18n.t("app.title", "MCL - Mouse Control Layer"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
             )
         elif hasattr(self, "_tray_service") and self._tray_service is not None:
             self._tray_service.tray.showMessage(
-                self.i18n.t("app.title", "Mouse Center Lock"),
+                self.i18n.t("app.title", "MCL - Mouse Control Layer"),
                 message,
                 QtWidgets.QSystemTrayIcon.Information,
                 timeout_ms,
@@ -307,7 +307,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _setup_window(self):
         """Configure window properties."""
-        self.setWindowTitle(self.i18n.t("app.title", "Mouse Center Lock"))
+        self.setWindowTitle(self.i18n.t("app.title", "MCL - Mouse Control Layer"))
         self.setMinimumSize(450, 500)
         self.resize(550, 700)
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)

@@ -1,5 +1,5 @@
 """
-Minimal runtime logging helpers for MouseCenterLock.
+Minimal runtime logging helpers for MCL.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def get_log_path() -> Path:
         base_dir = Path(sys.executable).resolve().parent
     else:
         base_dir = Path(__file__).resolve().parent
-    return base_dir / "MouseCenterLock.log"
+    return base_dir / "MCL.log"
 
 
 def log_message(message: str) -> None:

@@ -1,5 +1,5 @@
 """
-System tray and notification coordination for MouseCenterLock.
+System tray and notification coordination for MCL.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from ui.presenters.tray_presenter import (
 class NotificationManager:
     """Windows notification helper with native-toast fallback behavior."""
 
-    def __init__(self, tray: QtWidgets.QSystemTrayIcon, app_id: str = "MouseCenterLock"):
+    def __init__(self, tray: QtWidgets.QSystemTrayIcon, app_id: str = "MCL"):
         self.tray = tray
         self.app_id = app_id
         self._toast_processes = []

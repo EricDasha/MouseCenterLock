@@ -1,5 +1,5 @@
 """
-Clicker runtime service for MouseCenterLock.
+Clicker runtime service for MCL.
 """
 from __future__ import annotations
 
