@@ -16,6 +16,12 @@ from services.input_backends import (
     INPUT_BACKEND_ALIASES,
     normalize_fallback_policy,
 )
+from services.macro_schema import (
+    MOUSE_BUTTONS,
+    MOUSE_MACRO_ACTION_TYPES,
+    normalize_macro_trigger_mode,
+    normalize_mouse_button,
+)
 
 import os
 
@@ -43,10 +49,6 @@ CLICKER_TRIGGER_MODES = {
     "holdKey": "clicker.trigger.holdKey",
     "holdMouseButton": "clicker.trigger.holdMouseButton",
 }
-
-MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
-MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "keyDown", "keyUp", "mouseDown", "mouseUp", "mouseClick", "text", "delay")
-
 
 DEFAULT_PROFILE_NAMES = {
     "en": "Default Profile",
@@ -241,8 +243,7 @@ class SettingsManager:
         normalized["triggers"]["holdKey"] = normalize_hotkey(
             triggers.get("holdKey", {}), self.DEFAULT_HOLD_KEY
         )
-        hold_mouse_button = str(triggers.get("holdMouseButton", "middle") or "middle").lower()
-        normalized["triggers"]["holdMouseButton"] = hold_mouse_button if hold_mouse_button in MOUSE_TRIGGER_BUTTONS else "middle"
+        normalized["triggers"]["holdMouseButton"] = normalize_mouse_button(triggers.get("holdMouseButton", "middle"), "middle")
         return normalized
 
 
@@ -291,8 +292,7 @@ class SettingsManager:
         elif action_type in ("key", "keyDown", "keyUp"):
             normalized["key"] = str(source.get("key", "") or "")
         elif action_type in ("mouseDown", "mouseUp", "mouseClick"):
-            button = str(source.get("button", "left") or "left").lower()
-            normalized["button"] = button if button in MOUSE_TRIGGER_BUTTONS else "left"
+            normalized["button"] = normalize_mouse_button(source.get("button", "left"), "left")
         elif action_type == "text":
             normalized["text"] = str(source.get("text", "") or "")
         elif action_type == "delay":
@@ -305,11 +305,9 @@ class SettingsManager:
     def _normalize_macro_rule(self, rule: Dict[str, Any], index: int = 0) -> Dict[str, Any]:
         """Normalize a mouse macro rule."""
         source = rule if isinstance(rule, dict) else {}
-        hold = str(source.get("holdMouseButton", "x2") or "x2").lower()
-        press = str(source.get("pressMouseButton", "left") or "left").lower()
-        trigger_mode = str(source.get("triggerMode", "hold") or "hold").lower()
-        if trigger_mode not in ("hold", "toggle", "holdloop", "toggleloop"):
-            trigger_mode = "hold"
+        hold = normalize_mouse_button(source.get("holdMouseButton", "x2"), "x2")
+        press = normalize_mouse_button(source.get("pressMouseButton", "left"), "left")
+        trigger_mode = normalize_macro_trigger_mode(source.get("triggerMode", "hold"), "hold")
         actions = source.get("actions", [])
         if not isinstance(actions, list) or not actions:
             actions = [{"type": "hotkey", "modCtrl": True, "key": "C"}]
@@ -321,8 +319,8 @@ class SettingsManager:
             "name": str(source.get("name") or f"Macro {index + 1}"),
             "enabled": bool(source.get("enabled", False)),
             "triggerMode": trigger_mode,
-            "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
-            "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
+            "holdMouseButton": hold if hold in MOUSE_BUTTONS else "x2",
+            "pressMouseButton": press if press in MOUSE_BUTTONS else "left",
             "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),
             "cancelOnPressRelease": bool(source.get("cancelOnPressRelease", False)),
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),

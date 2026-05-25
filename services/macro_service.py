@@ -14,6 +14,7 @@ from app_logging import log_exception, log_message
 from app_paths import APP_DIR, RUN_DIR
 from services.action_scheduler import ActionScheduler
 from services.macro_runtime import MacroActionExecutor
+from services.macro_schema import MOUSE_BUTTON_ALIASES
 from services.input_service import InputService
 from win_api import GlobalInputListener, key_to_vk, user32
 
@@ -23,20 +24,6 @@ MODIFIER_VKS = {
     "modAlt": 0x12,
     "modShift": 0x10,
     "modWin": 0x5B,
-}
-
-MOUSE_BUTTON_ALIASES = {
-    "left": "left",
-    "right": "right",
-    "middle": "middle",
-    "x1": "x1",
-    "xbutton1": "x1",
-    "button4": "x1",
-    "back": "x1",
-    "x2": "x2",
-    "xbutton2": "x2",
-    "button5": "x2",
-    "forward": "x2",
 }
 
 MOUSE_BUTTON_VKS = {

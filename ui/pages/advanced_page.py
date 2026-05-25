@@ -5,6 +5,7 @@ from PySide6 import QtCore, QtWidgets
 
 from widgets import HotkeyCapture
 from ui.pages.common import create_section_label
+from services.macro_schema import MOUSE_BUTTONS, MOUSE_MACRO_TRIGGER_MODES
 from win_api import is_startup_enabled
 
 
@@ -385,10 +386,14 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     trigger_mode_layout = QtWidgets.QHBoxLayout()
     trigger_mode_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.triggerMode", "Trigger Mode")))
     window.mouseMacroTriggerModeCombo = QtWidgets.QComboBox()
-    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.hold", "Hold"), "hold")
-    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.toggle", "Toggle"), "toggle")
-    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.holdLoop", "Hold Loop"), "holdLoop")
-    window.mouseMacroTriggerModeCombo.addItem(window.i18n.t("macro.trigger.toggleLoop", "Toggle Loop"), "toggleLoop")
+    trigger_labels = {
+        "hold": window.i18n.t("macro.trigger.hold", "Hold"),
+        "toggle": window.i18n.t("macro.trigger.toggle", "Toggle"),
+        "holdLoop": window.i18n.t("macro.trigger.holdLoop", "Hold Loop"),
+        "toggleLoop": window.i18n.t("macro.trigger.toggleLoop", "Toggle Loop"),
+    }
+    for trigger_mode in MOUSE_MACRO_TRIGGER_MODES:
+        window.mouseMacroTriggerModeCombo.addItem(trigger_labels.get(trigger_mode, trigger_mode), trigger_mode)
     for i in range(window.mouseMacroTriggerModeCombo.count()):
         if window.mouseMacroTriggerModeCombo.itemData(i) == macro_rule.get("triggerMode", "hold"):
             window.mouseMacroTriggerModeCombo.setCurrentIndex(i)
@@ -403,11 +408,15 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroHoldCombo = QtWidgets.QComboBox()
     window.mouseMacroPressCombo = QtWidgets.QComboBox()
     for combo in (window.mouseMacroHoldCombo, window.mouseMacroPressCombo):
-        combo.addItem(window.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"), "x1")
-        combo.addItem(window.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"), "x2")
-        combo.addItem(window.i18n.t("clicker.mouse.left", "Left Button"), "left")
-        combo.addItem(window.i18n.t("clicker.mouse.right", "Right Button"), "right")
-        combo.addItem(window.i18n.t("clicker.mouse.middle", "Middle Button"), "middle")
+        button_labels = {
+            "x1": window.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"),
+            "x2": window.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"),
+            "left": window.i18n.t("clicker.mouse.left", "Left Button"),
+            "right": window.i18n.t("clicker.mouse.right", "Right Button"),
+            "middle": window.i18n.t("clicker.mouse.middle", "Middle Button"),
+        }
+        for button_key in MOUSE_BUTTONS:
+            combo.addItem(button_labels.get(button_key, button_key), button_key)
         combo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
     for i in range(window.mouseMacroHoldCombo.count()):
         if window.mouseMacroHoldCombo.itemData(i) == macro_rule.get("holdMouseButton", "x2"):

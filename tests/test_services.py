@@ -10,6 +10,7 @@ from services.clicker_service import ClickerService
 from services.input_backends import get_backend_status, all_backend_statuses
 from services.input_service import InputService
 from services.lock_service import LockService
+from services.macro_schema import normalize_macro_trigger_mode, normalize_mouse_button
 from services.macro_service import MouseMacroService
 from services.tray_service import TrayService
 
@@ -118,6 +119,16 @@ class ServiceTests(unittest.TestCase):
         native_up.assert_called_once_with("left")
         python_down.assert_not_called()
         python_up.assert_called_once_with("left")
+
+    def test_macro_schema_normalizes_buttons_and_trigger_modes(self):
+        self.assertEqual(normalize_mouse_button("Back"), "x1")
+        self.assertEqual(normalize_mouse_button("button5"), "x2")
+        self.assertEqual(normalize_mouse_button("unknown", "middle"), "middle")
+
+        self.assertEqual(normalize_macro_trigger_mode("holdLoop"), "holdLoop")
+        self.assertEqual(normalize_macro_trigger_mode("holdloop"), "holdLoop")
+        self.assertEqual(normalize_macro_trigger_mode("toggle-loop"), "toggleLoop")
+        self.assertEqual(normalize_macro_trigger_mode("bad", "toggle"), "toggle")
 
     def test_input_service_python_sendinput_skips_rust_backend(self):
         service = InputService(get_backend=lambda: "python-sendinput")
