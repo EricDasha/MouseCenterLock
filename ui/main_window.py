@@ -313,7 +313,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Configure window properties."""
         self.setWindowTitle(self.i18n.t("app.title", "MCL - Mouse Control Layer"))
         self.setMinimumSize(*self._MIN_WINDOW_SIZE)
-        self.resize(self._resolve_default_window_size())
+        self.resize(self._resolve_initial_window_size())
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
         
         # Load window icon
@@ -347,6 +347,35 @@ class MainWindow(QtWidgets.QMainWindow):
         width = max(self._MIN_WINDOW_SIZE[0], min(width, max_width))
         height = max(self._MIN_WINDOW_SIZE[1], min(height, max_height))
         return QtCore.QSize(width, height)
+
+    def _resolve_initial_window_size(self) -> QtCore.QSize:
+        """Use the remembered size when enabled, otherwise derive a scaled default."""
+        ui_settings = self.settings.data.get("ui", {})
+        if isinstance(ui_settings, dict) and ui_settings.get("rememberWindowSize", False):
+            window_size = ui_settings.get("windowSize", {})
+            if isinstance(window_size, dict):
+                try:
+                    width = int(window_size.get("width", 0) or 0)
+                    height = int(window_size.get("height", 0) or 0)
+                except Exception:
+                    width = 0
+                    height = 0
+                if width > 0 and height > 0:
+                    screen = QtWidgets.QApplication.primaryScreen()
+                    if screen is not None:
+                        available = screen.availableGeometry()
+                        width = max(self._MIN_WINDOW_SIZE[0], min(width, max(self._MIN_WINDOW_SIZE[0], int(round(available.width() * 0.9)))))
+                        height = max(self._MIN_WINDOW_SIZE[1], min(height, max(self._MIN_WINDOW_SIZE[1], int(round(available.height() * 0.9)))))
+                    return QtCore.QSize(width, height)
+        return self._resolve_default_window_size()
+
+    def _persist_window_size_if_enabled(self) -> None:
+        """Store the current window size when remember-size is enabled."""
+        ui_settings = self.settings.data.setdefault("ui", {})
+        if not isinstance(ui_settings, dict) or not ui_settings.get("rememberWindowSize", False):
+            return
+        ui_settings["windowSize"] = {"width": self.width(), "height": self.height()}
+        self.settings.save()
     
     def _setup_timers(self):
         """Setup timers for recentering and window focus checking."""
@@ -1136,6 +1165,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Handle window close - minimize to tray or quit."""
         # Shift+Close always quits
         if QtWidgets.QApplication.keyboardModifiers() & QtCore.Qt.ShiftModifier:
+            self._persist_window_size_if_enabled()
             event.accept()
             self._quit()
             return
@@ -1150,6 +1180,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.hide()
                     self._notify(self.i18n.t("tray.minimized", "Minimized to tray."))
                 elif dialog.action == "quit":
+                    self._persist_window_size_if_enabled()
                     event.accept()
                     self._quit()
                 
@@ -1161,8 +1192,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Cancelled
                 event.ignore()
         elif action == "minimize":
+            self._persist_window_size_if_enabled()
             event.ignore()
             self.hide()
         elif action == "quit":
+            self._persist_window_size_if_enabled()
             event.accept()
             self._quit()

@@ -623,6 +623,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.restartRequiredHint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
     layout.addWidget(window.restartRequiredHint)
 
+    window.rememberWindowSizeCheck = QtWidgets.QCheckBox(
+        window.i18n.t("window.size.remember", "Remember last window size")
+    )
+    window.rememberWindowSizeCheck.setChecked(window.settings.data.get("ui", {}).get("rememberWindowSize", False))
+    window.rememberWindowSizeCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    layout.addWidget(window.rememberWindowSizeCheck)
+
     close_action_layout = QtWidgets.QHBoxLayout()
     close_action_layout.addWidget(QtWidgets.QLabel(window.i18n.t("close.action.title", "Close Behavior")))
     window.resetCloseActionBtn = QtWidgets.QPushButton(window.i18n.t("close.action.reset", "Reset 'Don't ask again'"))

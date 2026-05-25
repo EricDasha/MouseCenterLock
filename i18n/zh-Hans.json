@@ -125,6 +125,7 @@
   "theme.dark": "深色",
   "theme.light": "浅色",
   "settings.restartRequired": "语言和部分界面文字需要重启应用后才能完全刷新。",
+  "window.size.remember": "记住上次窗口尺寸",
   "startup.autostart": "开机自动启动",
   "startup": "自动启动",
   "apply": "应用",

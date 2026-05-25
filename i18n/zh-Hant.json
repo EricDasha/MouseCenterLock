@@ -123,6 +123,7 @@
   "theme.dark": "深色",
   "theme.light": "淺色",
   "settings.restartRequired": "語言與部分介面文字需要重新啟動應用後才會完整刷新。",
+  "window.size.remember": "記住上次視窗尺寸",
   "startup.autostart": "開機自動啟動",
   "startup": "自動啟動",
   "apply": "套用",

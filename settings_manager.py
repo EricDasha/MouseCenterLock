@@ -160,6 +160,23 @@ class SettingsManager:
         window_specific.setdefault("resumeAfterWindowSwitch", False)
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
+        ui_settings = self.data.setdefault("ui", {})
+        if not isinstance(ui_settings, dict):
+            ui_settings = {}
+        remember_window_size = bool(ui_settings.get("rememberWindowSize", False))
+        window_size = ui_settings.get("windowSize", {})
+        if not isinstance(window_size, dict):
+            window_size = {}
+        try:
+            width = max(0, int(window_size.get("width", 0) or 0))
+            height = max(0, int(window_size.get("height", 0) or 0))
+        except Exception:
+            width = 0
+            height = 0
+        self.data["ui"] = {
+            "rememberWindowSize": remember_window_size,
+            "windowSize": {"width": width, "height": height},
+        }
         backend = str(self.data.get("inputBackend", "auto") or "auto").strip().lower()
         backend = INPUT_BACKEND_ALIASES.get(backend, backend)
         self.data["inputBackend"] = backend if backend in INPUT_BACKENDS else "auto"

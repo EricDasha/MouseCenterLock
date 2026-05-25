@@ -123,6 +123,7 @@
   "theme.dark": "ダーク",
   "theme.light": "ライト",
   "settings.restartRequired": "言語や一部の画面表示は、アプリを再起動すると完全に反映されます。",
+  "window.size.remember": "前回のウィンドウサイズを記憶する",
   "startup.autostart": "システム起動時に開始",
   "startup": "自動起動",
   "apply": "適用",

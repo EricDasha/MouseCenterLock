@@ -180,6 +180,27 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertEqual(settings.data["fallbackBackend"], "native-sendinput")
         self.assertEqual(settings.data["fallbackPolicy"], "auto")
 
+    def test_window_size_settings_default_to_disabled(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {}
+        settings._set_defaults()
+
+        self.assertIn("ui", settings.data)
+        self.assertFalse(settings.data["ui"]["rememberWindowSize"])
+        self.assertEqual(settings.data["ui"]["windowSize"], {"width": 0, "height": 0})
+
+    def test_window_size_settings_are_normalized(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {"ui": {"rememberWindowSize": True, "windowSize": {"width": "960", "height": "720"}}}
+        settings._set_defaults()
+
+        self.assertTrue(settings.data["ui"]["rememberWindowSize"])
+        self.assertEqual(settings.data["ui"]["windowSize"], {"width": 960, "height": 720})
+
     def test_virtual_hid_config_preserves_fallback_policy(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

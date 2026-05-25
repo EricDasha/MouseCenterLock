@@ -125,6 +125,7 @@
   "theme.dark": "Dark",
   "theme.light": "Light",
   "settings.restartRequired": "Language and some interface text require restarting the app to fully refresh.",
+  "window.size.remember": "Remember last window size",
   "startup.autostart": "Launch on system startup",
   "startup": "Startup",
   "apply": "Apply",
