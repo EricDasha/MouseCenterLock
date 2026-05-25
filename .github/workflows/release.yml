@@ -93,11 +93,17 @@ jobs:
           }
 
           New-Item -ItemType Directory -Force -Path release | Out-Null
+          $packageExe = "release/MouseControlLayer.exe"
+          if (Test-Path -LiteralPath $packageExe) {
+            Remove-Item -LiteralPath $packageExe -Force
+          }
+          Copy-Item -LiteralPath $exe -Destination $packageExe
           $zip = "release/MCL-$tag-windows-x64.zip"
           if (Test-Path -LiteralPath $zip) {
             Remove-Item -LiteralPath $zip -Force
           }
-          Compress-Archive -LiteralPath $exe -DestinationPath $zip
+          Compress-Archive -LiteralPath $packageExe -DestinationPath $zip
+          Remove-Item -LiteralPath $packageExe -Force
           Get-FileHash -Algorithm SHA256 -LiteralPath $zip |
             ForEach-Object { "$($_.Hash)  $(Split-Path -Leaf $zip)" } |
             Set-Content -Encoding ascii -Path "$zip.sha256"
