@@ -59,6 +59,7 @@ class MainWindow(QtWidgets.QMainWindow):
     _BASE_SCREEN_SIZE = (1920, 1080)
     _BASE_WINDOW_SIZE = (570, 700)
     _MIN_WINDOW_SIZE = (450, 500)
+    _WINDOW_DISPLAY_TITLE = "鼠标中心锁定"
     
     def __init__(self, settings: SettingsManager, i18n: I18n):
         super().__init__()
@@ -311,7 +312,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _setup_window(self):
         """Configure window properties."""
-        self.setWindowTitle(self.i18n.t("app.title", "MCL - Mouse Control Layer"))
+        self.setWindowTitle(self._WINDOW_DISPLAY_TITLE)
         self.setMinimumSize(*self._MIN_WINDOW_SIZE)
         self.resize(self._resolve_initial_window_size())
         self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
