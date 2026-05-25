@@ -1,5 +1,5 @@
 {
-  "app.title": "MCL 滑鼠控制層",
+  "app.title": "鼠标中心锁定",
   "status.locked": "已鎖定",
   "status.unlocked": "未鎖定",
   "status.locked.manual": "已鎖定（手動）",

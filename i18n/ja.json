@@ -1,5 +1,5 @@
 {
-  "app.title": "MCL マウス制御レイヤー",
+  "app.title": "鼠标中心锁定",
   "status.locked": "ロック中",
   "status.unlocked": "ロック解除",
   "status.locked.manual": "ロック中（手動）",

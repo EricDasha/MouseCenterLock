@@ -98,7 +98,7 @@ def main() -> int:
         log_message("A second instance started, but activation request could not reach the running instance.")
         QtWidgets.QMessageBox.information(
             None,
-            i18n.t("app.title", "MCL - Mouse Control Layer"),
+            i18n.t("app.title", "鼠标中心锁定"),
             i18n.t("single_instance.running", "Application is already running.\nCheck the system tray."),
         )
         return 0
