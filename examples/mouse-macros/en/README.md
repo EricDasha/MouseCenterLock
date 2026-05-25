@@ -1,6 +1,14 @@
 # Mouse Macro Examples
 
-This folder contains JSON examples that can be selected from Advanced Settings → Mouse Macros → External JSON file.
+This folder contains JSON presets that can be selected from Advanced Settings → Mouse Macros → External JSON file.
+
+## Contents
+
+- [Example files](#example-files)
+- [Rule fields](#rule-fields)
+- [Mouse button names](#mouse-button-names)
+- [Keyboard `key` names](#keyboard-key-names)
+- [Action types](#action-types)
 
 ## Example files
 
@@ -8,7 +16,37 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - `x1-left-copy.json`: hold `x1` Back side button, click left → `Ctrl+C`.
 - `x2-left-paste-enter.json`: hold `x2` Forward side button, click left → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: hold middle button, click right → type `GG`, wait 80ms, `Enter`.
-- `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` stays held, repeated `B` presses repeat the sequence.
+- `middle-left-test.json`: runtime diagnostics; hold middle button, click left → top-row `1`.
+- `back-left-2-delay-1.json`: hold mouse Back side button (`back` / `x1`), each left click → top-row `2`, wait 100ms, top-row `1`; the real left click is passed through, so the action list does not click left again.
+- `far-far-west-back-left-combo.json`: `x1` toggles armed mode, left press fires → left `mouseDown`, 60ms, `mouseUp`, 120ms, `2`, 80ms, `1`, 27ms, `KeyUp 2`, 66ms, `KeyUp 1`; cleanup sends `KeyUp 2/1`. Recommended `cooldownMs=450`.
+- `far-far-west-x1-switch-combo.json`: press mouse Back side button `x1` alone → `2`, delay, `1`; no left-click trigger and no simulated firing.
+- `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` remains held, repeated `B` presses repeat the sequence.
+
+## Rule fields
+
+```json
+{
+  "id": "rule-id",
+  "name": "Rule name",
+  "enabled": true,
+  "triggerMode": "hold",
+  "holdMouseButton": "x1",
+  "pressMouseButton": "left",
+  "actions": [],
+  "onCancel": [],
+  "cooldownMs": 0,
+  "loopIntervalMs": 1
+}
+```
+
+### `triggerMode`
+
+| Value | Meaning |
+|---|---|
+| `hold` | While the hold key is pressed, one press of the trigger key runs once |
+| `toggle` | Press once to arm, then use the trigger key to fire |
+| `holdLoop` | While the hold key is pressed, repeat the action list |
+| `toggleLoop` | Press once to start looping, press again to stop |
 
 ## Mouse button names
 
@@ -29,28 +67,12 @@ This folder contains JSON examples that can be selected from Advanced Settings �
 - Function keys: `F1` ~ `F24`
 - Special keys: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
 
-## Keyboard trigger rules
-
-External JSON also supports keyboard hold/press rules:
-
-```json
-{
-  "holdKey": "A",
-  "pressKey": "B",
-  "actions": [
-    { "type": "key", "key": "A" },
-    { "type": "delay", "ms": 50 },
-    { "type": "key", "key": "B" }
-  ]
-}
-```
-
-While `A` remains held, each new `B` press runs the action sequence again.
-
 ## Action types
 
-- `hotkey`: key combination, e.g. `{ "type": "hotkey", "modCtrl": true, "key": "C" }`.
-- `key`: single key, e.g. `{ "type": "key", "key": "1" }`.
-- `mouseClick`: mouse click, e.g. `{ "type": "mouseClick", "button": "left" }`.
-- `text`: type text, e.g. `{ "type": "text", "text": "GG" }`.
-- `delay`: wait milliseconds, e.g. `{ "type": "delay", "ms": 80 }`.
+- `hotkey`: key combination, e.g. `{ "type": "hotkey", "modCtrl": true, "key": "C" }`
+- `key`: single key, e.g. `{ "type": "key", "key": "1" }`
+- `keyDown` / `keyUp`: press / release, useful for overlapping timings
+- `mouseClick`: mouse click
+- `mouseDown` / `mouseUp`: mouse press / release
+- `text`: type text
+- `delay`: wait milliseconds, e.g. `{ "type": "delay", "ms": 80 }`

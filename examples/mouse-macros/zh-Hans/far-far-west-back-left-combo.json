@@ -1,0 +1,73 @@
+{
+  "rules": [
+    {
+      "id": "far-far-west-back-left-combo",
+      "name": "Far Far West: Back + Left timing combo",
+      "enabled": true,
+      "triggerMode": "toggle",
+      "holdMouseButton": "x2",
+      "pressMouseButton": "left",
+      "cancelOnHoldRelease": true,
+      "cancelOnFocusLost": true,
+      "interruptible": true,
+      "actions": [
+        {
+          "type": "mouseDown",
+          "button": "left"
+        },
+        {
+          "type": "delay",
+          "ms": 60
+        },
+        {
+          "type": "mouseUp",
+          "button": "left"
+        },
+        {
+          "type": "delay",
+          "ms": 120
+        },
+        {
+          "type": "keyDown",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 80
+        },
+        {
+          "type": "keyDown",
+          "key": "1"
+        },
+        {
+          "type": "delay",
+          "ms": 27
+        },
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 66
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        }
+      ],
+      "onCancel": [
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        }
+      ],
+      "cancelOnPressRelease": false,
+      "cooldownMs": 450
+    }
+  ]
+}

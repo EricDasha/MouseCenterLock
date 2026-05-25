@@ -22,7 +22,7 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
 
     action_type = window.mouseMacroActionTypeCombo.currentData() or "hotkey"
     action: Dict[str, Any] = {"type": action_type}
-    if action_type == "mouseClick":
+    if action_type in ("mouseDown", "mouseUp", "mouseClick"):
         action["button"] = window.mouseMacroActionMouseCombo.currentData() or "left"
     elif action_type == "text":
         action["text"] = window.mouseMacroActionTextEdit.text()
@@ -30,8 +30,8 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         action["ms"] = window.mouseMacroDelaySpin.value()
     else:
         action.update(window.mouseMacroActionHotkeyCapture.get_hotkey())
-        if action_type == "key":
-            action = {"type": "key", "key": action.get("key", "")}
+        if action_type in ("key", "keyDown", "keyUp"):
+            action = {"type": action_type, "key": action.get("key", "")}
 
     return {
         "enabled": window.mouseMacroEnabledCheck.isChecked(),
@@ -42,6 +42,7 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
                 "id": "builder-rule-1",
                 "name": window.mouseMacroNameEdit.text().strip() or "Mouse Macro",
                 "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
+                "triggerMode": window.mouseMacroTriggerModeCombo.currentData() or "hold",
                 "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
                 "pressMouseButton": window.mouseMacroPressCombo.currentData() or "left",
                 "actions": [action],

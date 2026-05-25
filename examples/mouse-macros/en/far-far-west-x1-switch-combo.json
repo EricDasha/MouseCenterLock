@@ -1,0 +1,57 @@
+{
+  "rules": [
+    {
+      "id": "far-far-west-x1-switch-combo",
+      "name": "Far Far West: X1 switch weapon combo",
+      "enabled": true,
+      "pressMouseButton": "x1",
+      "cancelOnFocusLost": true,
+      "interruptible": true,
+      "actions": [
+        {
+          "type": "keyDown",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 50
+        },
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 50
+        },
+        {
+          "type": "keyDown",
+          "key": "1"
+        },
+        {
+          "type": "delay",
+          "ms": 50
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        },
+        {
+          "type": "delay",
+          "ms": 100
+        }
+      ],
+      "onCancel": [
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        }
+      ],
+      "cooldownMs": 250
+    }
+  ]
+}

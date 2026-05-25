@@ -40,6 +40,7 @@ SOURCE_FILES = [
     "services/action_scheduler.py",
     "services/clicker_service.py",
     "services/clicker_profile_controller.py",
+    "services/input_backends.py",
     "services/input_service.py",
     "services/native_input.py",
     "services/lock_service.py",

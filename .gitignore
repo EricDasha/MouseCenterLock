@@ -52,3 +52,6 @@ macros/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Local release artifacts
+release/

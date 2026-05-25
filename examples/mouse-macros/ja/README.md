@@ -2,13 +2,51 @@
 
 このフォルダーには、Advanced Settings → Mouse Macros → External JSON file で選択できる JSON 例があります。
 
+## 目次
+
+- [サンプルファイル](#サンプルファイル)
+- [ルール項目](#ルール項目)
+- [マウスボタン名](#マウスボタン名)
+- [キーボード `key` 名](#キーボード-key-名)
+- [アクションタイプ](#アクションタイプ)
+
 ## サンプルファイル
 
 - `right-left-left-2-1.json`: 右ボタンを押しながら左クリック → 左クリック、上段数字 `2`、上段数字 `1`。
 - `x1-left-copy.json`: `x1` 戻るサイドボタンを押しながら左クリック → `Ctrl+C`。
 - `x2-left-paste-enter.json`: `x2` 進むサイドボタンを押しながら左クリック → `Ctrl+V`, `Enter`。
 - `middle-right-text.json`: 中ボタンを押しながら右クリック → `GG` 入力、80ms 待機、`Enter`。
-- `key-delay-key.json`: キーボード `A` を押しながら `B` を押すたびに → `A`、50ms 待機、`B`。`A` を離さず `B` を繰り返すと毎回実行されます。
+- `middle-left-test.json`: 実行時診断用。中ボタンを押しながら左クリック → 上段数字 `1`。
+- `back-left-2-delay-1.json`: `back` / `x1` を押しながら左クリック → `2`、100ms、`1`。左クリック自体は実クリックを通す。
+- `far-far-west-back-left-combo.json`: `x1` で armed を切り替え、左押下で実行 → 左 `mouseDown`、60ms、`mouseUp`、120ms、`2`、80ms、`1`、27ms、`KeyUp 2`、66ms、`KeyUp 1`。`cooldownMs=450` 推奨。
+- `far-far-west-x1-switch-combo.json`: `x1` 単独で `2` → 待機 → `1`。
+- `key-delay-key.json`: `A` を押しながら `B` を押すたびに → `A`、50ms、`B`。
+
+## ルール項目
+
+```json
+{
+  "id": "rule-id",
+  "name": "Rule name",
+  "enabled": true,
+  "triggerMode": "hold",
+  "holdMouseButton": "x1",
+  "pressMouseButton": "left",
+  "actions": [],
+  "onCancel": [],
+  "cooldownMs": 0,
+  "loopIntervalMs": 1
+}
+```
+
+### `triggerMode`
+
+| 値 | 意味 |
+|---|---|
+| `hold` | 押し続けている間に、トリガー押下で 1 回実行 |
+| `toggle` | 1 回押して armed、以後トリガーで実行 |
+| `holdLoop` | 押し続けている間、動作列を繰り返す |
+| `toggleLoop` | 1 回押してループ開始、もう 1 回で停止 |
 
 ## マウスボタン名
 
@@ -29,24 +67,12 @@
 - ファンクションキー: `F1` ~ `F24`
 - 特殊キー: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
 
-## キーボードトリガールール
-
-外部 JSON はキーボードの hold/press ルールにも対応しています。
-
-```json
-{
-  "holdKey": "A",
-  "pressKey": "B",
-  "actions": [
-    { "type": "key", "key": "A" },
-    { "type": "delay", "ms": 50 },
-    { "type": "key", "key": "B" }
-  ]
-}
-```
-
-`A` を押し続けている間、`B` を新しく押すたびにアクション列が再実行されます。
-
 ## アクションタイプ
 
-- `hotkey`, `key`, `mouseClick`, `text`, `delay`
+- `hotkey`
+- `key`
+- `keyDown` / `keyUp`
+- `mouseClick`
+- `mouseDown` / `mouseUp`
+- `text`
+- `delay`

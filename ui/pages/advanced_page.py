@@ -5,6 +5,7 @@ from PySide6 import QtCore, QtWidgets
 
 from widgets import HotkeyCapture
 from ui.pages.common import create_section_label
+from services.macro_schema import MOUSE_BUTTONS, MOUSE_MACRO_TRIGGER_MODES
 from win_api import is_startup_enabled
 
 
@@ -326,6 +327,17 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     macro_source_layout.addStretch()
     layout.addLayout(macro_source_layout)
 
+    preset_layout = QtWidgets.QHBoxLayout()
+    window.mouseMacroPresetLabel = QtWidgets.QLabel(window.i18n.t("macro.preset", "Built-in Macro"))
+    preset_layout.addWidget(window.mouseMacroPresetLabel)
+    window.mouseMacroPresetCombo = QtWidgets.QComboBox()
+    window.mouseMacroPresetCombo.addItem(window.i18n.t("macro.preset.custom", "Custom / Manual path"), "")
+    for label, preset_path in window._list_mouse_macro_presets():
+        window.mouseMacroPresetCombo.addItem(label, preset_path)
+    preset_layout.addWidget(window.mouseMacroPresetCombo)
+    preset_layout.addStretch()
+    layout.addLayout(preset_layout)
+
     file_layout = QtWidgets.QHBoxLayout()
     window.mouseMacroConfigFileEdit = QtWidgets.QLineEdit(str(macro_cfg.get("configFile", "") or ""))
     window.mouseMacroConfigFileEdit.setPlaceholderText(window.i18n.t("macro.file.placeholder", "Select macro JSON file"))
@@ -335,7 +347,12 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
     window.mouseMacroBrowseBtn.clicked.connect(window._browse_mouse_macro_file)
     file_layout.addWidget(window.mouseMacroBrowseBtn)
+    window.mouseMacroResetFileBtn = QtWidgets.QPushButton(window.i18n.t("macro.file.reset", "Reset"))
+    window.mouseMacroResetFileBtn.setToolTip(window.i18n.t("macro.file.reset.tooltip", "Clear the selected macro JSON and return to UI builder mode."))
+    window.mouseMacroResetFileBtn.clicked.connect(window._reset_mouse_macro_file_selection)
+    file_layout.addWidget(window.mouseMacroResetFileBtn)
     layout.addLayout(file_layout)
+    window.mouseMacroPresetCombo.currentIndexChanged.connect(window._on_mouse_macro_preset_changed)
 
     window.mouseMacroFileHint = QtWidgets.QLabel(window.i18n.t(
         "macro.file.hint",
@@ -366,16 +383,40 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     name_layout.addWidget(window.mouseMacroNameEdit)
     builder_layout.addLayout(name_layout)
 
+    trigger_mode_layout = QtWidgets.QHBoxLayout()
+    trigger_mode_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.triggerMode", "Trigger Mode")))
+    window.mouseMacroTriggerModeCombo = QtWidgets.QComboBox()
+    trigger_labels = {
+        "hold": window.i18n.t("macro.trigger.hold", "Hold"),
+        "toggle": window.i18n.t("macro.trigger.toggle", "Toggle"),
+        "holdLoop": window.i18n.t("macro.trigger.holdLoop", "Hold Loop"),
+        "toggleLoop": window.i18n.t("macro.trigger.toggleLoop", "Toggle Loop"),
+    }
+    for trigger_mode in MOUSE_MACRO_TRIGGER_MODES:
+        window.mouseMacroTriggerModeCombo.addItem(trigger_labels.get(trigger_mode, trigger_mode), trigger_mode)
+    for i in range(window.mouseMacroTriggerModeCombo.count()):
+        if window.mouseMacroTriggerModeCombo.itemData(i) == macro_rule.get("triggerMode", "hold"):
+            window.mouseMacroTriggerModeCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroTriggerModeCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    trigger_mode_layout.addWidget(window.mouseMacroTriggerModeCombo)
+    trigger_mode_layout.addStretch()
+    builder_layout.addLayout(trigger_mode_layout)
+
     combo_layout = QtWidgets.QHBoxLayout()
     combo_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.when", "When holding")))
     window.mouseMacroHoldCombo = QtWidgets.QComboBox()
     window.mouseMacroPressCombo = QtWidgets.QComboBox()
     for combo in (window.mouseMacroHoldCombo, window.mouseMacroPressCombo):
-        combo.addItem(window.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"), "x1")
-        combo.addItem(window.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"), "x2")
-        combo.addItem(window.i18n.t("clicker.mouse.left", "Left Button"), "left")
-        combo.addItem(window.i18n.t("clicker.mouse.right", "Right Button"), "right")
-        combo.addItem(window.i18n.t("clicker.mouse.middle", "Middle Button"), "middle")
+        button_labels = {
+            "x1": window.i18n.t("clicker.mouse.x1", "Side Button X1 (usually Back)"),
+            "x2": window.i18n.t("clicker.mouse.x2", "Side Button X2 (usually Forward)"),
+            "left": window.i18n.t("clicker.mouse.left", "Left Button"),
+            "right": window.i18n.t("clicker.mouse.right", "Right Button"),
+            "middle": window.i18n.t("clicker.mouse.middle", "Middle Button"),
+        }
+        for button_key in MOUSE_BUTTONS:
+            combo.addItem(button_labels.get(button_key, button_key), button_key)
         combo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
     for i in range(window.mouseMacroHoldCombo.count()):
         if window.mouseMacroHoldCombo.itemData(i) == macro_rule.get("holdMouseButton", "x2"):
@@ -395,6 +436,10 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroActionTypeCombo = QtWidgets.QComboBox()
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.hotkey", "Hotkey"), "hotkey")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.key", "Key"), "key")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.keyDown", "Key Down"), "keyDown")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.keyUp", "Key Up"), "keyUp")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseDown", "Mouse Down"), "mouseDown")
+    window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseUp", "Mouse Up"), "mouseUp")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.mouseClick", "Mouse Click"), "mouseClick")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.text", "Type Text"), "text")
     window.mouseMacroActionTypeCombo.addItem(window.i18n.t("macro.action.delay", "Delay"), "delay")

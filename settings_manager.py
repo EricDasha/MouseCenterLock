@@ -10,6 +10,18 @@ from typing import Any, Dict, List, Optional
 
 from app_logging import log_exception
 from app_paths import APP_DIR, RUN_DIR
+from services.input_backends import (
+    BACKEND_NATIVE_SENDINPUT,
+    INPUT_BACKENDS,
+    INPUT_BACKEND_ALIASES,
+    normalize_fallback_policy,
+)
+from services.macro_schema import (
+    MOUSE_BUTTONS,
+    MOUSE_MACRO_ACTION_TYPES,
+    normalize_macro_trigger_mode,
+    normalize_mouse_button,
+)
 
 import os
 
@@ -17,19 +29,6 @@ CONFIG_DEFAULT_PATH = os.path.join(APP_DIR, "Mconfig.json")
 CONFIG_EXAMPLE_PATH = os.path.join(APP_DIR, "Mconfig.example.json")
 CONFIG_PATH = os.path.join(RUN_DIR, "Mconfig.json")
 LEGACY_CONFIG_PATH = os.path.join(RUN_DIR, "config.json")
-INPUT_BACKENDS = {
-    "auto",
-    "native-sendinput",
-    "python-sendinput",
-    "window-message",
-    "virtual-hid",
-    "hardware-hid",
-}
-INPUT_BACKEND_ALIASES = {
-    "sendinput": "native-sendinput",
-    "native-scancode": "native-sendinput",
-    "python-fallback": "python-sendinput",
-}
 
 CLICKER_PRESETS = {
     "custom": None,
@@ -50,10 +49,6 @@ CLICKER_TRIGGER_MODES = {
     "holdKey": "clicker.trigger.holdKey",
     "holdMouseButton": "clicker.trigger.holdMouseButton",
 }
-
-MOUSE_TRIGGER_BUTTONS = ("middle", "x1", "x2", "left", "right")
-MOUSE_MACRO_ACTION_TYPES = ("hotkey", "key", "mouseClick", "text", "delay")
-
 
 DEFAULT_PROFILE_NAMES = {
     "en": "Default Profile",
@@ -168,6 +163,10 @@ class SettingsManager:
         backend = str(self.data.get("inputBackend", "auto") or "auto").strip().lower()
         backend = INPUT_BACKEND_ALIASES.get(backend, backend)
         self.data["inputBackend"] = backend if backend in INPUT_BACKENDS else "auto"
+        fallback_backend = str(self.data.get("fallbackBackend", BACKEND_NATIVE_SENDINPUT) or BACKEND_NATIVE_SENDINPUT).strip().lower()
+        fallback_backend = INPUT_BACKEND_ALIASES.get(fallback_backend, fallback_backend)
+        self.data["fallbackBackend"] = fallback_backend if fallback_backend in INPUT_BACKENDS - {"auto"} else BACKEND_NATIVE_SENDINPUT
+        self.data["fallbackPolicy"] = normalize_fallback_policy(self.data.get("fallbackPolicy", "auto"))
         input_mode = str(self.data.get("inputMode", "scan-code") or "scan-code").strip().lower()
         self.data["inputMode"] = input_mode if input_mode in ("virtual-key", "scan-code", "unicode") else "scan-code"
         self._ensure_mouse_macros()
@@ -244,8 +243,7 @@ class SettingsManager:
         normalized["triggers"]["holdKey"] = normalize_hotkey(
             triggers.get("holdKey", {}), self.DEFAULT_HOLD_KEY
         )
-        hold_mouse_button = str(triggers.get("holdMouseButton", "middle") or "middle").lower()
-        normalized["triggers"]["holdMouseButton"] = hold_mouse_button if hold_mouse_button in MOUSE_TRIGGER_BUTTONS else "middle"
+        normalized["triggers"]["holdMouseButton"] = normalize_mouse_button(triggers.get("holdMouseButton", "middle"), "middle")
         return normalized
 
 
@@ -260,10 +258,13 @@ class SettingsManager:
                     "id": "x2-left-default",
                     "name": "X2 + Left",
                     "enabled": False,
+                    "triggerMode": "hold",
                     "holdMouseButton": "x2",
                     "pressMouseButton": "left",
                     "cancelOnHoldRelease": True,
+                    "cancelOnPressRelease": False,
                     "cancelOnFocusLost": False,
+                    "cooldownMs": 0,
                     "interruptible": True,
                     "actions": [
                         {
@@ -286,11 +287,12 @@ class SettingsManager:
         if action_type not in MOUSE_MACRO_ACTION_TYPES:
             action_type = "hotkey"
         normalized: Dict[str, Any] = {"type": action_type}
-        if action_type in ("hotkey", "key"):
+        if action_type == "hotkey":
             normalized.update(normalize_hotkey(source, {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": ""}))
-        elif action_type == "mouseClick":
-            button = str(source.get("button", "left") or "left").lower()
-            normalized["button"] = button if button in MOUSE_TRIGGER_BUTTONS else "left"
+        elif action_type in ("key", "keyDown", "keyUp"):
+            normalized["key"] = str(source.get("key", "") or "")
+        elif action_type in ("mouseDown", "mouseUp", "mouseClick"):
+            normalized["button"] = normalize_mouse_button(source.get("button", "left"), "left")
         elif action_type == "text":
             normalized["text"] = str(source.get("text", "") or "")
         elif action_type == "delay":
@@ -303,21 +305,30 @@ class SettingsManager:
     def _normalize_macro_rule(self, rule: Dict[str, Any], index: int = 0) -> Dict[str, Any]:
         """Normalize a mouse macro rule."""
         source = rule if isinstance(rule, dict) else {}
-        hold = str(source.get("holdMouseButton", "x2") or "x2").lower()
-        press = str(source.get("pressMouseButton", "left") or "left").lower()
+        hold = normalize_mouse_button(source.get("holdMouseButton", "x2"), "x2")
+        press = normalize_mouse_button(source.get("pressMouseButton", "left"), "left")
+        trigger_mode = normalize_macro_trigger_mode(source.get("triggerMode", "hold"), "hold")
         actions = source.get("actions", [])
         if not isinstance(actions, list) or not actions:
             actions = [{"type": "hotkey", "modCtrl": True, "key": "C"}]
+        on_cancel = source.get("onCancel", [])
+        if not isinstance(on_cancel, list):
+            on_cancel = []
         return {
             "id": str(source.get("id") or f"macro-{index + 1}"),
             "name": str(source.get("name") or f"Macro {index + 1}"),
             "enabled": bool(source.get("enabled", False)),
-            "holdMouseButton": hold if hold in MOUSE_TRIGGER_BUTTONS else "x2",
-            "pressMouseButton": press if press in MOUSE_TRIGGER_BUTTONS else "left",
+            "triggerMode": trigger_mode,
+            "holdMouseButton": hold if hold in MOUSE_BUTTONS else "x2",
+            "pressMouseButton": press if press in MOUSE_BUTTONS else "left",
             "cancelOnHoldRelease": bool(source.get("cancelOnHoldRelease", True)),
+            "cancelOnPressRelease": bool(source.get("cancelOnPressRelease", False)),
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
+            "cooldownMs": max(0, min(60000, int(source.get("cooldownMs", 0) or 0))),
+            "loopIntervalMs": max(1, min(60000, int(source.get("loopIntervalMs", source.get("cooldownMs", 1)) or 1))),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
+            "onCancel": [self._normalize_macro_action(action) for action in on_cancel[:16]],
         }
 
     def _ensure_mouse_macros(self) -> None:

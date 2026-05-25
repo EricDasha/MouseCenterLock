@@ -2,13 +2,51 @@
 
 이 폴더에는 고급 설정 → Mouse Macros → External JSON file 에서 선택할 수 있는 JSON 예제가 있습니다.
 
+## 목차
+
+- [예제 파일](#예제-파일)
+- [규칙 항목](#규칙-항목)
+- [마우스 버튼 이름](#마우스-버튼-이름)
+- [키보드 `key` 이름](#키보드-key-이름)
+- [액션 타입](#액션-타입)
+
 ## 예제 파일
 
 - `right-left-left-2-1.json`: 오른쪽 버튼을 누른 채 왼쪽 클릭 → 왼쪽 클릭, 상단 숫자 `2`, 상단 숫자 `1`.
 - `x1-left-copy.json`: `x1` 뒤로가기 사이드 버튼을 누른 채 왼쪽 클릭 → `Ctrl+C`.
 - `x2-left-paste-enter.json`: `x2` 앞으로가기 사이드 버튼을 누른 채 왼쪽 클릭 → `Ctrl+V`, `Enter`.
 - `middle-right-text.json`: 가운데 버튼을 누른 채 오른쪽 클릭 → `GG` 입력, 80ms 대기, `Enter`.
-- `key-delay-key.json`: 키보드 `A`를 누른 채 `B`를 누를 때마다 → `A`, 50ms 대기, `B`; `A`를 계속 누른 상태에서 `B`를 반복 입력하면 반복 실행됩니다.
+- `middle-left-test.json`: 실행 중 진단용. 가운데 버튼을 누른 채 왼쪽 클릭 → 상단 숫자 `1`.
+- `back-left-2-delay-1.json`: `back` / `x1` 을 누른 채 왼쪽 클릭 → `2`, 100ms, `1`. 왼쪽 클릭 자체는 실제 입력을 통과시킴.
+- `far-far-west-back-left-combo.json`: `x1` 로 armed 를 전환하고 왼쪽 누름으로 실행 → 왼쪽 `mouseDown`, 60ms, `mouseUp`, 120ms, `2`, 80ms, `1`, 27ms, `KeyUp 2`, 66ms, `KeyUp 1`. `cooldownMs=450` 권장.
+- `far-far-west-x1-switch-combo.json`: `x1` 단독으로 `2` → 대기 → `1`.
+- `key-delay-key.json`: `A`를 누른 채 `B`를 누를 때마다 → `A`, 50ms, `B`.
+
+## 규칙 항목
+
+```json
+{
+  "id": "rule-id",
+  "name": "Rule name",
+  "enabled": true,
+  "triggerMode": "hold",
+  "holdMouseButton": "x1",
+  "pressMouseButton": "left",
+  "actions": [],
+  "onCancel": [],
+  "cooldownMs": 0,
+  "loopIntervalMs": 1
+}
+```
+
+### `triggerMode`
+
+| 값 | 의미 |
+|---|---|
+| `hold` | 누르고 있는 동안, 트리거 버튼을 한 번 누르면 1회 실행 |
+| `toggle` | 한 번 눌러 armed, 이후 트리거로 실행 |
+| `holdLoop` | 누르고 있는 동안 동작 목록을 반복 실행 |
+| `toggleLoop` | 한 번 눌러 반복 시작, 다시 한 번 눌러 정지 |
 
 ## 마우스 버튼 이름
 
@@ -29,24 +67,12 @@
 - 기능키: `F1` ~ `F24`
 - 특수키: `Space`, `Tab`, `Enter`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
 
-## 키보드 트리거 규칙
-
-외부 JSON은 키보드 hold/press 규칙도 지원합니다.
-
-```json
-{
-  "holdKey": "A",
-  "pressKey": "B",
-  "actions": [
-    { "type": "key", "key": "A" },
-    { "type": "delay", "ms": 50 },
-    { "type": "key", "key": "B" }
-  ]
-}
-```
-
-`A`를 계속 누른 상태에서 `B`를 새로 누를 때마다 액션 시퀀스가 다시 실행됩니다.
-
 ## 액션 타입
 
-- `hotkey`, `key`, `mouseClick`, `text`, `delay`
+- `hotkey`
+- `key`
+- `keyDown` / `keyUp`
+- `mouseClick`
+- `mouseDown` / `mouseUp`
+- `text`
+- `delay`

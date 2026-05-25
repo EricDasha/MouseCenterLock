@@ -192,6 +192,32 @@ mod win {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn mcl_mouse_down(button_code: u32) -> i32 {
+        let (down, _up, data) = button_flags(button_code);
+        let inputs = [mouse_input(down, data)];
+        if send_input(&inputs) {
+            return 1;
+        }
+        unsafe {
+            mouse_event(down, 0, 0, data, 0);
+        }
+        2
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn mcl_mouse_up(button_code: u32) -> i32 {
+        let (_down, up, data) = button_flags(button_code);
+        let inputs = [mouse_input(up, data)];
+        if send_input(&inputs) {
+            return 1;
+        }
+        unsafe {
+            mouse_event(up, 0, 0, data, 0);
+        }
+        2
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn mcl_key_down_vk(vk: u16) -> i32 {
         if vk == 0 {
             return 0;

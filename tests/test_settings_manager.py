@@ -131,7 +131,42 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertEqual(macro["rules"][0]["holdMouseButton"], "x2")
         self.assertEqual(macro["rules"][0]["actions"][0]["button"], "x2")
         self.assertTrue(macro["rules"][0]["cancelOnHoldRelease"])
+        self.assertFalse(macro["rules"][0]["cancelOnPressRelease"])
         self.assertTrue(macro["rules"][0]["interruptible"])
+
+    def test_mouse_macro_normalizes_key_down_up_and_cancel_actions(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "mouseMacros": {
+                "enabled": True,
+                "source": "builder",
+                "rules": [
+                    {
+                        "enabled": True,
+                        "holdMouseButton": "x1",
+                        "pressMouseButton": "left",
+                        "actions": [
+                            {"type": "keyDown", "key": "2", "modCtrl": True},
+                            {"type": "keyUp", "key": "2"},
+                        ],
+                        "onCancel": [{"type": "keyUp", "key": "2"}],
+                        "cooldownMs": 250,
+                    }
+                ],
+            }
+        }
+        settings._set_defaults()
+
+        rule = settings.data["mouseMacros"]["rules"][0]
+        self.assertEqual(rule["actions"], [
+            {"type": "keyDown", "key": "2"},
+            {"type": "keyUp", "key": "2"},
+        ])
+        self.assertEqual(rule["onCancel"], [{"type": "keyUp", "key": "2"}])
+        self.assertEqual(rule["cooldownMs"], 250)
+        self.assertEqual(rule["triggerMode"], "hold")
 
     def test_input_backend_aliases_are_canonicalized(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
@@ -142,6 +177,23 @@ class SettingsManagerTests(unittest.TestCase):
 
         self.assertEqual(settings.data["inputBackend"], "native-sendinput")
         self.assertEqual(settings.data["inputMode"], "scan-code")
+        self.assertEqual(settings.data["fallbackBackend"], "native-sendinput")
+        self.assertEqual(settings.data["fallbackPolicy"], "auto")
+
+    def test_virtual_hid_config_preserves_fallback_policy(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "inputBackend": "virtual-hid",
+            "fallbackBackend": "python-sendinput",
+            "fallbackPolicy": "error",
+        }
+        settings._set_defaults()
+
+        self.assertEqual(settings.data["inputBackend"], "virtual-hid")
+        self.assertEqual(settings.data["fallbackBackend"], "python-sendinput")
+        self.assertEqual(settings.data["fallbackPolicy"], "error")
 
     def test_profile_default_names_follow_language(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)

@@ -6,6 +6,16 @@
 
 一款 Windows 工具，可在觀看影片或遊戲多工時將滑鼠游標鎖定到螢幕中心。支援全域熱鍵、系統匣選單、簡單/進階介面、多語言，以及可設定的重置頻率/位置。
 
+## 目錄
+
+- [功能特性](#功能特性)
+- [專案結構](#專案結構)
+- [系統需求](#系統需求)
+- [滑鼠巨集設定](#滑鼠巨集設定)
+- [輸入後端](#輸入後端)
+- [更新日誌](#更新日誌)
+- [授權](#授權)
+
 ## 功能特性
 
 - 全域熱鍵（可自訂）：鎖定 / 解鎖 / 切換
@@ -76,13 +86,40 @@ exe 檔案將位於 `dist/MouseCenterLock.exe`。
 
 ## 滑鼠巨集設定
 
-滑鼠巨集支援「介面拼裝」和「外部 JSON 設定檔」兩種方式。完整寫法、範例檔案、滑鼠鍵名與鍵盤 `key` 名稱見：
+滑鼠巨集支援兩種來源：
 
-- [滑鼠巨集範例與設定說明](examples/mouse-macros/zh-Hant/README.md)
+- **介面拼裝**：直接在進階頁編輯規則
+- **外部 JSON**：載入範例檔或自訂檔案
 
-輸入後端預設仍是使用者層：Rust 原生 SendInput（掃描碼/Unicode）、Python SendInput 兜底與視窗訊息。這能提升許多桌面軟體的相容性，但不是驅動/HID 輸入，不能保證所有遊戲、Raw Input 程式、系統管理員權限視窗或反作弊保護目標都接收。虛擬 HID 與硬體 HID 作為後續後端預留。
+完整規格、範例檔案、按鍵名稱與動作型別見：
+
+- [滑鼠巨集範例與設定說明](examples/mouse-macros/README.md)
+
+輸入後端預設仍是使用者層：Rust 原生 SendInput（scan code / Unicode）、Python SendInput 兜底與視窗訊息。這能提升多數桌面軟體相容性，但不是 driver/HID 輸入，不能保證所有遊戲、Raw Input 程式、系統管理員權限視窗或反作弊目標都接收。
+
+後端階段、fallback 策略與非目標見：[輸入後端路線圖](docs/backend-roadmap.md)。
+
+## 輸入後端
+
+| 後端 | 狀態 | 用途 |
+|---|---|---|
+| `native-sendinput` | 預設 | Rust DLL 注入，優先 scan code / Unicode |
+| `python-sendinput` | 兜底 | 舊路徑，保守但相容 |
+| `window-message` | 兼容 | 傳遞到前台視窗訊息鏈 |
+| `virtual-hid` | 預留 | 驅動檢測與後續接入 |
+| `hardware-hid` | 預留 | 外部設備模式 |
 
 ## 更新日誌
+
+### 開發中 / 最近變更
+
+- 新增 Rust native input backend 與 backend 診斷。
+- 滑鼠巨集支援 `keyDown` / `keyUp`、`mouseDown` / `mouseUp`、`cooldownMs`、`triggerMode`。
+- 巨集觸發新增 `holdLoop` / `toggleLoop`，並加入內建範例預設與重置。
+- 進階頁加入宏預設選擇、外部 JSON 重置與任務欄狀態提示。
+- `clicker` 與巨集共用同一條輸入執行鏈，便於後續接入 `virtual-hid`。
+
+### 已發佈版本
 
 ### v1.1.0
 - 新增連點器方案管理，支援建立、切換、儲存與刪除多組連點設定。

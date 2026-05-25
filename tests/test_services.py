@@ -7,8 +7,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets
 
 from services.clicker_service import ClickerService
+from services.input_backends import get_backend_status, all_backend_statuses
 from services.input_service import InputService
 from services.lock_service import LockService
+from services.macro_schema import normalize_macro_trigger_mode, normalize_mouse_button
 from services.macro_service import MouseMacroService
 from services.tray_service import TrayService
 
@@ -32,12 +34,26 @@ class _FakeInputService:
         self.keys = []
         self.hotkeys = []
         self.texts = []
+        self.key_downs = []
+        self.key_ups = []
 
     def click_mouse(self, button="left"):
         self.clicks.append(button)
 
+    def mouse_down(self, button="left"):
+        self.clicks.append(f"{button}:down")
+
+    def mouse_up(self, button="left"):
+        self.clicks.append(f"{button}:up")
+
     def press_key(self, key):
         self.keys.append(key)
+
+    def key_down(self, key):
+        self.key_downs.append(key)
+
+    def key_up(self, key):
+        self.key_ups.append(key)
 
     def press_hotkey(self, action):
         self.hotkeys.append(action)
@@ -73,6 +89,47 @@ class ServiceTests(unittest.TestCase):
         native_press.assert_called_once_with(0x41)
         python_press.assert_called_once_with(0x41)
 
+    def test_input_service_key_down_up_use_native_then_python_fallback(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch("services.input_service.key_to_vk", return_value=0x32), \
+             mock.patch("services.input_service.native_input.key_down_vk", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.key_up_vk", return_value=False) as native_up, \
+             mock.patch("services.input_service.key_down_vk") as python_down, \
+             mock.patch("services.input_service.key_up_vk") as python_up:
+            service.key_down("2")
+            service.key_up("2")
+
+        native_down.assert_called_once_with(0x32)
+        native_up.assert_called_once_with(0x32)
+        python_down.assert_not_called()
+        python_up.assert_called_once_with(0x32)
+
+    def test_input_service_mouse_down_up_use_native_then_python_fallback(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch("services.input_service.native_input.mouse_down", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.mouse_up", return_value=False) as native_up, \
+             mock.patch("services.input_service.sendinput_mouse_down") as python_down, \
+             mock.patch("services.input_service.sendinput_mouse_up") as python_up:
+            service.mouse_down("left")
+            service.mouse_up("left")
+
+        native_down.assert_called_once_with("left")
+        native_up.assert_called_once_with("left")
+        python_down.assert_not_called()
+        python_up.assert_called_once_with("left")
+
+    def test_macro_schema_normalizes_buttons_and_trigger_modes(self):
+        self.assertEqual(normalize_mouse_button("Back"), "x1")
+        self.assertEqual(normalize_mouse_button("button5"), "x2")
+        self.assertEqual(normalize_mouse_button("unknown", "middle"), "middle")
+
+        self.assertEqual(normalize_macro_trigger_mode("holdLoop"), "holdLoop")
+        self.assertEqual(normalize_macro_trigger_mode("holdloop"), "holdLoop")
+        self.assertEqual(normalize_macro_trigger_mode("toggle-loop"), "toggleLoop")
+        self.assertEqual(normalize_macro_trigger_mode("bad", "toggle"), "toggle")
+
     def test_input_service_python_sendinput_skips_rust_backend(self):
         service = InputService(get_backend=lambda: "python-sendinput")
 
@@ -84,12 +141,38 @@ class ServiceTests(unittest.TestCase):
         python_click.assert_called_once_with("left")
 
     def test_input_service_virtual_hid_reserved_falls_back_to_native_path(self):
-        service = InputService(get_backend=lambda: "virtual-hid")
+        service = InputService(
+            get_backend=lambda: "virtual-hid",
+            get_fallback_backend=lambda: "native-sendinput",
+            get_fallback_policy=lambda: "auto",
+        )
 
         with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click:
             service.click_mouse("left")
 
         native_click.assert_called_once_with("left")
+
+    def test_input_service_virtual_hid_error_policy_does_not_silent_fallback(self):
+        service = InputService(
+            get_backend=lambda: "virtual-hid",
+            get_fallback_backend=lambda: "native-sendinput",
+            get_fallback_policy=lambda: "error",
+        )
+
+        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
+             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+            service.click_mouse("left")
+
+        native_click.assert_not_called()
+        python_click.assert_not_called()
+
+    def test_input_backend_registry_reports_virtual_hid_unavailable(self):
+        status = get_backend_status("virtual-hid")
+        self.assertEqual(status.name, "virtual-hid")
+        self.assertFalse(status.available)
+        self.assertIn(status.reason, {"driver_not_installed", "unsupported_os"})
+        self.assertTrue(status.capabilities.supportsKeyboard)
+        self.assertIn("virtual-hid", all_backend_statuses())
 
     def test_input_service_prefers_rust_unicode_text(self):
         service = InputService(get_backend=lambda: "sendinput")
@@ -145,6 +228,274 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(input_service.clicks, ["right", "right"])
 
         service.stop()
+
+    def test_mouse_macro_cancel_on_hold_release_ignores_press_release_by_default(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "hold-left",
+                    "enabled": True,
+                    "holdMouseButton": "x1",
+                    "pressMouseButton": "left",
+                    "cancelOnHoldRelease": True,
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=_FakeInputService(),
+        )
+        service._poll_timer.stop()
+
+        try:
+            rule = config["rules"][0]
+            service._current_rule = rule
+            self.assertFalse(service._current_rule_cancel_matches("mouse", "left"))
+            self.assertTrue(service._current_rule_cancel_matches("mouse", "x1"))
+            rule["cancelOnPressRelease"] = True
+            self.assertTrue(service._current_rule_cancel_matches("mouse", "left"))
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_honors_cooldown_between_triggers(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "x1-switch",
+                    "enabled": True,
+                    "pressMouseButton": "x1",
+                    "cooldownMs": 300,
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            with mock.patch('services.macro_service.time.monotonic', side_effect=[1.0, 1.05, 1.10, 1.40, 1.41]):
+                service._on_global_input_event('mouse', 'x1', True)
+                service._on_global_input_event('mouse', 'x1', False)
+                service._on_global_input_event('mouse', 'x1', True)
+                service._on_global_input_event('mouse', 'x1', False)
+                service._on_global_input_event('mouse', 'x1', True)
+
+            self.assertEqual(input_service.keys, ["2", "2"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_press_only_mouse_rule(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "x1-switch",
+                    "enabled": True,
+                    "pressMouseButton": "x1",
+                    "actions": [
+                        {"type": "keyDown", "key": "2"},
+                        {"type": "keyUp", "key": "2"},
+                    ],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            self.assertEqual(input_service.key_downs, ["2"])
+            self.assertEqual(input_service.key_ups, ["2"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_key_down_up_actions(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "keyDown", "key": "2"},
+                {"type": "delay", "ms": 0},
+                {"type": "keyDown", "key": "1"},
+                {"type": "keyUp", "key": "2"},
+                {"type": "keyUp", "key": "1"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.key_downs, ["2", "1"])
+            self.assertEqual(input_service.key_ups, ["2", "1"])
+            self.assertEqual(service._held_output_keys, [])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_toggle_arm_and_fire(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "toggle-left",
+                    "enabled": True,
+                    "triggerMode": "toggle",
+                    "holdMouseButton": "x1",
+                    "pressMouseButton": "left",
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(input_service.keys, ["2"])
+
+            service._on_global_input_event("mouse", "x1", True)
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "left", True)
+            self.assertEqual(input_service.keys, ["2"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_hold_loop_until_release(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "hold-loop",
+                    "enabled": True,
+                    "triggerMode": "holdLoop",
+                    "holdMouseButton": "x1",
+                    "actions": [{"type": "key", "key": "2"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+        service._loop_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["2", "2"])
+
+            service._on_global_input_event("mouse", "x1", False)
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["2", "2"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_toggle_loop_until_second_press(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "rules": [
+                {
+                    "id": "toggle-loop",
+                    "enabled": True,
+                    "triggerMode": "toggleLoop",
+                    "holdMouseButton": "x1",
+                    "actions": [{"type": "key", "key": "1"}],
+                }
+            ],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+        service._loop_timer.stop()
+
+        try:
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["1", "1"])
+
+            service._on_global_input_event("mouse", "x1", False)
+            service._on_global_input_event("mouse", "x1", True)
+            service._run_loop_tick()
+            self.assertEqual(input_service.keys, ["1", "1"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_supports_mouse_down_up_actions(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "mouseDown", "button": "left"},
+                {"type": "delay", "ms": 10},
+                {"type": "mouseUp", "button": "left"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.clicks, ["left:down", "left:up"])
+        finally:
+            service.stop()
+
+    def test_mouse_macro_service_releases_key_down_on_cleanup(self):
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: {"enabled": True, "source": "builder", "rules": []},
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        try:
+            service._execute_actions([
+                {"type": "keyDown", "key": "2"},
+            ], rule={"interruptible": True}, rule_key="test:mouse:left")
+
+            self.assertEqual(input_service.key_downs, ["2"])
+            self.assertEqual(input_service.key_ups, ["2"])
+            self.assertEqual(service._held_output_keys, [])
+        finally:
+            service.stop()
 
 
 

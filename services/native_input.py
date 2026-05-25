@@ -74,6 +74,10 @@ def _load_library():
             lib.mcl_native_version.restype = ctypes.c_uint32
             lib.mcl_click_mouse.argtypes = (ctypes.c_uint32,)
             lib.mcl_click_mouse.restype = ctypes.c_int
+            lib.mcl_mouse_down.argtypes = (ctypes.c_uint32,)
+            lib.mcl_mouse_down.restype = ctypes.c_int
+            lib.mcl_mouse_up.argtypes = (ctypes.c_uint32,)
+            lib.mcl_mouse_up.restype = ctypes.c_int
             lib.mcl_key_down_vk.argtypes = (ctypes.c_uint16,)
             lib.mcl_key_down_vk.restype = ctypes.c_int
             lib.mcl_key_up_vk.argtypes = (ctypes.c_uint16,)
@@ -109,6 +113,20 @@ def click_mouse(button: str = "left") -> bool:
         return False
     code = _BUTTON_CODES.get(str(button or "left").lower(), 0)
     return int(_LIB.mcl_click_mouse(code)) > 0
+
+
+def mouse_down(button: str = "left") -> bool:
+    if not _LIB:
+        return False
+    code = _BUTTON_CODES.get(str(button or "left").lower(), 0)
+    return int(_LIB.mcl_mouse_down(code)) > 0
+
+
+def mouse_up(button: str = "left") -> bool:
+    if not _LIB:
+        return False
+    code = _BUTTON_CODES.get(str(button or "left").lower(), 0)
+    return int(_LIB.mcl_mouse_up(code)) > 0
 
 
 def key_down_vk(vk: int) -> bool:

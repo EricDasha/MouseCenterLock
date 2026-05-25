@@ -1,0 +1,75 @@
+{
+  "rules": [
+    {
+      "id": "far-far-west-hold-x1-auto-loop",
+      "name": "Far Far West: hold X1 to auto fire/switch, release to stop",
+      "enabled": true,
+      "triggerMode": "holdLoop",
+      "holdMouseButton": "x1",
+      "cancelOnHoldRelease": true,
+      "cancelOnFocusLost": true,
+      "interruptible": true,
+      "loopIntervalMs": 1,
+      "actions": [
+        {
+          "type": "mouseDown",
+          "button": "left"
+        },
+        {
+          "type": "delay",
+          "ms": 60
+        },
+        {
+          "type": "mouseUp",
+          "button": "left"
+        },
+        {
+          "type": "delay",
+          "ms": 120
+        },
+        {
+          "type": "keyDown",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 80
+        },
+        {
+          "type": "keyDown",
+          "key": "1"
+        },
+        {
+          "type": "delay",
+          "ms": 27
+        },
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "delay",
+          "ms": 66
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        }
+      ],
+      "onCancel": [
+        {
+          "type": "mouseUp",
+          "button": "left"
+        },
+        {
+          "type": "keyUp",
+          "key": "2"
+        },
+        {
+          "type": "keyUp",
+          "key": "1"
+        }
+      ]
+    }
+  ]
+}

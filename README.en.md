@@ -80,6 +80,8 @@ Mouse macros support both the builder UI and external JSON files. For the full s
 
 Input backends are user-mode by default: native Rust SendInput (scan-code/Unicode), Python SendInput fallback, and window messages. These improve compatibility for many desktop apps, but they are not driver/HID input and cannot guarantee support for every game, Raw Input target, elevated window, or anti-cheat-protected program. Virtual HID and hardware HID are reserved as future backends.
 
+See [Input Backend Roadmap](docs/backend-roadmap.md) for backend stages, fallback policy, and non-goals.
+
 ## Changelog
 
 ### v1.1.0

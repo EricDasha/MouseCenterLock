@@ -104,5 +104,7 @@
     ]
   },
   "inputBackend": "auto",
-  "inputMode": "scan-code"
+  "inputMode": "scan-code",
+  "fallbackBackend": "native-sendinput",
+  "fallbackPolicy": "auto"
 }
