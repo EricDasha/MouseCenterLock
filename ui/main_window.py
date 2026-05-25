@@ -81,7 +81,7 @@ class MainWindow(QtWidgets.QMainWindow):
             on_notify_started=self._notify_clicker_started,
             on_notify_stopped=self._notify_clicker_stopped,
             sound_presets=CLICKER_SOUND_PRESETS,
-            click_mouse_func=self._input_service.click_mouse,
+            input_service=self._input_service,
             parent=self,
         )
         self._macro_service = MouseMacroService(

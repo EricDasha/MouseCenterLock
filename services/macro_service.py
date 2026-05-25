@@ -13,6 +13,7 @@ from PySide6 import QtCore
 from app_logging import log_exception, log_message
 from app_paths import APP_DIR, RUN_DIR
 from services.action_scheduler import ActionScheduler
+from services.macro_runtime import MacroActionExecutor
 from services.input_service import InputService
 from win_api import GlobalInputListener, key_to_vk, user32
 
@@ -85,6 +86,7 @@ class MouseMacroService(QtCore.QObject):
         super().__init__(parent)
         self._get_config = get_config
         self._input_service = input_service or InputService()
+        self._action_executor = MacroActionExecutor(input_service=self._input_service)
         self._pressed_mouse_buttons: Set[str] = set()
         self._pressed_keys: Set[str] = set()
         self._active_rule_keys: Set[str] = set()
@@ -519,11 +521,11 @@ class MouseMacroService(QtCore.QObject):
     def _execute_action(self, action: Dict[str, Any]) -> None:
         action_type = str(action.get("type", "") or "")
         if action_type == "mouseClick":
-            self._input_service.click_mouse(str(action.get("button", "left") or "left"))
+            self._action_executor.click_mouse(str(action.get("button", "left") or "left"))
         elif action_type == "mouseDown":
-            self._input_service.mouse_down(str(action.get("button", "left") or "left"))
+            self._action_executor.mouse_down(str(action.get("button", "left") or "left"))
         elif action_type == "mouseUp":
-            self._input_service.mouse_up(str(action.get("button", "left") or "left"))
+            self._action_executor.mouse_up(str(action.get("button", "left") or "left"))
         elif action_type == "key":
             self._send_key(str(action.get("key", "") or ""))
         elif action_type == "keyDown":
@@ -531,9 +533,9 @@ class MouseMacroService(QtCore.QObject):
         elif action_type == "keyUp":
             self._send_key_up(str(action.get("key", "") or ""))
         elif action_type == "hotkey":
-            self._send_hotkey(action)
+            self._action_executor.press_hotkey(action)
         elif action_type == "text":
-            self._send_text(str(action.get("text", "") or ""))
+            self._action_executor.type_text(str(action.get("text", "") or ""))
 
     def _send_key(self, key: str) -> None:
         vk = key_to_vk(key)
