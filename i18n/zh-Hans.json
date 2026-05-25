@@ -220,5 +220,13 @@
   "macro.trigger.hold": "按住",
   "macro.trigger.toggle": "切换",
   "macro.trigger.holdLoop": "按住循环",
-  "macro.trigger.toggleLoop": "切换循环"
+  "macro.trigger.toggleLoop": "切换循环",
+  "macro.preset": "内置宏",
+  "macro.preset.custom": "自定义 / 手动路径",
+  "macro.file.reset": "重置",
+  "macro.file.reset.tooltip": "清空已选择的宏 JSON，并回到界面拼装模式。",
+  "macro.preview.trigger.hold": "{0} + {1}",
+  "macro.preview.trigger.toggle": "切换 {0} 后按 {1}",
+  "macro.preview.trigger.holdLoop": "按住 {0} 循环",
+  "macro.preview.trigger.toggleLoop": "按 {0} 切换循环"
 }

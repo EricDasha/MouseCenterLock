@@ -215,5 +215,13 @@
   "macro.preview.action.mouseUp": "マウス解放 {0}",
   "macro.triggerMode": "トリガーモード",
   "macro.trigger.hold": "押し続ける",
-  "macro.trigger.toggle": "切り替え"
+  "macro.trigger.toggle": "切り替え",
+  "macro.preset": "Built-in Macro",
+  "macro.preset.custom": "Custom / Manual path",
+  "macro.file.reset": "Reset",
+  "macro.file.reset.tooltip": "Clear the selected macro JSON and return to UI builder mode.",
+  "macro.preview.trigger.hold": "{0} + {1}",
+  "macro.preview.trigger.toggle": "toggle {0}, then press {1}",
+  "macro.preview.trigger.holdLoop": "hold {0} loop",
+  "macro.preview.trigger.toggleLoop": "press {0} toggle loop"
 }

@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Set
 from PySide6 import QtCore
 
 from app_logging import log_exception, log_message
+from app_paths import APP_DIR, RUN_DIR
 from services.action_scheduler import ActionScheduler
 from services.input_service import InputService
 from win_api import GlobalInputListener, key_to_vk, user32
@@ -44,6 +45,21 @@ MOUSE_BUTTON_VKS = {
     "x1": 0x05,
     "x2": 0x06,
 }
+
+
+def resolve_macro_config_path(file_path: str) -> Path:
+    """Resolve macro JSON paths against run/app dirs for packaged presets."""
+    raw = str(file_path or "").strip()
+    if not raw:
+        return Path("")
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    for base in (RUN_DIR, APP_DIR):
+        candidate = Path(base) / path
+        if candidate.exists():
+            return candidate
+    return path
 
 
 class MouseMacroService(QtCore.QObject):
@@ -194,7 +210,7 @@ class MouseMacroService(QtCore.QObject):
                 self._rules_cache = []
             return []
 
-        path = Path(file_path)
+        path = resolve_macro_config_path(file_path)
         try:
             stat = path.stat()
             cache_key = ("file", str(path), stat.st_mtime_ns, stat.st_size)

@@ -5,7 +5,7 @@
       "name": "Far Far West: Back + Left timing combo",
       "enabled": true,
       "triggerMode": "toggle",
-      "holdMouseButton": "x1",
+      "holdMouseButton": "x2",
       "pressMouseButton": "left",
       "cancelOnHoldRelease": true,
       "cancelOnFocusLost": true,

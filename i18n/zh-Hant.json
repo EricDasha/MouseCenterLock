@@ -207,5 +207,13 @@
   "macro.preview.action.mouseUp": "滑鼠鬆開 {0}",
   "macro.triggerMode": "觸發方式",
   "macro.trigger.hold": "按住",
-  "macro.trigger.toggle": "切換"
+  "macro.trigger.toggle": "切換",
+  "macro.preset": "內建巨集",
+  "macro.preset.custom": "自訂 / 手動路徑",
+  "macro.file.reset": "重置",
+  "macro.file.reset.tooltip": "清空已選擇的巨集 JSON，並回到介面拼裝模式。",
+  "macro.preview.trigger.hold": "{0} + {1}",
+  "macro.preview.trigger.toggle": "切換 {0} 後按 {1}",
+  "macro.preview.trigger.holdLoop": "按住 {0} 循環",
+  "macro.preview.trigger.toggleLoop": "按 {0} 切換循環"
 }

@@ -326,6 +326,17 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     macro_source_layout.addStretch()
     layout.addLayout(macro_source_layout)
 
+    preset_layout = QtWidgets.QHBoxLayout()
+    window.mouseMacroPresetLabel = QtWidgets.QLabel(window.i18n.t("macro.preset", "Built-in Macro"))
+    preset_layout.addWidget(window.mouseMacroPresetLabel)
+    window.mouseMacroPresetCombo = QtWidgets.QComboBox()
+    window.mouseMacroPresetCombo.addItem(window.i18n.t("macro.preset.custom", "Custom / Manual path"), "")
+    for label, preset_path in window._list_mouse_macro_presets():
+        window.mouseMacroPresetCombo.addItem(label, preset_path)
+    preset_layout.addWidget(window.mouseMacroPresetCombo)
+    preset_layout.addStretch()
+    layout.addLayout(preset_layout)
+
     file_layout = QtWidgets.QHBoxLayout()
     window.mouseMacroConfigFileEdit = QtWidgets.QLineEdit(str(macro_cfg.get("configFile", "") or ""))
     window.mouseMacroConfigFileEdit.setPlaceholderText(window.i18n.t("macro.file.placeholder", "Select macro JSON file"))
@@ -335,7 +346,12 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
     window.mouseMacroBrowseBtn.clicked.connect(window._browse_mouse_macro_file)
     file_layout.addWidget(window.mouseMacroBrowseBtn)
+    window.mouseMacroResetFileBtn = QtWidgets.QPushButton(window.i18n.t("macro.file.reset", "Reset"))
+    window.mouseMacroResetFileBtn.setToolTip(window.i18n.t("macro.file.reset.tooltip", "Clear the selected macro JSON and return to UI builder mode."))
+    window.mouseMacroResetFileBtn.clicked.connect(window._reset_mouse_macro_file_selection)
+    file_layout.addWidget(window.mouseMacroResetFileBtn)
     layout.addLayout(file_layout)
+    window.mouseMacroPresetCombo.currentIndexChanged.connect(window._on_mouse_macro_preset_changed)
 
     window.mouseMacroFileHint = QtWidgets.QLabel(window.i18n.t(
         "macro.file.hint",

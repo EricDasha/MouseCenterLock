@@ -3,11 +3,12 @@ MouseCenterLock main window.
 """
 import json
 import os
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from app_logging import get_log_path, is_logging_enabled, log_message
-from app_paths import ASSETS_DIR, RUN_DIR
+from app_paths import APP_DIR, ASSETS_DIR, RUN_DIR
 
 from win_api import (
     release_single_instance,
@@ -19,6 +20,8 @@ from services.clicker_profile_controller import ClickerProfileController
 from services.input_service import InputService
 from services.lock_service import LockService
 from services.macro_service import MouseMacroService
+from services.macro_service import resolve_macro_config_path
+from services.taskbar_status_service import TaskbarStatusService
 from services.settings_apply_controller import SettingsApplyController
 from services.theme_service import ThemeService
 from services.tray_service import TrayService
@@ -60,6 +63,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self._custom_icon: Optional[QtGui.QIcon] = None
         self._tray_service: Optional[TrayService] = None
+        self._taskbar_status_service = TaskbarStatusService()
         self._selected_profile_id = self.settings.data.get("activeClickerProfileId", "default")
         self._profile_dirty = False
         self._suspend_live_apply = 0
@@ -133,6 +137,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._build_ui()
         self._apply_theme()
         self._create_tray()
+        self._update_taskbar_status()
     
     @property
     def locked(self) -> bool:
@@ -158,6 +163,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_simple_info()
         self._update_clicker_button()
         self._update_tray_meta()
+        self._update_taskbar_status()
 
     def _notify_clicker_started(self, profile: Dict[str, Any]) -> None:
         """Show the clicker-started notification."""
@@ -458,6 +464,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_clicker_button()
         self._update_simple_info()
         self._update_tray_meta()
+        self._update_taskbar_status()
 
     def _show_saved_tooltip(self) -> None:
         """Show the standard saved tooltip near the cursor."""
@@ -476,6 +483,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_clicker_button()
         self._update_simple_info()
         self._update_tray_meta()
+        self._update_taskbar_status()
 
     def _populate_clicker_profiles(self) -> None:
         """Refresh the profile combo box from settings."""
@@ -600,6 +608,80 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.i18n.t("macro.preview.action.delay", "Delay {0}ms").format(action.get("ms", 0))
         return action_type or "?"
 
+    def _macro_preset_label(self, relative_path: str) -> str:
+        """Build a readable label for a bundled macro preset."""
+        path = resolve_macro_config_path(relative_path)
+        fallback_name = Path(relative_path).stem.replace("-", " ")
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                payload = json.load(file)
+            rules = payload.get("rules", []) if isinstance(payload, dict) else payload if isinstance(payload, list) else []
+            if isinstance(rules, list) and rules and isinstance(rules[0], dict):
+                return str(rules[0].get("name") or fallback_name)
+        except Exception:
+            pass
+        return fallback_name
+
+    def _list_mouse_macro_presets(self) -> list[tuple[str, str]]:
+        """Return bundled macro JSON presets as (label, relative path)."""
+        language = str(self.settings.data.get("language", "zh-Hans") or "zh-Hans")
+        presets: list[tuple[str, str]] = []
+        seen_languages: set[str] = set()
+        seen_paths: set[str] = set()
+        for lang in (language, "zh-Hans", "en"):
+            if lang in seen_languages:
+                continue
+            seen_languages.add(lang)
+            preset_dir = Path(APP_DIR) / "examples" / "mouse-macros" / lang
+            if not preset_dir.exists():
+                continue
+            for path in sorted(preset_dir.glob("*.json")):
+                relative_path = str(Path("examples") / "mouse-macros" / lang / path.name).replace("\\", "/")
+                if relative_path in seen_paths:
+                    continue
+                seen_paths.add(relative_path)
+                presets.append((self._macro_preset_label(relative_path), relative_path))
+        return presets
+
+    def _select_combo_data(self, combo: QtWidgets.QComboBox, value: str) -> None:
+        """Set a combo box by item data without emitting change signals."""
+        blocked = combo.blockSignals(True)
+        try:
+            for index in range(combo.count()):
+                if str(combo.itemData(index) or "") == value:
+                    combo.setCurrentIndex(index)
+                    return
+            combo.setCurrentIndex(0)
+        finally:
+            combo.blockSignals(blocked)
+
+    def _sync_mouse_macro_preset_selection(self) -> None:
+        """Keep the bundled-preset selector aligned with the config file edit."""
+        if not hasattr(self, "mouseMacroPresetCombo"):
+            return
+        current = str(self.mouseMacroConfigFileEdit.text() or "").strip()
+        current_resolved = ""
+        if current:
+            try:
+                current_resolved = str(resolve_macro_config_path(current).resolve())
+            except Exception:
+                current_resolved = ""
+        selected = ""
+        for index in range(1, self.mouseMacroPresetCombo.count()):
+            candidate = str(self.mouseMacroPresetCombo.itemData(index) or "")
+            if not candidate:
+                continue
+            if current == candidate:
+                selected = candidate
+                break
+            try:
+                if current_resolved and str(resolve_macro_config_path(candidate).resolve()) == current_resolved:
+                    selected = candidate
+                    break
+            except Exception:
+                continue
+        self._select_combo_data(self.mouseMacroPresetCombo, selected)
+
     def _build_mouse_macro_file_preview_text(self, file_path: str) -> tuple[bool, str]:
         """Read and validate a macro JSON file, returning preview text."""
         path = file_path.strip()
@@ -627,6 +709,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 continue
             hold = rule.get("holdMouseButton", "?")
             press = rule.get("pressMouseButton", "?")
+            mode = str(rule.get("triggerMode", "hold") or "hold")
             enabled = self.i18n.t("simple.enabled", "Enabled") if rule.get("enabled", False) else self.i18n.t("simple.disabled", "Disabled")
             actions = rule.get("actions", [])
             if not isinstance(actions, list):
@@ -634,7 +717,15 @@ class MainWindow(QtWidgets.QMainWindow):
             action_text = " → ".join(self._describe_mouse_macro_action(action) for action in actions[:6] if isinstance(action, dict))
             if len(actions) > 6:
                 action_text += " → …"
-            lines.append(f"{index}. {enabled}: {hold} + {press} → {action_text or '?'}")
+            if mode == "holdLoop":
+                trigger_text = self.i18n.t("macro.preview.trigger.holdLoop", "hold {0} loop").format(hold)
+            elif mode == "toggleLoop":
+                trigger_text = self.i18n.t("macro.preview.trigger.toggleLoop", "press {0} toggle loop").format(hold)
+            elif mode == "toggle":
+                trigger_text = self.i18n.t("macro.preview.trigger.toggle", "toggle {0}, then press {1}").format(hold, press)
+            else:
+                trigger_text = self.i18n.t("macro.preview.trigger.hold", "{0} + {1}").format(hold, press)
+            lines.append(f"{index}. {enabled}: {trigger_text} → {action_text or '?'}")
         if len(rules) > 5:
             lines.append(self.i18n.t("macro.preview.more", "...and {0} more rule(s).").format(len(rules) - 5))
         return True, "\n".join(lines)
@@ -647,6 +738,34 @@ class MainWindow(QtWidgets.QMainWindow):
         color = "rgba(48, 209, 88, 0.95)" if ok else "rgba(255, 159, 10, 0.95)"
         self.mouseMacroFilePreviewLabel.setStyleSheet(f"color: {color}; font-size: 12px;")
         self.mouseMacroFilePreviewLabel.setText(text)
+        self._sync_mouse_macro_preset_selection()
+
+    def _on_mouse_macro_preset_changed(self, _index: int = -1) -> None:
+        """Apply a bundled macro preset from the selector."""
+        if not hasattr(self, "mouseMacroPresetCombo"):
+            return
+        preset_path = str(self.mouseMacroPresetCombo.currentData() or "")
+        if not preset_path:
+            return
+        self.mouseMacroConfigFileEdit.setText(preset_path)
+        for i in range(self.mouseMacroSourceCombo.count()):
+            if self.mouseMacroSourceCombo.itemData(i) == "file":
+                self.mouseMacroSourceCombo.setCurrentIndex(i)
+                break
+        self._sync_mouse_macro_controls()
+        self._schedule_live_apply()
+
+    def _reset_mouse_macro_file_selection(self) -> None:
+        """Clear external macro JSON selection and return to UI builder mode."""
+        self.mouseMacroConfigFileEdit.clear()
+        if hasattr(self, "mouseMacroPresetCombo"):
+            self._select_combo_data(self.mouseMacroPresetCombo, "")
+        for i in range(self.mouseMacroSourceCombo.count()):
+            if self.mouseMacroSourceCombo.itemData(i) == "builder":
+                self.mouseMacroSourceCombo.setCurrentIndex(i)
+                break
+        self._sync_mouse_macro_controls()
+        self._schedule_live_apply()
 
     def _browse_mouse_macro_file(self) -> None:
         """Select an external mouse macro JSON file."""
@@ -658,6 +777,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if path:
             self.mouseMacroConfigFileEdit.setText(path)
+            if hasattr(self, "mouseMacroPresetCombo"):
+                self._select_combo_data(self.mouseMacroPresetCombo, "")
             for i in range(self.mouseMacroSourceCombo.count()):
                 if self.mouseMacroSourceCombo.itemData(i) == "file":
                     self.mouseMacroSourceCombo.setCurrentIndex(i)
@@ -673,7 +794,13 @@ class MainWindow(QtWidgets.QMainWindow):
         builder_visible = source == "builder"
         self.mouseMacroBuilderGroup.setVisible(builder_visible)
         self.mouseMacroConfigFileEdit.setVisible(not builder_visible)
+        if hasattr(self, "mouseMacroPresetLabel"):
+            self.mouseMacroPresetLabel.setVisible(not builder_visible)
+        if hasattr(self, "mouseMacroPresetCombo"):
+            self.mouseMacroPresetCombo.setVisible(not builder_visible)
         self.mouseMacroBrowseBtn.setVisible(not builder_visible)
+        if hasattr(self, "mouseMacroResetFileBtn"):
+            self.mouseMacroResetFileBtn.setVisible(not builder_visible)
         self.mouseMacroFileHint.setVisible(not builder_visible)
         self.mouseMacroFilePreviewLabel.setVisible(not builder_visible)
         self._update_mouse_macro_file_preview()
@@ -743,6 +870,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_clicker_button()
         self._update_tray_icon()
         self._update_tray_meta()
+        self._update_taskbar_status()
 
     def _apply_clicker_timer(self):
         """Compatibility wrapper for clicker runtime updates."""
@@ -929,6 +1057,22 @@ class MainWindow(QtWidgets.QMainWindow):
         """Update tray menu information."""
         if self._tray_service is not None:
             self._tray_service.refresh()
+
+    def _update_taskbar_status(self) -> None:
+        """Update the Windows taskbar progress color as a safety hint."""
+        if not hasattr(self, "winId") or self._taskbar_status_service is None:
+            return
+        hwnd = int(self.winId())
+        mouse_macros = self.settings.data.get("mouseMacros", {})
+        if isinstance(mouse_macros, dict) and mouse_macros.get("enabled", False):
+            state = "macro"
+        elif self.locked:
+            state = "lock"
+        elif self.clicker_running:
+            state = "clicker"
+        else:
+            state = ""
+        self._taskbar_status_service.set_state(hwnd, state)
     
     def _show_from_tray(self):
         """Show window from tray."""
@@ -941,6 +1085,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._macro_service.stop()
             self._lock_service.release_cursor()
         finally:
+            if self._taskbar_status_service is not None:
+                self._taskbar_status_service.close()
             unregister_hotkeys()
             release_single_instance()
             QtWidgets.QApplication.quit()
