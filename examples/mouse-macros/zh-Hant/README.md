@@ -18,8 +18,6 @@
 - `middle-right-text.json`：按住中鍵，再點右鍵 → 輸入 `GG`、等待 80ms、`Enter`。
 - `middle-left-test.json`：執行期診斷用；按住中鍵，再點左鍵 → 主鍵盤 `1`。
 - `back-left-2-delay-1.json`：按住滑鼠後側鍵（`back`/`x1`），每次點左鍵 → 主鍵盤 `2`、等待 100ms、主鍵盤 `1`；左鍵本身由真實點擊產生，動作裡不再額外點擊左鍵。
-- `far-far-west-back-left-combo.json`：`x1` 切換 armed 狀態，左鍵觸發 → 左鍵 `mouseDown`、60ms、`mouseUp`、120ms、按下 `2`、80ms、按下 `1`、27ms、鬆開 `2`、66ms、鬆開 `1`；取消時自動補 `KeyUp 2/1`。建議 `cooldownMs=450`。
-- `far-far-west-x1-switch-combo.json`：單獨按下滑鼠後側鍵 `x1` → `2`、等待、`1`，不再依賴左鍵觸發，也不模擬左鍵開火。
 - `key-delay-key.json`：按住鍵盤 `A`，每次按下 `B` → `A`、等待 50ms、`B`；不鬆開 `A` 時，重複按 `B` 會重複執行。
 
 ## 規則欄位

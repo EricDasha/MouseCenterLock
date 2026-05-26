@@ -76,11 +76,11 @@ class TrayService(QtCore.QObject):
         self,
         *,
         parent,
-        base_icon: QtGui.QIcon,
-        dynamic_icon_factory: Callable[[bool], QtGui.QIcon],
+        dynamic_icon_factory: Callable[[bool, str], QtGui.QIcon],
         i18n,
         get_locked: Callable[[], bool],
         get_clicker_running: Callable[[], bool],
+        get_status: Callable[[], str],
         get_clicker_profile: Callable[[], Dict],
         get_hotkeys: Callable[[], Dict],
         on_toggle_lock: Callable[[], None],
@@ -92,14 +92,17 @@ class TrayService(QtCore.QObject):
     ):
         super().__init__(parent)
         self._i18n = i18n
-        self._base_icon = base_icon
         self._dynamic_icon_factory = dynamic_icon_factory
         self._get_locked = get_locked
         self._get_clicker_running = get_clicker_running
+        self._get_status = get_status
         self._get_clicker_profile = get_clicker_profile
         self._get_hotkeys = get_hotkeys
 
-        self.tray = QtWidgets.QSystemTrayIcon(base_icon or dynamic_icon_factory(False), parent)
+        self.tray = QtWidgets.QSystemTrayIcon(
+            dynamic_icon_factory(self._get_locked(), self._get_status()),
+            parent,
+        )
         menu = QtWidgets.QMenu()
 
         self.state_action = menu.addAction("")
@@ -133,8 +136,7 @@ class TrayService(QtCore.QObject):
 
     def refresh_icon(self) -> None:
         """Refresh tray icon based on current lock state."""
-        if self._base_icon.isNull():
-            self.tray.setIcon(self._dynamic_icon_factory(self._get_locked()))
+        self.tray.setIcon(self._dynamic_icon_factory(self._get_locked(), self._get_status()))
 
     def refresh(self) -> None:
         """Refresh tray icon and metadata."""

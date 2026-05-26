@@ -18,8 +18,6 @@ This folder contains JSON presets that can be selected from Advanced Settings �
 - `middle-right-text.json`: hold middle button, click right → type `GG`, wait 80ms, `Enter`.
 - `middle-left-test.json`: runtime diagnostics; hold middle button, click left → top-row `1`.
 - `back-left-2-delay-1.json`: hold mouse Back side button (`back` / `x1`), each left click → top-row `2`, wait 100ms, top-row `1`; the real left click is passed through, so the action list does not click left again.
-- `far-far-west-back-left-combo.json`: `x1` toggles armed mode, left press fires → left `mouseDown`, 60ms, `mouseUp`, 120ms, `2`, 80ms, `1`, 27ms, `KeyUp 2`, 66ms, `KeyUp 1`; cleanup sends `KeyUp 2/1`. Recommended `cooldownMs=450`.
-- `far-far-west-x1-switch-combo.json`: press mouse Back side button `x1` alone → `2`, delay, `1`; no left-click trigger and no simulated firing.
 - `key-delay-key.json`: hold keyboard `A`, each `B` press → `A`, wait 50ms, `B`; while `A` remains held, repeated `B` presses repeat the sequence.
 
 ## Rule fields

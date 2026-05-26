@@ -18,8 +18,6 @@
 - `middle-right-text.json`: 가운데 버튼을 누른 채 오른쪽 클릭 → `GG` 입력, 80ms 대기, `Enter`.
 - `middle-left-test.json`: 실행 중 진단용. 가운데 버튼을 누른 채 왼쪽 클릭 → 상단 숫자 `1`.
 - `back-left-2-delay-1.json`: `back` / `x1` 을 누른 채 왼쪽 클릭 → `2`, 100ms, `1`. 왼쪽 클릭 자체는 실제 입력을 통과시킴.
-- `far-far-west-back-left-combo.json`: `x1` 로 armed 를 전환하고 왼쪽 누름으로 실행 → 왼쪽 `mouseDown`, 60ms, `mouseUp`, 120ms, `2`, 80ms, `1`, 27ms, `KeyUp 2`, 66ms, `KeyUp 1`. `cooldownMs=450` 권장.
-- `far-far-west-x1-switch-combo.json`: `x1` 단독으로 `2` → 대기 → `1`.
 - `key-delay-key.json`: `A`를 누른 채 `B`를 누를 때마다 → `A`, 50ms, `B`.
 
 ## 규칙 항목

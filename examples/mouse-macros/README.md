@@ -33,8 +33,6 @@ Choose your language:
 | `x1-left-copy.json` | side button + click to copy |
 | `x2-left-paste-enter.json` | side button + click to paste |
 | `middle-right-text.json` | text macro |
-| `far-far-west-back-left-combo.json` | Far Far West timing combo |
-| `far-far-west-x1-switch-combo.json` | x1-only switch combo |
 | `key-delay-key.json` | keyboard hold + repeatable trigger |
 
 Each language folder contains the same JSON examples plus localized notes.

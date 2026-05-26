@@ -1017,11 +1017,11 @@ class ServiceTests(unittest.TestCase):
         }
         service = TrayService(
             parent=None,
-            base_icon=self.app.windowIcon(),
-            dynamic_icon_factory=lambda locked: self.app.windowIcon(),
+            dynamic_icon_factory=lambda locked, status: self.app.windowIcon(),
             i18n=type("I18nStub", (), {"t": staticmethod(lambda _key, fallback="": fallback or _key)})(),
             get_locked=lambda: True,
             get_clicker_running=lambda: False,
+            get_status=lambda: "lock",
             get_clicker_profile=lambda: profile,
             get_hotkeys=lambda: {"toggle": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "K"}},
             on_toggle_lock=lambda: None,

@@ -159,6 +159,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def clicker_running(self) -> bool:
         return self._clicker_service.is_running
 
+    def _get_visual_status(self) -> str:
+        """Return the strongest runtime state for UI indicators."""
+        mouse_macros = self.settings.data.get("mouseMacros", {})
+        if isinstance(mouse_macros, dict) and mouse_macros.get("enabled", False):
+            return "macro"
+        if self.locked:
+            return "lock"
+        if self.clicker_running:
+            return "clicker"
+        return ""
+
     def _get_active_clicker_profile(self) -> Dict[str, Any]:
         """Return the active clicker profile from settings."""
         return self.settings.get_active_clicker_profile()
@@ -309,6 +320,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.raise_()
         self.activateWindow()
         self.setWindowState((self.windowState() & ~QtCore.Qt.WindowMinimized) | QtCore.Qt.WindowActive)
+        self._update_taskbar_status()
 
     def _setup_window(self):
         """Configure window properties."""
@@ -1043,14 +1055,13 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- System Tray ---
     def _create_tray(self):
         """Create system tray icon and menu."""
-        base_icon = self._custom_icon or QtGui.QIcon()
         self._tray_service = TrayService(
             parent=self,
-            base_icon=base_icon,
             dynamic_icon_factory=self._make_icon,
             i18n=self.i18n,
             get_locked=lambda: self.locked,
             get_clicker_running=lambda: self.clicker_running,
+            get_status=self._get_visual_status,
             get_clicker_profile=self._get_active_clicker_profile,
             get_hotkeys=lambda: self.settings.data["hotkeys"],
             on_toggle_lock=self.toggle_lock,
@@ -1061,34 +1072,54 @@ class MainWindow(QtWidgets.QMainWindow):
             on_quit=self._quit,
         )
     
-    def _make_icon(self, locked: bool) -> QtGui.QIcon:
-        """Create a programmatic icon."""
+    def _make_icon(self, locked: bool, status: str = "") -> QtGui.QIcon:
+        """Create a programmatic icon with a status badge."""
         size = 128
         pm = QtGui.QPixmap(size, size)
         pm.fill(QtCore.Qt.transparent)
-        
+
         p = QtGui.QPainter(pm)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
-        
-        # Background circle
-        color = QtGui.QColor(46, 204, 113) if locked else QtGui.QColor(10, 132, 255)
-        p.setBrush(color)
-        p.setPen(QtCore.Qt.NoPen)
-        p.drawEllipse(0, 0, size, size)
-        
-        # Lock body
-        pad = 28
-        body = QtCore.QRect(pad, pad + 18, size - 2*pad, size - 2*pad - 18)
-        p.setBrush(QtGui.QColor(255, 255, 255))
-        p.drawRoundedRect(body, 14, 14)
-        
-        # Shackle
-        pen = QtGui.QPen(QtGui.QColor(255, 255, 255))
-        pen.setWidth(14)
-        p.setPen(pen)
-        p.setBrush(QtCore.Qt.NoBrush)
-        p.drawArc(size//2 - 30, pad - 6, 60, 48, 0, 180*16)
-        
+
+        base_icon = self._custom_icon
+        if base_icon is not None and not base_icon.isNull():
+            source = base_icon.pixmap(size, size)
+            p.drawPixmap(0, 0, source)
+        else:
+            # Background circle
+            color = QtGui.QColor(46, 204, 113) if locked else QtGui.QColor(10, 132, 255)
+            p.setBrush(color)
+            p.setPen(QtCore.Qt.NoPen)
+            p.drawEllipse(0, 0, size, size)
+
+            # Lock body
+            pad = 28
+            body = QtCore.QRect(pad, pad + 18, size - 2*pad, size - 2*pad - 18)
+            p.setBrush(QtGui.QColor(255, 255, 255))
+            p.drawRoundedRect(body, 14, 14)
+
+            # Shackle
+            pen = QtGui.QPen(QtGui.QColor(255, 255, 255))
+            pen.setWidth(14)
+            p.setPen(pen)
+            p.setBrush(QtCore.Qt.NoBrush)
+            p.drawArc(size//2 - 30, pad - 6, 60, 48, 0, 180*16)
+
+        badge_map = {
+            "macro": QtGui.QColor(231, 76, 60),
+            "lock": QtGui.QColor(241, 196, 15),
+            "clicker": QtGui.QColor(46, 204, 113),
+        }
+        badge = badge_map.get(status)
+        if badge is not None:
+            badge_size = 28
+            margin = 10
+            x = size - badge_size - margin
+            y = size - badge_size - margin
+            p.setPen(QtCore.Qt.NoPen)
+            p.setBrush(badge)
+            p.drawEllipse(x, y, badge_size, badge_size)
+
         p.end()
         return QtGui.QIcon(pm)
     
@@ -1119,20 +1150,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self._tray_service.refresh()
 
     def _update_taskbar_status(self) -> None:
-        """Update the Windows taskbar progress color as a safety hint."""
+        """Update the Windows taskbar progress indicator as a safety hint."""
         if not hasattr(self, "winId") or self._taskbar_status_service is None:
             return
         hwnd = int(self.winId())
-        mouse_macros = self.settings.data.get("mouseMacros", {})
-        if isinstance(mouse_macros, dict) and mouse_macros.get("enabled", False):
-            state = "macro"
-        elif self.locked:
-            state = "lock"
-        elif self.clicker_running:
-            state = "clicker"
-        else:
-            state = ""
-        self._taskbar_status_service.set_state(hwnd, state)
+        self._taskbar_status_service.set_state(hwnd, self._get_visual_status())
+
+    def showEvent(self, event):
+        """Refresh taskbar status after the window is shown."""
+        super().showEvent(event)
+        self._update_taskbar_status()
     
     def _show_from_tray(self):
         """Show window from tray."""

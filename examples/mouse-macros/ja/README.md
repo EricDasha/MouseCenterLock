@@ -18,8 +18,6 @@
 - `middle-right-text.json`: 中ボタンを押しながら右クリック → `GG` 入力、80ms 待機、`Enter`。
 - `middle-left-test.json`: 実行時診断用。中ボタンを押しながら左クリック → 上段数字 `1`。
 - `back-left-2-delay-1.json`: `back` / `x1` を押しながら左クリック → `2`、100ms、`1`。左クリック自体は実クリックを通す。
-- `far-far-west-back-left-combo.json`: `x1` で armed を切り替え、左押下で実行 → 左 `mouseDown`、60ms、`mouseUp`、120ms、`2`、80ms、`1`、27ms、`KeyUp 2`、66ms、`KeyUp 1`。`cooldownMs=450` 推奨。
-- `far-far-west-x1-switch-combo.json`: `x1` 単独で `2` → 待機 → `1`。
 - `key-delay-key.json`: `A` を押しながら `B` を押すたびに → `A`、50ms、`B`。
 
 ## ルール項目
