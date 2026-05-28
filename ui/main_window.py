@@ -1073,7 +1073,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
     
     def _make_icon(self, locked: bool, status: str = "") -> QtGui.QIcon:
-        """Create a programmatic icon with a status badge."""
+        """Create the application icon."""
         size = 128
         pm = QtGui.QPixmap(size, size)
         pm.fill(QtCore.Qt.transparent)
@@ -1105,21 +1105,6 @@ class MainWindow(QtWidgets.QMainWindow):
             p.setBrush(QtCore.Qt.NoBrush)
             p.drawArc(size//2 - 30, pad - 6, 60, 48, 0, 180*16)
 
-        badge_map = {
-            "macro": QtGui.QColor(231, 76, 60),
-            "lock": QtGui.QColor(241, 196, 15),
-            "clicker": QtGui.QColor(46, 204, 113),
-        }
-        badge = badge_map.get(status)
-        if badge is not None:
-            badge_size = 28
-            margin = 10
-            x = size - badge_size - margin
-            y = size - badge_size - margin
-            p.setPen(QtCore.Qt.NoPen)
-            p.setBrush(badge)
-            p.drawEllipse(x, y, badge_size, badge_size)
-
         p.end()
         return QtGui.QIcon(pm)
     
@@ -1141,6 +1126,7 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def _update_tray_icon(self):
         """Update tray icon based on lock state."""
+        self._apply_status_icon()
         if self._tray_service is not None:
             self._tray_service.refresh_icon()
     
@@ -1154,7 +1140,16 @@ class MainWindow(QtWidgets.QMainWindow):
         if not hasattr(self, "winId") or self._taskbar_status_service is None:
             return
         hwnd = int(self.winId())
-        self._taskbar_status_service.set_state(hwnd, self._get_visual_status())
+        status = self._get_visual_status()
+        self._taskbar_status_service.set_state(hwnd, status)
+        self._apply_status_icon(status)
+
+    def _apply_status_icon(self, status: str | None = None) -> None:
+        """Apply the runtime status badge to the window/taskbar icon."""
+        status = self._get_visual_status() if status is None else status
+        icon = self._make_icon(self.locked, status)
+        QtWidgets.QApplication.setWindowIcon(icon)
+        self.setWindowIcon(icon)
 
     def showEvent(self, event):
         """Refresh taskbar status after the window is shown."""
