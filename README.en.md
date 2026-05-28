@@ -84,45 +84,8 @@ See [Input Backend Roadmap](docs/backend-roadmap.md) for backend stages, fallbac
 
 ## Changelog
 
-### v1.1.0
-- Added clicker profile management with create, switch, save, and delete support for multiple clicker presets.
-- Added Windows action notifications, preferring native toast and falling back to tray messages when unavailable.
-- Added clicker start sound support with built-in presets, custom audio files, and sound preview.
-- Added more clicker trigger modes: toggle, hold keyboard key, and hold mouse button.
-- Added middle mouse button support for click execution.
-- Migrated the default config file to `Mconfig.json` while keeping backward compatibility for legacy `config.json`.
-
-### v1.0.7
-- New: Window-specific locking now has an option "Auto re-lock after leaving and re-entering target window (for manual unlock)", so you can choose between keeping the old behavior or auto re-lock.
-- Improved: Simple mode "Current Configuration" now shows clearer status for window-specific locking and the auto re-lock behavior.
-- Build: Updated PyInstaller one-file build to produce a single `MCL.exe` with icon in the `dist` directory.
-
-### v1.0.6
-- Fixed BUG: Shortcuts would still move/lock the cursor in non-target windows when window-specific locking was enabled.
-- Improved: Window-specific locking now locks to the center of the target window instead of screen center.
-- Debug: Added more debug logs for lock positioning.
-
-### v1.0.5
-- New: Ask for action when closing window (Minimize/Quit), with "Don't ask again" option
-- Improved: Added option to reset close behavior in settings
-- Debug: Added debug logs for window locking logic
-
-### v1.0.4
-- Fixed BUG: Manual lock (hotkey) bypasses window restriction when "Window-Specific Locking" is enabled
-- Improved: Strict window matching when window-specific locking is active
-
-### v1.0.3
-- Minecraft-style hotkey capture: click input and press key combination
-- Single instance detection: prevents duplicate launches
-- Launch on startup option
-- Process picker with search filter
-- Hotkey conflict detection and warning
-- Code refactored to modular architecture
-
-### v1.0.2
-- Added light theme
-- Auto lock/unlock on window switch
+See [CHANGELOG.md](CHANGELOG.md) for the full changelog.
 
 ## License
 
-MIT
+[GPL-3.0](LICENSE)
