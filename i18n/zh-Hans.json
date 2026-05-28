@@ -229,5 +229,7 @@
   "macro.preview.trigger.hold": "{0} + {1}",
   "macro.preview.trigger.toggle": "切换 {0} 后按 {1}",
   "macro.preview.trigger.holdLoop": "按住 {0} 循环",
-  "macro.preview.trigger.toggleLoop": "按 {0} 切换循环"
+  "macro.preview.trigger.toggleLoop": "按 {0} 切换循环",
+  "macro.panicHotkey": "强制终止键",
+  "macro.panicHotkey.hint": "默认 F12。按下后会强制停止正在运行/切换中的宏，并释放已按下的输出。"
 }

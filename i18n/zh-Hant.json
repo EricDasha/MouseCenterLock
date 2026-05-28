@@ -216,5 +216,7 @@
   "macro.preview.trigger.hold": "{0} + {1}",
   "macro.preview.trigger.toggle": "切換 {0} 後按 {1}",
   "macro.preview.trigger.holdLoop": "按住 {0} 循環",
-  "macro.preview.trigger.toggleLoop": "按 {0} 切換循環"
+  "macro.preview.trigger.toggleLoop": "按 {0} 切換循環",
+  "macro.panicHotkey": "強制終止鍵",
+  "macro.panicHotkey.hint": "預設 F12。按下後會強制停止正在執行/切換中的巨集，並釋放已按下的輸出。"
 }

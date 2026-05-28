@@ -107,6 +107,9 @@ class SettingsManager:
     DEFAULT_HOLD_KEY = {
         "modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F7",
     }
+    DEFAULT_MOUSE_MACRO_PANIC_HOTKEY = {
+        "modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12",
+    }
     DEFAULT_CLICKER_SOUND = {
         "enabled": False,
         "preset": "systemAsterisk",
@@ -270,6 +273,7 @@ class SettingsManager:
             "enabled": False,
             "source": "builder",
             "configFile": "",
+            "panicHotkey": deep_copy(self.DEFAULT_MOUSE_MACRO_PANIC_HOTKEY),
             "rules": [
                 {
                     "id": "x2-left-default",
@@ -365,6 +369,10 @@ class SettingsManager:
             "enabled": bool(source.get("enabled", False)),
             "source": source_mode if source_mode in ("builder", "file") else "builder",
             "configFile": str(source.get("configFile", "") or ""),
+            "panicHotkey": normalize_hotkey(
+                source.get("panicHotkey", {}),
+                self.DEFAULT_MOUSE_MACRO_PANIC_HOTKEY,
+            ),
             "rules": normalized_rules,
         }
 

@@ -229,5 +229,7 @@
   "macro.preview.trigger.hold": "{0} + {1}",
   "macro.preview.trigger.toggle": "toggle {0}, then press {1}",
   "macro.preview.trigger.holdLoop": "hold {0} loop",
-  "macro.preview.trigger.toggleLoop": "press {0} toggle loop"
+  "macro.preview.trigger.toggleLoop": "press {0} toggle loop",
+  "macro.panicHotkey": "Panic Stop",
+  "macro.panicHotkey.hint": "Default F12. Press it to force-stop running/toggled macro actions and release held outputs."
 }

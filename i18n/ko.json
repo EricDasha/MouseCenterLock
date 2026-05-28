@@ -224,5 +224,7 @@
   "macro.preview.trigger.hold": "{0} + {1}",
   "macro.preview.trigger.toggle": "toggle {0}, then press {1}",
   "macro.preview.trigger.holdLoop": "hold {0} loop",
-  "macro.preview.trigger.toggleLoop": "press {0} toggle loop"
+  "macro.preview.trigger.toggleLoop": "press {0} toggle loop",
+  "macro.panicHotkey": "강제 중지 키",
+  "macro.panicHotkey.hint": "기본값은 F12입니다. 실행/토글 중인 매크로를 강제로 중지하고 눌린 출력을 해제합니다."
 }

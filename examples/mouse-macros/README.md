@@ -24,6 +24,7 @@ Choose your language:
 - `onCancel`: cleanup actions when interrupted
 - `cooldownMs`: minimum delay before the same rule can fire again
 - `loopIntervalMs`: repeat interval for loop modes
+- App-level `panicHotkey`: default `F12`; force-stops running/toggled macros and releases held outputs.
 
 ## Example map
 

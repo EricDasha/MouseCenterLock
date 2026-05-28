@@ -60,6 +60,9 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         "enabled": window.mouseMacroEnabledCheck.isChecked(),
         "source": window.mouseMacroSourceCombo.currentData() or "builder",
         "configFile": window.mouseMacroConfigFileEdit.text().strip(),
+        "panicHotkey": window.mouseMacroPanicHotkeyCapture.get_hotkey()
+        if hasattr(window, "mouseMacroPanicHotkeyCapture")
+        else {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"},
         "rules": [
             {
                 "id": "builder-rule-1",

@@ -101,7 +101,14 @@
           }
         ]
       }
-    ]
+    ],
+    "panicHotkey": {
+      "modCtrl": false,
+      "modAlt": false,
+      "modShift": false,
+      "modWin": false,
+      "key": "F12"
+    }
   },
   "inputBackend": "auto",
   "inputMode": "scan-code",

@@ -46,6 +46,10 @@ This folder contains JSON presets that can be selected from Advanced Settings â†
 | `holdLoop` | While the hold key is pressed, repeat the action list |
 | `toggleLoop` | Press once to start looping, press again to stop |
 
+### Safety stop
+
+`panicHotkey` is app-level, not per-rule. The default is `F12`; pressing it force-stops running/toggled macros and releases held outputs.
+
 ## Mouse button names
 
 | Config value | Physical button |

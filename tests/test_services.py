@@ -498,6 +498,46 @@ class ServiceTests(unittest.TestCase):
             service.stop()
 
 
+    def test_mouse_macro_panic_hotkey_force_cancels_and_releases_outputs(self):
+        config = {
+            "enabled": True,
+            "source": "builder",
+            "panicHotkey": {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"},
+            "rules": [],
+        }
+        input_service = _FakeInputService()
+        service = MouseMacroService(
+            get_config=lambda: config,
+            input_listener_factory=_FakeInputListener,
+            input_service=input_service,
+        )
+        service._poll_timer.stop()
+
+        def sleep_and_panic(_seconds):
+            service._on_global_input_event("key", "F12", True)
+
+        try:
+            with mock.patch("services.macro_service.user32.GetAsyncKeyState", return_value=0), \
+                 mock.patch("services.macro_service.time.sleep", side_effect=sleep_and_panic):
+                service._execute_actions(
+                    [
+                        {"type": "keyDown", "key": "2"},
+                        {"type": "mouseDown", "button": "left"},
+                        {"type": "delay", "ms": 50},
+                        {"type": "keyDown", "key": "1"},
+                    ],
+                    rule={"interruptible": False},
+                    rule_key="panic:test",
+                )
+
+            self.assertEqual(input_service.key_downs, ["2"])
+            self.assertEqual(input_service.key_ups, ["2"])
+            self.assertEqual(input_service.clicks, ["left:down", "left:up"])
+            self.assertEqual(service._held_output_keys, [])
+            self.assertEqual(service._held_output_mouse_buttons, [])
+        finally:
+            service.stop()
+
 
     def test_mouse_macro_service_loads_external_json_rules(self):
         import json

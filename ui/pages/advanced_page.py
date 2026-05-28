@@ -312,6 +312,20 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.mouseMacroEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
     layout.addWidget(window.mouseMacroEnabledCheck)
 
+    panic_layout = QtWidgets.QHBoxLayout()
+    panic_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.panicHotkey", "Panic Stop")))
+    window.mouseMacroPanicHotkeyCapture = HotkeyCapture(i18n=window.i18n)
+    window.mouseMacroPanicHotkeyCapture.set_hotkey(
+        macro_cfg.get("panicHotkey", {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"})
+    )
+    window.mouseMacroPanicHotkeyCapture.hotkeyChanged.connect(lambda _cfg: window._schedule_live_apply())
+    panic_layout.addWidget(window.mouseMacroPanicHotkeyCapture)
+    panic_hint = QtWidgets.QLabel(window.i18n.t("macro.panicHotkey.hint", "Default F12. Press it to force-stop running/toggled macro actions and release held outputs."))
+    panic_hint.setWordWrap(True)
+    panic_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    panic_layout.addWidget(panic_hint, 1)
+    layout.addLayout(panic_layout)
+
     macro_source_layout = QtWidgets.QHBoxLayout()
     macro_source_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.source", "Rule Source")))
     window.mouseMacroSourceCombo = QtWidgets.QComboBox()

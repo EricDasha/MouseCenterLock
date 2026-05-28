@@ -133,6 +133,10 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertTrue(macro["rules"][0]["cancelOnHoldRelease"])
         self.assertFalse(macro["rules"][0]["cancelOnPressRelease"])
         self.assertTrue(macro["rules"][0]["interruptible"])
+        self.assertEqual(
+            macro["panicHotkey"],
+            {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"},
+        )
 
     def test_mouse_macro_normalizes_key_down_up_and_cancel_actions(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
