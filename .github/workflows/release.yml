@@ -68,7 +68,7 @@ jobs:
         run: cargo check
 
       - name: Run tests and build executable
-        run: python build.py
+        run: python build.py --no-archive
 
       - name: Prepare release assets
         id: meta

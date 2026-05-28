@@ -2,19 +2,23 @@
 MCL build script.
 
 Usage:
-    python build.py              # Full build (clean + test + package)
+    python build.py              # Full build (clean + test + exe + release zip)
     python build.py --skip-test  # Skip unit tests
     python build.py --clean-only # Only clean build artifacts
     python build.py --dev        # Development build (no UPX, debug info)
+    python build.py --no-archive # Skip local release zip creation
 """
 from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -22,7 +26,9 @@ ROOT_DIR = Path(__file__).resolve().parent
 SPEC_FILE = ROOT_DIR / "MCL.spec"
 DIST_DIR = ROOT_DIR / "dist"
 BUILD_DIR = ROOT_DIR / "build"
+RELEASE_DIR = ROOT_DIR / "release"
 EXE_NAME = "MCL.exe"
+PACKAGE_EXE_NAME = "MouseControlLayer.exe"
 NATIVE_CRATE_DIR = ROOT_DIR / "rust" / "input_backend"
 NATIVE_OUTPUT_DIR = ROOT_DIR / "native"
 NATIVE_DLL_NAME = "mcl_input_backend.dll"
@@ -72,7 +78,7 @@ def run(cmd: list[str], *, check: bool = True, cwd: Path | None = None) -> subpr
 
 def clean() -> None:
     step("Cleaning build artifacts")
-    for d in [DIST_DIR, BUILD_DIR]:
+    for d in [DIST_DIR, BUILD_DIR, RELEASE_DIR]:
         if d.exists():
             shutil.rmtree(d)
             print(f"  Removed {d}")
@@ -100,6 +106,26 @@ def syntax_check() -> bool:
         except SyntaxError as e:
             print(f"  FAIL  {rel_path}: {e}")
             ok = False
+    return ok
+
+
+def validate_json_assets() -> bool:
+    step("Validating JSON assets")
+    ok = True
+    roots = [ROOT_DIR / "i18n", ROOT_DIR / "examples" / "mouse-macros"]
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.json")):
+            rel_path = path.relative_to(ROOT_DIR)
+            try:
+                import json
+
+                json.loads(path.read_text(encoding="utf-8"))
+                print(f"  JSON_OK {rel_path}")
+            except Exception as exc:
+                print(f"  FAIL    {rel_path}: {exc}")
+                ok = False
     return ok
 
 
@@ -209,12 +235,51 @@ def verify_build() -> bool:
     return True
 
 
+def _safe_archive_tag(version: str) -> str:
+    value = version.strip() or datetime.now().strftime("%Y.%m.%d")
+    value = re.sub(r"[^0-9A-Za-z._-]+", "-", value).strip("-")
+    return value or datetime.now().strftime("%Y.%m.%d")
+
+
+def prepare_release_archive(version: str) -> bool:
+    step("Preparing local release archive")
+    exe_path = DIST_DIR / EXE_NAME
+    if not exe_path.exists():
+        print(f"  FAIL: build output not found: {exe_path}")
+        return False
+
+    RELEASE_DIR.mkdir(exist_ok=True)
+    package_exe = RELEASE_DIR / PACKAGE_EXE_NAME
+    if package_exe.exists():
+        package_exe.unlink()
+    shutil.copy2(exe_path, package_exe)
+
+    tag = _safe_archive_tag(version)
+    zip_path = RELEASE_DIR / f"MCL-{tag}-windows-x64.zip"
+    checksum_path = Path(f"{zip_path}.sha256")
+    for path in [zip_path, checksum_path]:
+        if path.exists():
+            path.unlink()
+
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.write(package_exe, arcname=PACKAGE_EXE_NAME)
+    package_exe.unlink()
+
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest().upper()
+    checksum_path.write_text(f"{digest}  {zip_path.name}\n", encoding="ascii")
+    print(f"  OK: {zip_path}")
+    print(f"  OK: {checksum_path}")
+    print(f"  Archive entry: {PACKAGE_EXE_NAME}")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="MCL build script")
     parser.add_argument("--skip-test", action="store_true", help="Skip unit tests")
     parser.add_argument("--clean-only", action="store_true", help="Only clean build artifacts")
     parser.add_argument("--dev", action="store_true", help="Development build (debug info, no UPX)")
     parser.add_argument("--no-clean", action="store_true", help="Skip cleaning before build")
+    parser.add_argument("--no-archive", action="store_true", help="Skip local release zip creation")
     args = parser.parse_args()
 
     version = extract_version()
@@ -228,6 +293,9 @@ def main() -> int:
         clean()
 
     if not syntax_check():
+        return 1
+
+    if not validate_json_assets():
         return 1
 
     if not args.skip_test:
@@ -245,8 +313,14 @@ def main() -> int:
     if not verify_build():
         return 1
 
+    if not args.no_archive:
+        if not prepare_release_archive(version):
+            return 1
+
     step("Build complete")
     print(f"  Output: {DIST_DIR / EXE_NAME}")
+    if not args.no_archive:
+        print(f"  Package: {RELEASE_DIR / f'MCL-{_safe_archive_tag(version)}-windows-x64.zip'}")
     print(f"  Version: {version}")
     return 0
 
