@@ -2,78 +2,76 @@
 
 ---
 
-> 참고: 이 번역은 중국어 및 영어 README보다 업데이트가 늦을 수 있습니다. 최신 정보가 필요하면 [简体中文](README.zh-Hans.md) 또는 [English](README.en.md)를 확인해 주세요.
+# MouseControlLayer
 
-# MCL 마우스 제어 레이어
+MouseControlLayer는 커서 잠금, 자동 클릭, 간단한 매크로 동작을 다루는 Windows 마우스 / 키보드 제어 도구입니다.
 
-동영상 시청이나 게임 중 멀티태스킹 시 마우스 커서를 화면 중앙에 고정하는 Windows 유틸리티입니다. 전역 단축키, 트레이 메뉴, 간단/고급 UI, 다국어 지원, 재설정 주기/위치 설정을 지원합니다.
+처음에는 마우스를 화면 중앙에 고정하는 작은 도구였지만, 실제 사용 중 자동 클릭, 단축키, 창별 규칙, 매크로가 필요해지면서 현재 구조로 확장되었습니다.
 
 ## 기능
 
-- 전역 단축키 (사용자 정의): 잠금 / 잠금 해제 / 전환
-- Minecraft 스타일 단축키 설정: 클릭 후 키 조합 직접 입력
-- 트레이 아이콘 및 메뉴; 트레이로 최소화; Shift+닫기로 종료
-- 간단/고급 모드
-  - 고급: 단축키, 재설정 주기, 대상 위치 (가상 중앙, 기본 화면 중앙, 사용자 정의), 언어, 테마 설정
-- 창 특정 잠금: 지정된 창이 활성화될 때만 잠금
-- 창 전환 시 자동 잠금/해제
-- 단일 인스턴스 감지: 중복 실행 방지
-- 시작 시 실행
-- 다국어: English, 简体中文, 繁體中文, 日本語, 한국어
-- 라이트/다크 테마
-- 다중 모니터 지원
+### 마우스 잠금
 
-## 프로젝트 구조
+가상 화면 중앙, 기본 모니터 중앙, 현재 창 중앙 또는 사용자 지정 위치로 커서를 고정할 수 있습니다.
 
-- `mouse_center_lock_gui.py` – GUI 앱 (PySide6)
-- `win_api.py` – Windows API 래퍼 모듈
-- `widgets.py` – 커스텀 UI 위젯 (단축키 캡처, 프로세스 선택기)
-- `mouse_center_lock.py` – CLI/기본 버전 (선택사항)
-- `pythonProject/i18n/` – 언어 파일
-- `pythonProject/assets/` – 아이콘 및 리소스
-- `config.json` – 기본 설정
+### 자동 클릭과 프로필
+
+토글 / 홀드 트리거, 클릭 간격, 프로세스 블랙리스트, 시작 효과음, 여러 프로필을 지원합니다. **더보기** 메뉴에서 프로필을 가져오기, 내보내기, 삭제, 전체 초기화할 수 있습니다. 저장하지 않은 변경이 있는 상태에서 프로필을 바꾸면 저장 여부를 묻습니다.
+
+### 간단한 매크로
+
+마우스 클릭, 키 누름 / 떼기, 지연, 단축키, 텍스트 입력을 순서대로 실행할 수 있습니다. 기본 `F12` 강제 중지 키로 실행 중이거나 토글 중인 매크로를 멈추고 눌린 출력을 해제할 수 있습니다.
+
+### 창 규칙
+
+특정 창이 활성화되어 있을 때만 잠금, 자동 클릭, 매크로 동작을 적용할 수 있습니다.
 
 ## 요구 사항
 
 - Windows 10+
 - Python 3.9+
-- 종속성: `requirements.txt` 참조
+- 종속성: `requirements.txt`
 
-종속성 설치:
 ```bash
 python -m pip install -r requirements.txt
-```
-
-실행:
-```bash
 python mouse_center_lock_gui.py
+python -m unittest discover tests
 ```
 
-## 빌드 (PyInstaller)
+## 빌드
 
-가상 환경 생성 (권장) 후 윈도우 exe 빌드:
 ```bash
-pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MCL \
-  --icon pythonProject/assets/app.ico \
-  --add-data "pythonProject/i18n;i18n" \
-  --add-data "config.json;." \
-  --add-data "pythonProject/assets;assets" \
-  --hidden-import win_api \
-  --hidden-import widgets \
-  mouse_center_lock_gui.py
+python build.py
 ```
-exe 파일은 `dist/MCL.exe`에 생성됩니다.
+
+exe는 `dist/MCL.exe`에 생성됩니다. 로컬 release zip은 `release/`에 생성되며, zip 내부 파일명은 `MouseControlLayer.exe`입니다.
 
 ## 마우스 매크로 설정
 
-마우스 매크로는 UI 조립 방식과 외부 JSON 파일 방식을 모두 지원합니다. 전체 형식, 예제 파일, 마우스 버튼 이름과 키보드 `key` 이름은 다음 문서를 참고하세요.
-
 - [마우스 매크로 예제 및 설정 설명](examples/mouse-macros/ko/README.md)
+- [입력 백엔드 로드맵](docs/backend-roadmap.md)
+
+## 알려진 제한
+
+주로 Windows API / SendInput 기반의 사용자 계층 입력입니다. 관리자 권한 창, Raw Input 게임, 안티치트 보호 게임, 시뮬레이션 입력을 거부하는 프로그램에서는 동작하지 않을 수 있습니다.
+
+## 입력 백엔드
+
+`native-sendinput`, `python-sendinput`, `window-message`를 사용할 수 있습니다. `virtual-hid`와 `hardware-hid`는 향후 확장을 위해 예약되어 있습니다.
+
+## 프로젝트 구조
+
+- `mouse_center_lock_gui.py` – GUI 앱
+- `win_api.py` – Windows API 래퍼
+- `services/` – 런타임 서비스
+- `ui/pages/` – 페이지 빌더
+- `tests/` – 테스트
+- `i18n/` – 언어 파일
+- `examples/mouse-macros/` – 매크로 예제
 
 ## 변경 기록
 
-전체 변경 기록은 [CHANGELOG.md](CHANGELOG.md)를 확인해 주세요.
+[CHANGELOG.md](CHANGELOG.md)
 
 ## 라이선스
 

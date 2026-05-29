@@ -231,5 +231,22 @@
   "macro.preview.trigger.holdLoop": "hold {0} loop",
   "macro.preview.trigger.toggleLoop": "press {0} toggle loop",
   "macro.panicHotkey": "Panic Stop",
-  "macro.panicHotkey.hint": "Default F12. Press it to force-stop running/toggled macro actions and release held outputs."
+  "macro.panicHotkey.hint": "Default F12. Press it to force-stop running/toggled macro actions and release held outputs.",
+  "clicker.profile.more": "More",
+  "clicker.profile.export": "Export to file...",
+  "clicker.profile.import": "Import from file...",
+  "clicker.profile.clear": "Clear saved profiles",
+  "clicker.profile.clear.confirm": "Delete all saved profiles and reset to the default profile?",
+  "clicker.profile.export.title": "Export Profile",
+  "clicker.profile.import.title": "Import Profile",
+  "clicker.profile.exported": "Profile exported: {0}",
+  "clicker.profile.imported": "Profile imported: {0}",
+  "clicker.profile.export.failed": "Failed to export profile.",
+  "clicker.profile.import.failed": "Failed to import profile.",
+  "clicker.profile.unsaved.title": "Unsaved profile changes",
+  "clicker.profile.unsaved.message": "Save changes to the current profile before switching?",
+  "save": "Save",
+  "discard": "Discard",
+  "cancel": "Cancel",
+  "json.files": "JSON Files (*.json);;All Files (*.*)"
 }

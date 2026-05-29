@@ -226,5 +226,22 @@
   "macro.preview.trigger.holdLoop": "hold {0} loop",
   "macro.preview.trigger.toggleLoop": "press {0} toggle loop",
   "macro.panicHotkey": "強制停止キー",
-  "macro.panicHotkey.hint": "既定は F12。実行中/トグル中のマクロを強制停止し、押下中の出力を解放します。"
+  "macro.panicHotkey.hint": "既定は F12。実行中/トグル中のマクロを強制停止し、押下中の出力を解放します。",
+  "clicker.profile.more": "その他",
+  "clicker.profile.export": "ファイルへ書き出し...",
+  "clicker.profile.import": "ファイルから読み込み...",
+  "clicker.profile.clear": "保存済みプロファイルを消去",
+  "clicker.profile.clear.confirm": "保存済みプロファイルをすべて削除し、既定プロファイルに戻しますか？",
+  "clicker.profile.export.title": "プロファイルを書き出し",
+  "clicker.profile.import.title": "プロファイルを読み込み",
+  "clicker.profile.exported": "プロファイルを書き出しました: {0}",
+  "clicker.profile.imported": "プロファイルを読み込みました: {0}",
+  "clicker.profile.export.failed": "プロファイルの書き出しに失敗しました。",
+  "clicker.profile.import.failed": "プロファイルの読み込みに失敗しました。",
+  "clicker.profile.unsaved.title": "未保存のプロファイル変更",
+  "clicker.profile.unsaved.message": "プロファイルを切り替える前に現在の変更を保存しますか？",
+  "save": "保存",
+  "discard": "保存しない",
+  "cancel": "キャンセル",
+  "json.files": "JSON Files (*.json);;All Files (*.*)"
 }

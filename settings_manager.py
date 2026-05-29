@@ -264,6 +264,8 @@ class SettingsManager:
             triggers.get("holdKey", {}), self.DEFAULT_HOLD_KEY
         )
         normalized["triggers"]["holdMouseButton"] = normalize_mouse_button(triggers.get("holdMouseButton", "middle"), "middle")
+        feature_settings = source.get("featureSettings", {})
+        normalized["featureSettings"] = deep_copy(feature_settings) if isinstance(feature_settings, dict) else {}
         return normalized
 
 
@@ -486,6 +488,13 @@ class SettingsManager:
             self.data["clickerProfiles"] = [self._default_clicker_profile()]
         default_target = self.data["clickerProfiles"][0]["id"]
         return self.set_active_clicker_profile(default_target)
+
+    def clear_clicker_profiles(self) -> Dict[str, Any]:
+        """Reset saved clicker profiles to a single default profile."""
+        profile = self._default_clicker_profile()
+        self.data["clickerProfiles"] = [profile]
+        self.data["activeClickerProfileId"] = profile["id"]
+        return deep_copy(profile)
 
     def _generate_profile_name(self) -> str:
         """Generate a readable default profile name."""

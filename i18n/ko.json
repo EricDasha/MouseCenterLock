@@ -226,5 +226,22 @@
   "macro.preview.trigger.holdLoop": "hold {0} loop",
   "macro.preview.trigger.toggleLoop": "press {0} toggle loop",
   "macro.panicHotkey": "강제 중지 키",
-  "macro.panicHotkey.hint": "기본값은 F12입니다. 실행/토글 중인 매크로를 강제로 중지하고 눌린 출력을 해제합니다."
+  "macro.panicHotkey.hint": "기본값은 F12입니다. 실행/토글 중인 매크로를 강제로 중지하고 눌린 출력을 해제합니다.",
+  "clicker.profile.more": "더보기",
+  "clicker.profile.export": "파일로 내보내기...",
+  "clicker.profile.import": "파일에서 가져오기...",
+  "clicker.profile.clear": "저장된 프로필 지우기",
+  "clicker.profile.clear.confirm": "저장된 모든 프로필을 삭제하고 기본 프로필로 초기화할까요?",
+  "clicker.profile.export.title": "프로필 내보내기",
+  "clicker.profile.import.title": "프로필 가져오기",
+  "clicker.profile.exported": "프로필 내보냄: {0}",
+  "clicker.profile.imported": "프로필 가져옴: {0}",
+  "clicker.profile.export.failed": "프로필 내보내기에 실패했습니다.",
+  "clicker.profile.import.failed": "프로필 가져오기에 실패했습니다.",
+  "clicker.profile.unsaved.title": "저장되지 않은 프로필 변경",
+  "clicker.profile.unsaved.message": "프로필을 전환하기 전에 현재 변경 사항을 저장할까요?",
+  "save": "저장",
+  "discard": "저장 안 함",
+  "cancel": "취소",
+  "json.files": "JSON Files (*.json);;All Files (*.*)"
 }

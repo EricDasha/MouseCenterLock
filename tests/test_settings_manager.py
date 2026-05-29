@@ -90,6 +90,11 @@ class SettingsManagerTests(unittest.TestCase):
         self.assertNotIn("clicker", settings.data)
         self.assertNotIn("clickerActiveProfile", settings.data)
 
+        settings.create_clicker_profile("Another")
+        reset = settings.clear_clicker_profiles()
+        self.assertEqual(len(settings.data["clickerProfiles"]), 1)
+        self.assertEqual(settings.data["activeClickerProfileId"], reset["id"])
+
     def test_clicker_profile_normalizes_process_blacklist(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

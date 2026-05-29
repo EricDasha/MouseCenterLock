@@ -95,9 +95,9 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.saveClickerProfileBtn = QtWidgets.QPushButton(window.i18n.t("clicker.profile.save", "Save Profile"))
     window.saveClickerProfileBtn.clicked.connect(window._save_clicker_profile)
     profile_btn_layout.addWidget(window.saveClickerProfileBtn)
-    window.deleteClickerProfileBtn = QtWidgets.QPushButton(window.i18n.t("clicker.profile.delete", "Delete"))
-    window.deleteClickerProfileBtn.clicked.connect(window._delete_clicker_profile)
-    profile_btn_layout.addWidget(window.deleteClickerProfileBtn)
+    window.moreClickerProfileBtn = QtWidgets.QPushButton(window.i18n.t("clicker.profile.more", "More"))
+    window.moreClickerProfileBtn.clicked.connect(window._show_clicker_profile_more_menu)
+    profile_btn_layout.addWidget(window.moreClickerProfileBtn)
     profile_btn_layout.addStretch()
     layout.addLayout(profile_btn_layout)
 

@@ -218,5 +218,22 @@
   "macro.preview.trigger.holdLoop": "按住 {0} 循環",
   "macro.preview.trigger.toggleLoop": "按 {0} 切換循環",
   "macro.panicHotkey": "強制終止鍵",
-  "macro.panicHotkey.hint": "預設 F12。按下後會強制停止正在執行/切換中的巨集，並釋放已按下的輸出。"
+  "macro.panicHotkey.hint": "預設 F12。按下後會強制停止正在執行/切換中的巨集，並釋放已按下的輸出。",
+  "clicker.profile.more": "更多",
+  "clicker.profile.export": "匯出到檔案...",
+  "clicker.profile.import": "從檔案匯入...",
+  "clicker.profile.clear": "清空儲存方案",
+  "clicker.profile.clear.confirm": "刪除所有已儲存方案並重設為預設方案？",
+  "clicker.profile.export.title": "匯出方案",
+  "clicker.profile.import.title": "匯入方案",
+  "clicker.profile.exported": "方案已匯出：{0}",
+  "clicker.profile.imported": "方案已匯入：{0}",
+  "clicker.profile.export.failed": "匯出方案失敗。",
+  "clicker.profile.import.failed": "匯入方案失敗。",
+  "clicker.profile.unsaved.title": "方案有未儲存變更",
+  "clicker.profile.unsaved.message": "切換方案前是否儲存目前方案的變更？",
+  "save": "儲存",
+  "discard": "不儲存",
+  "cancel": "取消",
+  "json.files": "JSON 檔案 (*.json);;所有檔案 (*.*)"
 }

@@ -2,89 +2,109 @@
 
 ---
 
-# MCL - Mouse Control Layer
+# MouseControlLayer
 
-A Windows utility that locks the mouse cursor to the screen center while you watch videos or multitask during games. Global hotkeys, tray menu, Simple/Advanced UI, i18n, and configurable recenter frequency/position.
+MouseControlLayer is a Windows mouse / keyboard control utility for cursor locking, auto clicking, and simple macro actions.
+
+It started as a small tool for locking the cursor near the screen center, then grew into a practical control layer with click automation, hotkeys, window rules, and macro presets.
+
+Good for:
+
+- locking the cursor to the screen or window center
+- toggling auto clicker states with hotkeys
+- binding simple action sequences to mouse side buttons or keyboard keys
+- applying behavior only to selected windows
 
 ## Features
 
-- Global hotkeys (customizable) for Lock / Unlock / Toggle
-- Minecraft-style hotkey capture: click and press key combination directly
-- Tray icon and menu; close to tray; Shift+Close to quit
-- Simple/Advanced modes
-  - Advanced: customize hotkeys, recenter interval, target position (virtual-center, primary-center, custom), language, theme
-- Window-specific locking: lock only when target window is active
-- Auto lock/unlock on window switch
-- Single instance detection: prevents duplicate launches
-- Launch on startup
-- i18n: English, 简体中文, 繁體中文, 日本語, 한국어
-- Light/Dark theme
-- Multi-monitor support
+### Mouse locking
 
-## Project Layout
+Lock the cursor to the virtual screen center, primary display center, current window center, or a custom position.
 
-- `mouse_center_lock_gui.py` – GUI app (PySide6)
-- `win_api.py` – Windows API wrapper module
-- `widgets.py` – Custom UI widgets (hotkey capture, process picker)
-- `services/` – runtime services (clicker and lock state machines)
-- `ui/pages/` – Simple/Advanced page builders
-- `tests/` – minimal unit test suite
-- `pythonProject/i18n/` – language files
-- `pythonProject/assets/` – icons and assets
-- `Mconfig.example.json` – portable default config template; runtime `Mconfig.json` is local-only (legacy `config.json` is still read for compatibility)
+### Auto clicker profiles
+
+Supports toggle/hold triggers, click interval, process blacklist, startup sound, and multiple profiles. The **More** menu can import, export, delete, or clear saved profiles. If a profile has unsaved edits, switching profiles asks whether to save them.
+
+### Simple macros
+
+Build ordered input sequences: mouse clicks, key down/up, delays, hotkeys, and text. Macros include a default `F12` panic stop key to force-stop running/toggled actions and release held outputs.
+
+### Window rules
+
+Apply locking, clicker, or macro behavior only when matching windows are active.
+
+### Other features
+
+- system tray operation
+- launch on startup
+- dark / light theme
+- multilingual UI
+- multi-monitor support
 
 ## Requirements
 
 - Windows 10+
 - Python 3.9+
-- Dependencies: see `requirements.txt`
+- Dependencies: `requirements.txt`
 
-Install deps:
 ```bash
 python -m pip install -r requirements.txt
-```
-
-Run:
-```bash
 python mouse_center_lock_gui.py
-```
-
-Test:
-```bash
 python -m unittest discover tests
 ```
 
 ## Build (PyInstaller)
 
-Create a virtual environment (recommended) and build a windowed exe:
 ```bash
-pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MCL \
-  --icon pythonProject/assets/app.ico \
-  --add-data "pythonProject/i18n;i18n" \
-  --add-data "Mconfig.json;." \
-  --add-data "pythonProject/assets;assets" \
-  --hidden-import win_api \
-  --hidden-import widgets \
-  mouse_center_lock_gui.py
+python build.py
 ```
-The exe will be in `dist/MCL.exe`.
 
-To restore default settings, delete local `Mconfig.json`; the app falls back to `Mconfig.example.json`. If an older `config.json` is present in the app directory, the app will still read it as a fallback.
+The exe is created at `dist/MCL.exe`. Local release archives are created under `release/`, with `MouseControlLayer.exe` inside the zip.
+
+Common options:
+
+- `python build.py` — full build: clean + tests + package + release zip
+- `python build.py --skip-test` — skip unit tests
+- `python build.py --no-archive` — skip local release zip
+- `python build.py --dev` — development build
+- `python build.py --clean-only` — clean only
 
 ## Mouse macro configuration
 
-Mouse macros support both the builder UI and external JSON files. For the full schema, example files, mouse button names, and keyboard `key` names, see:
+Mouse macros support both the UI builder and external JSON files.
 
 - [Mouse macro examples and configuration reference](examples/mouse-macros/en/README.md)
+- [Input Backend Roadmap](docs/backend-roadmap.md)
 
-Input backends are user-mode by default: native Rust SendInput (scan-code/Unicode), Python SendInput fallback, and window messages. These improve compatibility for many desktop apps, but they are not driver/HID input and cannot guarantee support for every game, Raw Input target, elevated window, or anti-cheat-protected program. Virtual HID and hardware HID are reserved as future backends.
+## Known limitations
 
-See [Input Backend Roadmap](docs/backend-roadmap.md) for backend stages, fallback policy, and non-goals.
+MouseControlLayer mainly uses Windows API / SendInput. It is not driver-level input. Elevated windows, Raw Input games, anti-cheat protected games, or apps that filter simulated input may not work.
+
+## Input backends
+
+| Backend | Status | Notes |
+|---|---|---|
+| `native-sendinput` | default | Rust DLL backend, scan-code / Unicode first |
+| `python-sendinput` | fallback | Python SendInput path |
+| `window-message` | compatible | sends messages to the foreground window chain |
+| `virtual-hid` | reserved | placeholder for future virtual HID / driver path |
+| `hardware-hid` | reserved | placeholder for external hardware mode |
+
+## Project layout
+
+- `mouse_center_lock_gui.py` – GUI app (PySide6)
+- `win_api.py` – Windows API wrapper
+- `widgets.py` – custom UI widgets
+- `services/` – runtime services
+- `ui/pages/` – Simple / Advanced page builders
+- `tests/` – unit tests
+- `i18n/` – language files
+- `examples/mouse-macros/` – macro examples
+- `Mconfig.example.json` – default template; runtime `Mconfig.json` is local-only
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full changelog.
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

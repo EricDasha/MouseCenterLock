@@ -2,86 +2,76 @@
 
 ---
 
-> 注記: この翻訳は中国語版と英語版 README より更新が遅れる場合があります。最新情報が必要な場合は、[简体中文](README.zh-Hans.md) または [English](README.en.md) を確認してください。
+# MouseControlLayer
 
-# マウスセンターロック
+MouseControlLayer は、カーソルロック、自動クリック、簡単なマクロ操作を扱う Windows 向けマウス / キーボード制御ツールです。
 
-動画視聴やゲーム中のマルチタスク時に、マウスカーソルを画面中央へ固定する Windows ツールです。グローバルホットキー、トレイメニュー、シンプル/詳細 UI、多言語、リセンター間隔/位置の設定に対応しています。
+最初は「マウスを画面中央に固定する」ための小さなツールでしたが、実際の利用で連打、ホットキー、ウィンドウ別ルール、マクロが必要になり、現在の形になりました。
 
 ## 機能
 
-- グローバルホットキー（カスタマイズ可能）：ロック / アンロック / 切り替え
-- Minecraft 風ホットキー設定：入力欄をクリックしてキー組み合わせを直接押す
-- トレイアイコンとメニュー、閉じるとトレイへ、Shift+閉じるで終了
-- シンプル / 詳細モード
-- 特定ウィンドウでのみロック
-- ウィンドウ切り替え時の自動ロック / アンロック
-- 単一インスタンス検出
-- スタートアップ起動
-- 多言語対応：English, 简体中文, 繁體中文, 日本語, 한국어
-- ライト / ダークテーマ
-- マルチディスプレイ対応
-- マウスマクロ：マウスボタンを押しながら別のマウスボタンを押してルールを実行
+### マウスロック
 
-## プロジェクト構成
+仮想画面中央、メイン画面中央、現在のウィンドウ中央、またはカスタム位置へカーソルを固定できます。
 
-- `mouse_center_lock_gui.py` – GUI アプリ（PySide6）
-- `win_api.py` – Windows API ラッパー
-- `widgets.py` – カスタム UI コンポーネント
-- `services/` – 実行時サービス（クリック連打、ロック状態機械、マクロ）
-- `ui/pages/` – シンプル / 詳細ページ
-- `tests/` – ユニットテスト
-- `i18n/` – 言語ファイル
-- `assets/` – アイコンとリソース
-- `examples/mouse-macros/` – マウスマクロの JSON 例
-- `Mconfig.json` – デフォルト設定（旧 `config.json` も互換読み込み）
+### 自動クリックとプロファイル
+
+トグル / ホールド式トリガー、クリック間隔、プロセス除外、起動音、複数プロファイルに対応します。「その他」メニューからプロファイルの読み込み、書き出し、削除、全消去ができます。未保存の変更がある状態で切り替えると保存確認が出ます。
+
+### 簡単なマクロ
+
+クリック、キー押下 / 解放、遅延、ホットキー、テキスト入力を順番に実行できます。既定の `F12` 強制停止キーで、実行中またはトグル中のマクロを停止し、押下中の出力を解放できます。
+
+### ウィンドウルール
+
+指定したウィンドウがアクティブな時だけ、ロック、連打、マクロを有効にできます。
 
 ## 必要環境
 
 - Windows 10+
 - Python 3.9+
-- 依存関係：`requirements.txt` を参照
+- 依存関係：`requirements.txt`
 
-依存関係のインストール：
 ```bash
 python -m pip install -r requirements.txt
-```
-
-実行：
-```bash
 python mouse_center_lock_gui.py
-```
-
-テスト：
-```bash
 python -m unittest discover tests
 ```
 
-## ビルド（PyInstaller）
+## ビルド
 
 ```bash
-pyinstaller --noconfirm --clean --onefile --windowed \
-  --name MCL \
-  --icon pythonProject/assets/app.ico \
-  --add-data "pythonProject/i18n;i18n" \
-  --add-data "Mconfig.json;." \
-  --add-data "pythonProject/assets;assets" \
-  --hidden-import win_api \
-  --hidden-import widgets \
-  mouse_center_lock_gui.py
+python build.py
 ```
 
-exe は `dist/MCL.exe` に出力されます。
+exe は `dist/MCL.exe` に出力されます。ローカル release zip は `release/` に作られ、zip 内のファイル名は `MouseControlLayer.exe` です。
 
 ## マウスマクロ設定
 
-マウスマクロは、UI ビルダーと外部 JSON ファイルの両方に対応しています。完全な書式、サンプルファイル、マウスボタン名、キーボード `key` 名は次を参照してください。
-
 - [マウスマクロ例と設定リファレンス](examples/mouse-macros/ja/README.md)
+- [入力バックエンドロードマップ](docs/backend-roadmap.md)
+
+## 既知の制限
+
+主に Windows API / SendInput を使うユーザー層の入力です。管理者権限ウィンドウ、Raw Input ゲーム、アンチチート、シミュレート入力を拒否するアプリでは動作しない場合があります。
+
+## 入力バックエンド
+
+`native-sendinput`、`python-sendinput`、`window-message` を使用できます。`virtual-hid` と `hardware-hid` は将来用の予約です。
+
+## プロジェクト構成
+
+- `mouse_center_lock_gui.py` – GUI アプリ
+- `win_api.py` – Windows API ラッパー
+- `services/` – 実行時サービス
+- `ui/pages/` – ページ構築
+- `tests/` – テスト
+- `i18n/` – 言語ファイル
+- `examples/mouse-macros/` – マクロ例
 
 ## 変更履歴
 
-完全な変更履歴は [CHANGELOG.md](CHANGELOG.md) を確認してください。
+[CHANGELOG.md](CHANGELOG.md)
 
 ## ライセンス
 

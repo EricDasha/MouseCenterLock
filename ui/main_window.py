@@ -398,6 +398,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Debounce settings persistence so advanced-page edits take effect immediately."""
         if self._suspend_live_apply > 0:
             return
+        self._profile_dirty = True
         self._live_apply_timer.start(120)
 
     def _apply_live_settings(self):
@@ -529,7 +530,83 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _load_profile_into_form(self, profile: Dict[str, Any]) -> None:
         """Populate clicker controls from a profile."""
+        self._apply_profile_feature_settings(profile)
         load_clicker_profile_into_form(self, profile)
+        self._load_feature_settings_into_form(profile.get("featureSettings", {}))
+
+    def _apply_profile_feature_settings(self, profile: Dict[str, Any]) -> None:
+        """Apply feature settings stored inside a clicker profile."""
+        feature_settings = profile.get("featureSettings", {})
+        if not isinstance(feature_settings, dict):
+            return
+        for key in (
+            "recenter",
+            "position",
+            "windowSpecific",
+            "mouseMacros",
+            "inputBackend",
+            "inputMode",
+            "fallbackBackend",
+            "fallbackPolicy",
+        ):
+            if key in feature_settings:
+                self.settings.data[key] = json.loads(json.dumps(feature_settings[key]))
+
+    def _set_combo_data(self, combo, value) -> None:
+        """Set a combo box by itemData without emitting change signals."""
+        if combo is None:
+            return
+        combo.blockSignals(True)
+        try:
+            for i in range(combo.count()):
+                if combo.itemData(i) == value:
+                    combo.setCurrentIndex(i)
+                    break
+        finally:
+            combo.blockSignals(False)
+
+    def _load_feature_settings_into_form(self, feature_settings: Dict[str, Any]) -> None:
+        """Refresh feature controls after switching profiles."""
+        if not isinstance(feature_settings, dict) or not hasattr(self, "mouseMacroEnabledCheck"):
+            return
+        self._begin_form_update()
+        try:
+            recenter = self.settings.data.get("recenter", {})
+            self.recenterCheck.setChecked(bool(recenter.get("enabled", True)))
+            self.recenterSpin.setValue(int(recenter.get("intervalMs", 250)))
+
+            self._set_combo_data(getattr(self, "inputBackendCombo", None), self.settings.data.get("inputBackend", "auto"))
+
+            macro_cfg = self.settings.data.get("mouseMacros", {})
+            self.mouseMacroEnabledCheck.setChecked(bool(macro_cfg.get("enabled", False)))
+            self._set_combo_data(self.mouseMacroSourceCombo, macro_cfg.get("source", "builder"))
+            self.mouseMacroConfigFileEdit.setText(str(macro_cfg.get("configFile", "") or ""))
+            if hasattr(self, "mouseMacroPanicHotkeyCapture"):
+                self.mouseMacroPanicHotkeyCapture.set_hotkey(
+                    macro_cfg.get("panicHotkey", {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"})
+                )
+
+            position = self.settings.data.get("position", {})
+            self._set_combo_data(getattr(self, "posCombo", None), position.get("mode", "virtualCenter"))
+            if hasattr(self, "customXSpin"):
+                self.customXSpin.setValue(int(position.get("customX", 0)))
+            if hasattr(self, "customYSpin"):
+                self.customYSpin.setValue(int(position.get("customY", 0)))
+
+            window_specific = self.settings.data.get("windowSpecific", {})
+            if hasattr(self, "windowSpecificCheck"):
+                self.windowSpecificCheck.setChecked(bool(window_specific.get("enabled", False)))
+            if hasattr(self, "autoLockCheck"):
+                self.autoLockCheck.setChecked(bool(window_specific.get("autoLockOnWindowFocus", False)))
+            if hasattr(self, "resumeAfterSwitchCheck"):
+                self.resumeAfterSwitchCheck.setChecked(bool(window_specific.get("resumeAfterWindowSwitch", False)))
+            if hasattr(self, "targetList"):
+                self.targetList.clear()
+                for win_title in window_specific.get("targetWindows", []):
+                    self.targetList.addItem(str(win_title))
+            self._sync_mouse_macro_controls()
+        finally:
+            self._end_form_update()
 
     def _refresh_clicker_ui(self) -> None:
         """Refresh UI fragments that depend on clicker profile state."""
@@ -586,13 +663,53 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._suspend_live_apply > 0:
             return
         profile_id = self.clickerProfileCombo.currentData()
+        previous_id = self._selected_profile_id
+        if profile_id == previous_id:
+            return
+        if not self._confirm_profile_switch():
+            self.clickerProfileCombo.blockSignals(True)
+            try:
+                for i in range(self.clickerProfileCombo.count()):
+                    if self.clickerProfileCombo.itemData(i) == previous_id:
+                        self.clickerProfileCombo.setCurrentIndex(i)
+                        break
+            finally:
+                self.clickerProfileCombo.blockSignals(False)
+            return
         active = self._clicker_profile_controller.select_profile(
             profile_id,
             clicker_running=self.clicker_running,
         )
         if active is None:
             return
+        self._selected_profile_id = active.get("id", "default")
+        self._profile_dirty = False
+        self._save_settings_or_warn("Applying feature settings from switched profile")
+        self._lock_service.sync_runtime()
+        self._macro_service.sync_runtime()
+        self._clicker_service.sync_runtime()
         self._reregister_hotkeys()
+
+    def _confirm_profile_switch(self) -> bool:
+        """Ask whether to save dirty profile edits before switching profiles."""
+        if not self._profile_dirty:
+            return True
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle(self.i18n.t("clicker.profile.unsaved.title", "Unsaved profile changes"))
+        box.setText(self.i18n.t("clicker.profile.unsaved.message", "Save changes to the current profile before switching?"))
+        save_btn = box.addButton(self.i18n.t("save", "Save"), QtWidgets.QMessageBox.AcceptRole)
+        discard_btn = box.addButton(self.i18n.t("discard", "Discard"), QtWidgets.QMessageBox.DestructiveRole)
+        cancel_btn = box.addButton(self.i18n.t("cancel", "Cancel"), QtWidgets.QMessageBox.RejectRole)
+        box.setDefaultButton(save_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked == cancel_btn:
+            return False
+        if clicked == save_btn:
+            self._save_clicker_profile()
+        elif clicked == discard_btn:
+            self._profile_dirty = False
+        return True
 
     def _save_clicker_profile(self) -> None:
         """Save the currently edited clicker profile."""
@@ -624,6 +741,85 @@ class MainWindow(QtWidgets.QMainWindow):
         if new_active is None:
             return
         self._selected_profile_id = new_active.get("id", "default")
+        self._reregister_hotkeys()
+
+    def _show_clicker_profile_more_menu(self) -> None:
+        """Show profile file/import/export maintenance actions."""
+        menu = QtWidgets.QMenu(self)
+        menu.addAction(self.i18n.t("clicker.profile.export", "Export to file..."), self._export_clicker_profile)
+        menu.addAction(self.i18n.t("clicker.profile.import", "Import from file..."), self._import_clicker_profile)
+        menu.addSeparator()
+        menu.addAction(self.i18n.t("clicker.profile.delete", "Delete"), self._delete_clicker_profile)
+        menu.addAction(self.i18n.t("clicker.profile.clear", "Clear saved profiles"), self._clear_clicker_profiles)
+        menu.exec(self.moreClickerProfileBtn.mapToGlobal(QtCore.QPoint(0, self.moreClickerProfileBtn.height())))
+
+    def _export_clicker_profile(self) -> None:
+        """Export the current profile, including feature settings, to a JSON file."""
+        profile = self._current_profile_form_data()
+        default_name = f"{profile.get('name', 'profile')}.json".replace("/", "-").replace("\\", "-")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            self.i18n.t("clicker.profile.export.title", "Export Profile"),
+            default_name,
+            self.i18n.t("json.files", "JSON Files (*.json);;All Files (*.*)"),
+        )
+        if not path:
+            return
+        try:
+            Path(path).write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            self._notify(self.i18n.t("clicker.profile.exported", "Profile exported: {0}").format(path))
+        except Exception as exc:
+            self._show_operation_error(
+                self.i18n.t("error", "Error"),
+                self.i18n.t("clicker.profile.export.failed", "Failed to export profile."),
+                str(exc),
+            )
+
+    def _import_clicker_profile(self) -> None:
+        """Import a profile JSON file and make it active."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            self.i18n.t("clicker.profile.import.title", "Import Profile"),
+            "",
+            self.i18n.t("json.files", "JSON Files (*.json);;All Files (*.*)"),
+        )
+        if not path:
+            return
+        try:
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("Profile JSON must be an object")
+            payload["id"] = ""
+            profile = self.settings.create_clicker_profile(str(payload.get("name", "") or ""), payload)
+            self._populate_clicker_profiles()
+            self._selected_profile_id = profile.get("id", "default")
+            self._profile_dirty = False
+            self._save_settings_or_warn("Importing clicker profile")
+            self._reregister_hotkeys()
+            self._notify(self.i18n.t("clicker.profile.imported", "Profile imported: {0}").format(profile.get("name", "")))
+        except Exception as exc:
+            self._show_operation_error(
+                self.i18n.t("error", "Error"),
+                self.i18n.t("clicker.profile.import.failed", "Failed to import profile."),
+                str(exc),
+            )
+
+    def _clear_clicker_profiles(self) -> None:
+        """Clear saved profiles and return to one default profile."""
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            self.i18n.t("clicker.profile.clear", "Clear saved profiles"),
+            self.i18n.t("clicker.profile.clear.confirm", "Delete all saved profiles and reset to the default profile?"),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply != QtWidgets.QMessageBox.Yes:
+            return
+        new_active = self.settings.clear_clicker_profiles()
+        self._populate_clicker_profiles()
+        self._selected_profile_id = new_active.get("id", "default")
+        self._profile_dirty = False
+        self._save_settings_or_warn("Clearing clicker profiles")
         self._reregister_hotkeys()
 
     def _browse_clicker_sound_file(self) -> None:

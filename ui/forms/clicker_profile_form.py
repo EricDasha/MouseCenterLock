@@ -6,6 +6,18 @@ from __future__ import annotations
 from typing import Any, Dict
 
 
+PROFILE_FEATURE_KEYS = (
+    "recenter",
+    "position",
+    "windowSpecific",
+    "mouseMacros",
+    "inputBackend",
+    "inputMode",
+    "fallbackBackend",
+    "fallbackPolicy",
+)
+
+
 def _collect_list_widget_items(widget) -> list[str]:
     """Collect text entries from a QListWidget-like object."""
     return [widget.item(i).text() for i in range(widget.count())]
@@ -18,6 +30,14 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
     profile_name = window.clickerProfileNameEdit.text().strip() or active.get("name", "默认方案")
     preset = window.clickerPresetCombo.currentData() or "custom"
     interval_ms = window.clickerIntervalSpin.value()
+    feature_settings: Dict[str, Any] = {}
+    if hasattr(window, "_current_general_settings_form_data"):
+        general_settings = window._current_general_settings_form_data()
+        feature_settings = {
+            key: general_settings[key]
+            for key in PROFILE_FEATURE_KEYS
+            if key in general_settings
+        }
     return {
         "id": profile_id,
         "name": profile_name,
@@ -37,6 +57,7 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
             "holdKey": window.clickerHoldKeyCapture.get_hotkey(),
             "holdMouseButton": window.clickerHoldMouseCombo.currentData() or "middle",
         },
+        "featureSettings": feature_settings,
     }
 
 
