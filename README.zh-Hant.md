@@ -59,7 +59,7 @@ python -m unittest discover tests
 python build.py
 ```
 
-exe 位於 `dist/MCL.exe`；本地 release 壓縮包位於 `release/`，壓縮包內檔名固定為 `MouseControlLayer.exe`。
+exe 位於 `dist/MouseControlLayer.exe`；本地 release 壓縮包位於 `release/`，壓縮包內檔名固定為 `MouseControlLayer.exe`。
 
 常用選項：
 

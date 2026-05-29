@@ -87,7 +87,7 @@ jobs:
             $releaseName = "MCL $tag"
           }
 
-          $exe = "dist/MCL.exe"
+          $exe = "dist/MouseControlLayer.exe"
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Build output $exe was not created."
           }

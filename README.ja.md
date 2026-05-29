@@ -44,7 +44,7 @@ python -m unittest discover tests
 python build.py
 ```
 
-exe は `dist/MCL.exe` に出力されます。ローカル release zip は `release/` に作られ、zip 内のファイル名は `MouseControlLayer.exe` です。
+exe は `dist/MouseControlLayer.exe` に出力されます。ローカル release zip は `release/` に作られ、zip 内のファイル名は `MouseControlLayer.exe` です。
 
 ## マウスマクロ設定
 

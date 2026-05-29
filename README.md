@@ -112,7 +112,7 @@ python build.py
 ```bash
 pyinstaller --noconfirm --clean MCL.spec
 ```
-exe 檔案將位於 `dist/MCL.exe`
+exe 檔案將位於 `dist/MouseControlLayer.exe`
 
 打包腳本選項：
 - `python build.py` — 完整建置（清理 + 測試 + 打包）

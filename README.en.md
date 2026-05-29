@@ -59,7 +59,7 @@ python -m unittest discover tests
 python build.py
 ```
 
-The exe is created at `dist/MCL.exe`. Local release archives are created under `release/`, with `MouseControlLayer.exe` inside the zip.
+The exe is created at `dist/MouseControlLayer.exe`. Local release archives are created under `release/`, with `MouseControlLayer.exe` inside the zip.
 
 Common options:
 

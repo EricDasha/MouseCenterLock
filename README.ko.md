@@ -44,7 +44,7 @@ python -m unittest discover tests
 python build.py
 ```
 
-exe는 `dist/MCL.exe`에 생성됩니다. 로컬 release zip은 `release/`에 생성되며, zip 내부 파일명은 `MouseControlLayer.exe`입니다.
+exe는 `dist/MouseControlLayer.exe`에 생성됩니다. 로컬 release zip은 `release/`에 생성되며, zip 내부 파일명은 `MouseControlLayer.exe`입니다.
 
 ## 마우스 매크로 설정
 

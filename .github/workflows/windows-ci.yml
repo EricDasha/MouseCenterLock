@@ -51,8 +51,8 @@ jobs:
       - name: Verify built executable
         shell: pwsh
         run: |
-          if (-not (Test-Path -LiteralPath "dist/MCL.exe")) {
-            throw "Build output dist/MCL.exe was not created."
+          if (-not (Test-Path -LiteralPath "dist/MouseControlLayer.exe")) {
+            throw "Build output dist/MouseControlLayer.exe was not created."
           }
           if (-not (Test-Path -LiteralPath "native/mcl_input_backend.dll")) {
             throw "Rust backend native/mcl_input_backend.dll was not created."
@@ -66,5 +66,5 @@ jobs:
         with:
           name: MCL-windows-smoke
           path: |
-            dist/MCL.exe
+            dist/MouseControlLayer.exe
             native/mcl_input_backend.version
