@@ -110,6 +110,7 @@ class TrayService(QtCore.QObject):
             parent,
         )
         menu = QtWidgets.QMenu()
+        self.menu = menu
 
         self.state_action = menu.addAction("")
         self.state_action.setEnabled(False)

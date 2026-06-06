@@ -1096,6 +1096,11 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(["rapid"], selected_profiles)
         finally:
             service.tray.hide()
+            service.tray.setContextMenu(None)
+            service.menu.deleteLater()
+            service.tray.deleteLater()
+            service.deleteLater()
+            self.app.processEvents()
 
 
 if __name__ == "__main__":
