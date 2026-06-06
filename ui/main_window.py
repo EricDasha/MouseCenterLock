@@ -664,24 +664,45 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         profile_id = self.clickerProfileCombo.currentData()
         previous_id = self._selected_profile_id
-        if profile_id == previous_id:
+        if not self._select_clicker_profile(profile_id):
+            self._restore_clicker_profile_combo(previous_id)
             return
+
+    def _select_clicker_profile_from_tray(self, profile_id: str) -> None:
+        """Switch the active clicker profile from the tray menu."""
+        self._select_clicker_profile(profile_id)
+
+    def _restore_clicker_profile_combo(self, profile_id: str) -> None:
+        """Restore profile combo selection without firing switch signals."""
+        if not hasattr(self, "clickerProfileCombo"):
+            return
+        self.clickerProfileCombo.blockSignals(True)
+        try:
+            for i in range(self.clickerProfileCombo.count()):
+                if self.clickerProfileCombo.itemData(i) == profile_id:
+                    self.clickerProfileCombo.setCurrentIndex(i)
+                    break
+        finally:
+            self.clickerProfileCombo.blockSignals(False)
+
+    def _select_clicker_profile(self, profile_id: str) -> bool:
+        """Select a clicker profile and apply its feature snapshot."""
+        previous_id = self._selected_profile_id
+        if not profile_id or profile_id == previous_id:
+            self._update_tray_meta()
+            return True
         if not self._confirm_profile_switch():
-            self.clickerProfileCombo.blockSignals(True)
-            try:
-                for i in range(self.clickerProfileCombo.count()):
-                    if self.clickerProfileCombo.itemData(i) == previous_id:
-                        self.clickerProfileCombo.setCurrentIndex(i)
-                        break
-            finally:
-                self.clickerProfileCombo.blockSignals(False)
-            return
+            self._restore_clicker_profile_combo(previous_id)
+            self._update_tray_meta()
+            return False
         active = self._clicker_profile_controller.select_profile(
             profile_id,
             clicker_running=self.clicker_running,
         )
         if active is None:
-            return
+            self._restore_clicker_profile_combo(previous_id)
+            self._update_tray_meta()
+            return False
         self._selected_profile_id = active.get("id", "default")
         self._profile_dirty = False
         self._save_settings_or_warn("Applying feature settings from switched profile")
@@ -689,6 +710,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._macro_service.sync_runtime()
         self._clicker_service.sync_runtime()
         self._reregister_hotkeys()
+        self._populate_clicker_profiles()
+        self._update_tray_meta()
+        return True
 
     def _confirm_profile_switch(self) -> bool:
         """Ask whether to save dirty profile edits before switching profiles."""
@@ -1259,11 +1283,14 @@ class MainWindow(QtWidgets.QMainWindow):
             get_clicker_running=lambda: self.clicker_running,
             get_status=self._get_visual_status,
             get_clicker_profile=self._get_active_clicker_profile,
+            get_clicker_profiles=self.settings.get_clicker_profiles,
+            get_active_profile_id=lambda: self.settings.data.get("activeClickerProfileId", self._selected_profile_id),
             get_hotkeys=lambda: self.settings.data["hotkeys"],
             on_toggle_lock=self.toggle_lock,
             on_lock=lambda: self.lock(manual=True),
             on_unlock=lambda: self.unlock(manual=True),
             on_toggle_clicker=self.toggle_clicker,
+            on_select_profile=self._select_clicker_profile_from_tray,
             on_show_window=self._show_from_tray,
             on_quit=self._quit,
         )

@@ -82,11 +82,14 @@ class TrayService(QtCore.QObject):
         get_clicker_running: Callable[[], bool],
         get_status: Callable[[], str],
         get_clicker_profile: Callable[[], Dict],
+        get_clicker_profiles: Callable[[], list[Dict]],
+        get_active_profile_id: Callable[[], str],
         get_hotkeys: Callable[[], Dict],
         on_toggle_lock: Callable[[], None],
         on_lock: Callable[[], None],
         on_unlock: Callable[[], None],
         on_toggle_clicker: Callable[[], None],
+        on_select_profile: Callable[[str], None],
         on_show_window: Callable[[], None],
         on_quit: Callable[[], None],
     ):
@@ -97,7 +100,10 @@ class TrayService(QtCore.QObject):
         self._get_clicker_running = get_clicker_running
         self._get_status = get_status
         self._get_clicker_profile = get_clicker_profile
+        self._get_clicker_profiles = get_clicker_profiles
+        self._get_active_profile_id = get_active_profile_id
         self._get_hotkeys = get_hotkeys
+        self._on_select_profile = on_select_profile
 
         self.tray = QtWidgets.QSystemTrayIcon(
             dynamic_icon_factory(self._get_locked(), self._get_status()),
@@ -111,6 +117,9 @@ class TrayService(QtCore.QObject):
 
         self.hk_info_action = menu.addAction("")
         self.hk_info_action.setEnabled(False)
+        menu.addSeparator()
+
+        self.profile_menu = menu.addMenu(i18n.t("clicker.profile.select", "Switch Profile"))
         menu.addSeparator()
 
         menu.addAction(i18n.t("menu.toggle", "Toggle Lock")).triggered.connect(on_toggle_lock)
@@ -165,6 +174,30 @@ class TrayService(QtCore.QObject):
         )
         self.clicker_action.setText(clicker_action_text)
         self.clicker_action.setEnabled(clicker_action_enabled)
+        self._refresh_profile_menu()
+
+    def _refresh_profile_menu(self) -> None:
+        """Refresh tray profile switcher actions."""
+        self.profile_menu.clear()
+        profiles = self._get_clicker_profiles() or []
+        active_id = str(self._get_active_profile_id() or "")
+        if not profiles:
+            empty_action = self.profile_menu.addAction(self._i18n.t("clicker.profile.empty", "No profiles"))
+            empty_action.setEnabled(False)
+            return
+
+        for profile in profiles:
+            profile_id = str(profile.get("id") or "")
+            profile_name = str(
+                profile.get("name")
+                or profile_id
+                or self._i18n.t("clicker.profile.defaultName", "Default Profile")
+            )
+            action = self.profile_menu.addAction(profile_name)
+            action.setCheckable(True)
+            action.setChecked(profile_id == active_id)
+            action.setEnabled(bool(profile_id))
+            action.triggered.connect(lambda _checked=False, pid=profile_id: self._on_select_profile(pid))
 
     def show_notification(
         self,

@@ -1051,10 +1051,18 @@ class ServiceTests(unittest.TestCase):
 
     def test_tray_service_refreshes_state_and_clicker_text(self):
         profile = {
+            "id": "default",
             "name": "默认方案",
             "enabled": True,
             "triggers": {"toggleHotkey": {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F6"}},
         }
+        alternate_profile = {
+            "id": "rapid",
+            "name": "快速方案",
+            "enabled": False,
+            "triggers": {},
+        }
+        selected_profiles = []
         service = TrayService(
             parent=None,
             dynamic_icon_factory=lambda locked, status: self.app.windowIcon(),
@@ -1063,11 +1071,14 @@ class ServiceTests(unittest.TestCase):
             get_clicker_running=lambda: False,
             get_status=lambda: "lock",
             get_clicker_profile=lambda: profile,
+            get_clicker_profiles=lambda: [profile, alternate_profile],
+            get_active_profile_id=lambda: "default",
             get_hotkeys=lambda: {"toggle": {"modCtrl": True, "modAlt": True, "modShift": False, "modWin": False, "key": "K"}},
             on_toggle_lock=lambda: None,
             on_lock=lambda: None,
             on_unlock=lambda: None,
             on_toggle_clicker=lambda: None,
+            on_select_profile=selected_profiles.append,
             on_show_window=lambda: None,
             on_quit=lambda: None,
         )
@@ -1077,6 +1088,12 @@ class ServiceTests(unittest.TestCase):
             self.assertIn("默认方案", service.state_action.text())
             self.assertIn("Ctrl+Alt+K", service.hk_info_action.text())
             self.assertIn("Start Auto Clicker", service.clicker_action.text())
+            profile_actions = service.profile_menu.actions()
+            self.assertEqual(["默认方案", "快速方案"], [action.text() for action in profile_actions])
+            self.assertTrue(profile_actions[0].isChecked())
+            self.assertFalse(profile_actions[1].isChecked())
+            profile_actions[1].trigger()
+            self.assertEqual(["rapid"], selected_profiles)
         finally:
             service.tray.hide()
 
