@@ -16,6 +16,7 @@ from services.input_backends import (
     INPUT_BACKEND_ALIASES,
     normalize_fallback_policy,
 )
+from services.sound_service import SYSTEM_SOUND_PRESETS, normalize_sound_config
 from services.macro_schema import (
     MOUSE_BUTTONS,
     MOUSE_MACRO_ACTION_TYPES,
@@ -36,13 +37,7 @@ CLICKER_PRESETS = {
     "extreme": 10,
 }
 
-CLICKER_SOUND_PRESETS = {
-    "systemAsterisk": 0x00000040,
-    "systemExclamation": 0x00000030,
-    "systemQuestion": 0x00000020,
-    "systemHand": 0x00000010,
-    "custom": None,
-}
+CLICKER_SOUND_PRESETS = SYSTEM_SOUND_PRESETS
 
 CLICKER_TRIGGER_MODES = {
     "toggle": "clicker.trigger.toggle",
@@ -111,9 +106,8 @@ class SettingsManager:
         "modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12",
     }
     DEFAULT_CLICKER_SOUND = {
-        "enabled": False,
-        "preset": "systemAsterisk",
-        "customFile": "",
+        "start": {"enabled": False, "preset": "systemAsterisk", "customFile": ""},
+        "stop": {"enabled": False, "preset": "systemHand", "customFile": ""},
     }
 
     def __init__(self):
@@ -163,6 +157,17 @@ class SettingsManager:
         window_specific.setdefault("resumeAfterWindowSwitch", False)
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
+        taskbar_settings = self.data.setdefault("taskbar", {})
+        if not isinstance(taskbar_settings, dict):
+            taskbar_settings = {}
+        try:
+            flash_ms = max(100, min(10000, int(taskbar_settings.get("stateFlashMs", 1000) or 1000)))
+        except Exception:
+            flash_ms = 1000
+        self.data["taskbar"] = {
+            "stateFlashEnabled": bool(taskbar_settings.get("stateFlashEnabled", True)),
+            "stateFlashMs": flash_ms,
+        }
         ui_settings = self.data.setdefault("ui", {})
         if not isinstance(ui_settings, dict):
             ui_settings = {}
@@ -237,11 +242,7 @@ class SettingsManager:
         preset = source.get("preset")
         normalized["preset"] = preset if preset in CLICKER_PRESETS else self._resolve_preset(normalized["intervalMs"])
 
-        sound = source.get("sound", {})
-        normalized["sound"]["enabled"] = bool(sound.get("enabled", normalized["sound"]["enabled"]))
-        sound_preset = sound.get("preset", normalized["sound"]["preset"])
-        normalized["sound"]["preset"] = sound_preset if sound_preset in CLICKER_SOUND_PRESETS else "systemAsterisk"
-        normalized["sound"]["customFile"] = str(sound.get("customFile", "") or "")
+        normalized["sound"] = normalize_sound_config(source.get("sound", normalized["sound"]))
 
         process_blacklist = source.get("processBlacklist", [])
         if not isinstance(process_blacklist, list):
@@ -276,6 +277,7 @@ class SettingsManager:
             "source": "builder",
             "configFile": "",
             "panicHotkey": deep_copy(self.DEFAULT_MOUSE_MACRO_PANIC_HOTKEY),
+            "sound": deep_copy(self.DEFAULT_CLICKER_SOUND),
             "rules": [
                 {
                     "id": "x2-left-default",
@@ -375,6 +377,7 @@ class SettingsManager:
                 source.get("panicHotkey", {}),
                 self.DEFAULT_MOUSE_MACRO_PANIC_HOTKEY,
             ),
+            "sound": normalize_sound_config(source.get("sound", default["sound"])),
             "rules": normalized_rules,
         }
 

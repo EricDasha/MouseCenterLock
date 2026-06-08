@@ -707,7 +707,6 @@ class ServiceTests(unittest.TestCase):
             on_state_changed=lambda: state_changes.append("changed"),
             on_notify_started=lambda p: started.append(p["button"]),
             on_notify_stopped=lambda p: stopped.append(p["button"]),
-            sound_presets={"systemAsterisk": 0x40},
             input_listener_factory=_FakeInputListener,
         )
 
@@ -747,7 +746,6 @@ class ServiceTests(unittest.TestCase):
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
-            sound_presets={"systemAsterisk": 0x40},
             click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
@@ -780,7 +778,6 @@ class ServiceTests(unittest.TestCase):
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
-            sound_presets={"systemAsterisk": 0x40},
             click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
@@ -813,7 +810,6 @@ class ServiceTests(unittest.TestCase):
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
-            sound_presets={"systemAsterisk": 0x40},
             click_mouse_func=click_mouse,
             input_listener_factory=_FakeInputListener,
         )
@@ -856,7 +852,6 @@ class ServiceTests(unittest.TestCase):
             on_state_changed=lambda: None,
             on_notify_started=lambda _profile: None,
             on_notify_stopped=lambda _profile: None,
-            sound_presets={"systemAsterisk": 0x40},
             click_mouse_func=click_mouse,
             input_listener_factory=_FailedInputListener,
         )

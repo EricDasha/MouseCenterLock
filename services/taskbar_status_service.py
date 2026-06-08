@@ -127,6 +127,7 @@ class TaskbarStatusService:
         mapping = {
             "macro": TBPF_ERROR,
             "lock": TBPF_PAUSED,
-            "clicker": TBPF_NORMAL,
+            "clicker": TBPF_PAUSED,
+            "unlocked": TBPF_NORMAL,
         }
         self._set_progress(hwnd, mapping.get(state, TBPF_NOPROGRESS))

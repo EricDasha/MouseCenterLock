@@ -46,9 +46,16 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
         "preset": preset,
         "intervalMs": interval_ms,
         "sound": {
-            "enabled": window.clickerSoundEnabledCheck.isChecked(),
-            "preset": window.clickerSoundPresetCombo.currentData() or "systemAsterisk",
-            "customFile": window.clickerCustomSoundPathEdit.text().strip(),
+            "start": {
+                "enabled": window.clickerSoundEnabledCheck.isChecked(),
+                "preset": window.clickerSoundPresetCombo.currentData() or "systemAsterisk",
+                "customFile": window.clickerCustomSoundPathEdit.text().strip(),
+            },
+            "stop": {
+                "enabled": window.clickerStopSoundEnabledCheck.isChecked() if hasattr(window, "clickerStopSoundEnabledCheck") else False,
+                "preset": window.clickerStopSoundPresetCombo.currentData() if hasattr(window, "clickerStopSoundPresetCombo") else "systemHand",
+                "customFile": window.clickerStopCustomSoundPathEdit.text().strip() if hasattr(window, "clickerStopCustomSoundPathEdit") else "",
+            },
         },
         "processBlacklist": _collect_list_widget_items(window.clickerProcessBlacklist),
         "triggers": {
@@ -98,12 +105,21 @@ def load_clicker_profile_into_form(window, profile: Dict[str, Any]) -> None:
                 break
 
         sound = profile.get("sound", {})
-        window.clickerSoundEnabledCheck.setChecked(sound.get("enabled", False))
+        start_sound = sound.get("start", sound) if isinstance(sound, dict) else {}
+        stop_sound = sound.get("stop", {}) if isinstance(sound, dict) else {}
+        window.clickerSoundEnabledCheck.setChecked(start_sound.get("enabled", False))
         for i in range(window.clickerSoundPresetCombo.count()):
-            if window.clickerSoundPresetCombo.itemData(i) == sound.get("preset", "systemAsterisk"):
+            if window.clickerSoundPresetCombo.itemData(i) == start_sound.get("preset", "systemAsterisk"):
                 window.clickerSoundPresetCombo.setCurrentIndex(i)
                 break
-        window.clickerCustomSoundPathEdit.setText(sound.get("customFile", ""))
+        window.clickerCustomSoundPathEdit.setText(start_sound.get("customFile", ""))
+        if hasattr(window, "clickerStopSoundEnabledCheck"):
+            window.clickerStopSoundEnabledCheck.setChecked(stop_sound.get("enabled", False))
+            for i in range(window.clickerStopSoundPresetCombo.count()):
+                if window.clickerStopSoundPresetCombo.itemData(i) == stop_sound.get("preset", "systemHand"):
+                    window.clickerStopSoundPresetCombo.setCurrentIndex(i)
+                    break
+            window.clickerStopCustomSoundPathEdit.setText(stop_sound.get("customFile", ""))
         window.clickerProcessBlacklist.clear()
         for process_name in profile.get("processBlacklist", []):
             window.clickerProcessBlacklist.addItem(process_name)

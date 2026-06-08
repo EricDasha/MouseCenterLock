@@ -63,10 +63,22 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         "panicHotkey": window.mouseMacroPanicHotkeyCapture.get_hotkey()
         if hasattr(window, "mouseMacroPanicHotkeyCapture")
         else {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"},
+        "sound": {
+            "start": {
+                "enabled": window.mouseMacroStartSoundEnabledCheck.isChecked(),
+                "preset": window.mouseMacroStartSoundPresetCombo.currentData() or "systemAsterisk",
+                "customFile": window.mouseMacroStartCustomSoundPathEdit.text().strip(),
+            },
+            "stop": {
+                "enabled": window.mouseMacroStopSoundEnabledCheck.isChecked(),
+                "preset": window.mouseMacroStopSoundPresetCombo.currentData() or "systemHand",
+                "customFile": window.mouseMacroStopCustomSoundPathEdit.text().strip(),
+            },
+        },
         "rules": [
             {
                 "id": "builder-rule-1",
-                "name": window.mouseMacroNameEdit.text().strip() or "Mouse Macro",
+                "name": window.mouseMacroNameEdit.text().strip() or "Macro",
                 "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
                 "triggerMode": window.mouseMacroTriggerModeCombo.currentData() or "hold",
                 "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
@@ -108,6 +120,10 @@ def collect_general_settings_form_data(window) -> Dict[str, Any]:
         "ui": {
             "rememberWindowSize": window.rememberWindowSizeCheck.isChecked() if hasattr(window, "rememberWindowSizeCheck") else False,
             "windowSize": _collect_window_size(window),
+        },
+        "taskbar": {
+            "stateFlashEnabled": window.taskbarStateFlashCheck.isChecked() if hasattr(window, "taskbarStateFlashCheck") else True,
+            "stateFlashMs": window.taskbarStateFlashSpin.value() if hasattr(window, "taskbarStateFlashSpin") else 1000,
         },
         "inputBackend": window.inputBackendCombo.currentData() if hasattr(window, "inputBackendCombo") else "auto",
         "mouseMacros": _collect_mouse_macro_settings(window),
@@ -161,6 +177,13 @@ def apply_general_settings_form_data(settings, form_data: Dict[str, Any]) -> Non
         backend = str(form_data.get("inputBackend") or "auto").strip().lower()
         backend = INPUT_BACKEND_ALIASES.get(backend, backend)
         settings.data["inputBackend"] = backend if backend in VALID_INPUT_BACKENDS else "auto"
+
+    if "taskbar" in form_data:
+        taskbar_data = form_data.get("taskbar", {})
+        if isinstance(taskbar_data, dict):
+            settings.data.setdefault("taskbar", {})
+            settings.data["taskbar"]["stateFlashEnabled"] = bool(taskbar_data.get("stateFlashEnabled", True))
+            settings.data["taskbar"]["stateFlashMs"] = max(100, min(10000, int(taskbar_data.get("stateFlashMs", 1000) or 1000)))
 
     if "mouseMacros" in form_data:
         settings.data["mouseMacros"] = form_data["mouseMacros"]

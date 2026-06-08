@@ -29,7 +29,6 @@ from i18n_manager import I18n
 from settings_manager import (
     SettingsManager,
     CLICKER_PRESETS,
-    CLICKER_SOUND_PRESETS,
     CLICKER_TRIGGER_MODES,
 )
 from ui.pages.simple_page import build_simple_page
@@ -75,6 +74,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._live_apply_timer = QtCore.QTimer(self)
         self._live_apply_timer.setSingleShot(True)
         self._live_apply_timer.timeout.connect(self._apply_live_settings)
+        self._taskbar_flash_timer = QtCore.QTimer(self)
+        self._taskbar_flash_timer.setSingleShot(True)
+        self._taskbar_flash_timer.timeout.connect(self._update_taskbar_status)
         self._input_service = InputService(
             get_backend=lambda: self.settings.data.get("inputBackend", "auto"),
             get_fallback_backend=lambda: self.settings.data.get("fallbackBackend", "native-sendinput"),
@@ -85,7 +87,6 @@ class MainWindow(QtWidgets.QMainWindow):
             on_state_changed=self._on_clicker_runtime_changed,
             on_notify_started=self._notify_clicker_started,
             on_notify_stopped=self._notify_clicker_stopped,
-            sound_presets=CLICKER_SOUND_PRESETS,
             input_service=self._input_service,
             parent=self,
         )
@@ -94,6 +95,7 @@ class MainWindow(QtWidgets.QMainWindow):
             input_service=self._input_service,
             parent=self,
         )
+        self._macro_service.stateChanged.connect(self._on_macro_runtime_changed)
         self._lock_service = LockService(
             get_settings=lambda: self.settings.data,
             on_state_changed=self._on_lock_state_changed,
@@ -161,14 +163,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _get_visual_status(self) -> str:
         """Return the strongest runtime state for UI indicators."""
-        mouse_macros = self.settings.data.get("mouseMacros", {})
-        if isinstance(mouse_macros, dict) and mouse_macros.get("enabled", False):
+        if getattr(self, "_macro_service", None) is not None and self._macro_service.is_active:
             return "macro"
         if self.locked:
             return "lock"
         if self.clicker_running:
             return "clicker"
         return ""
+
+    def _runtime_title_suffix(self) -> str:
+        """Return the full taskbar/window title for active automation state."""
+        if self.clicker_running:
+            return self.i18n.t("taskbar.title.clicker", "Mouse auto-clicker started")
+        if getattr(self, "_macro_service", None) is not None and self._macro_service.is_active:
+            return self.i18n.t("taskbar.title.macro", "Mouse macro started")
+        return ""
+
+    def _update_window_runtime_title(self) -> None:
+        """Update taskbar/window text to expose active automation state."""
+        runtime_title = self._runtime_title_suffix()
+        title = runtime_title or self._WINDOW_DISPLAY_TITLE
+        if self.windowTitle() != title:
+            self.setWindowTitle(title)
 
     def _get_active_clicker_profile(self) -> Dict[str, Any]:
         """Return the active clicker profile from settings."""
@@ -178,6 +194,12 @@ class MainWindow(QtWidgets.QMainWindow):
         """Refresh UI elements affected by clicker runtime state."""
         self._update_simple_info()
         self._update_clicker_button()
+        self._update_tray_meta()
+        self._update_taskbar_status()
+
+    def _on_macro_runtime_changed(self) -> None:
+        """Refresh UI elements affected by macro runtime state."""
+        self._update_tray_icon()
         self._update_tray_meta()
         self._update_taskbar_status()
 
@@ -209,6 +231,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _notify_unlocked(self) -> None:
         """Show the unlocked notification."""
         self._notify(self.i18n.t("unlocked.message", "Unlocked"))
+        self._flash_taskbar_state("unlocked")
 
     def _handle_lock_service_error(self, operation: str, exc: BaseException) -> None:
         """Surface lock-service errors through the GUI."""
@@ -585,6 +608,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.mouseMacroPanicHotkeyCapture.set_hotkey(
                     macro_cfg.get("panicHotkey", {"modCtrl": False, "modAlt": False, "modShift": False, "modWin": False, "key": "F12"})
                 )
+            macro_sound = macro_cfg.get("sound", {}) if isinstance(macro_cfg.get("sound", {}), dict) else {}
+            start_sound = macro_sound.get("start", {}) if isinstance(macro_sound.get("start", {}), dict) else {}
+            stop_sound = macro_sound.get("stop", {}) if isinstance(macro_sound.get("stop", {}), dict) else {}
+            if hasattr(self, "mouseMacroStartSoundEnabledCheck"):
+                self.mouseMacroStartSoundEnabledCheck.setChecked(bool(start_sound.get("enabled", False)))
+                self._set_combo_data(self.mouseMacroStartSoundPresetCombo, start_sound.get("preset", "systemAsterisk"))
+                self.mouseMacroStartCustomSoundPathEdit.setText(str(start_sound.get("customFile", "") or ""))
+                self.mouseMacroStopSoundEnabledCheck.setChecked(bool(stop_sound.get("enabled", False)))
+                self._set_combo_data(self.mouseMacroStopSoundPresetCombo, stop_sound.get("preset", "systemHand"))
+                self.mouseMacroStopCustomSoundPathEdit.setText(str(stop_sound.get("customFile", "") or ""))
+                self._sync_macro_sound_controls()
 
             position = self.settings.data.get("position", {})
             self._set_combo_data(getattr(self, "posCombo", None), position.get("mode", "virtualCenter"))
@@ -846,8 +880,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._save_settings_or_warn("Clearing clicker profiles")
         self._reregister_hotkeys()
 
-    def _browse_clicker_sound_file(self) -> None:
-        """Select a custom start-sound file."""
+    def _browse_clicker_sound_file(self, event: str = "start") -> None:
+        """Select a custom clicker sound file."""
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
             self.i18n.t("clicker.sound.path.title", "Select Audio File"),
@@ -855,22 +889,52 @@ class MainWindow(QtWidgets.QMainWindow):
             self.i18n.t("clicker.sound.path.filter", "Audio Files (*.wav *.mp3 *.ogg *.flac);;All Files (*.*)"),
         )
         if path:
-            self.clickerCustomSoundPathEdit.setText(path)
-            for i in range(self.clickerSoundPresetCombo.count()):
-                if self.clickerSoundPresetCombo.itemData(i) == "custom":
-                    self.clickerSoundPresetCombo.setCurrentIndex(i)
+            path_edit = self.clickerStopCustomSoundPathEdit if event == "stop" else self.clickerCustomSoundPathEdit
+            preset_combo = self.clickerStopSoundPresetCombo if event == "stop" else self.clickerSoundPresetCombo
+            path_edit.setText(path)
+            for i in range(preset_combo.count()):
+                if preset_combo.itemData(i) == "custom":
+                    preset_combo.setCurrentIndex(i)
                     break
             self._sync_clicker_sound_controls()
             self._schedule_live_apply()
 
-    def _preview_clicker_sound(self) -> None:
-        """Preview the currently selected clicker start sound."""
-        sound_config = {
-            "enabled": True,
-            "preset": self.clickerSoundPresetCombo.currentData() or "systemAsterisk",
-            "customFile": self.clickerCustomSoundPathEdit.text().strip(),
-        }
+    def _preview_clicker_sound(self, event: str = "start") -> None:
+        """Preview the currently selected clicker sound."""
+        preset_combo = self.clickerStopSoundPresetCombo if event == "stop" else self.clickerSoundPresetCombo
+        path_edit = self.clickerStopCustomSoundPathEdit if event == "stop" else self.clickerCustomSoundPathEdit
+        sound_config = {"enabled": True, "preset": preset_combo.currentData() or "systemAsterisk", "customFile": path_edit.text().strip()}
         self._clicker_service.play_sound_preview(sound_config)
+
+    def _browse_macro_sound_file(self, event: str = "start") -> None:
+        """Select a custom macro sound file."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            self.i18n.t("clicker.sound.path.title", "Select Audio File"),
+            "",
+            self.i18n.t("clicker.sound.path.filter", "Audio Files (*.wav *.mp3 *.ogg *.flac);;All Files (*.*)"),
+        )
+        if not path:
+            return
+        path_edit = self.mouseMacroStopCustomSoundPathEdit if event == "stop" else self.mouseMacroStartCustomSoundPathEdit
+        preset_combo = self.mouseMacroStopSoundPresetCombo if event == "stop" else self.mouseMacroStartSoundPresetCombo
+        path_edit.setText(path)
+        for i in range(preset_combo.count()):
+            if preset_combo.itemData(i) == "custom":
+                preset_combo.setCurrentIndex(i)
+                break
+        self._sync_macro_sound_controls()
+        self._schedule_live_apply()
+
+    def _preview_macro_sound(self, event: str = "start") -> None:
+        """Preview the currently selected macro sound."""
+        preset_combo = self.mouseMacroStopSoundPresetCombo if event == "stop" else self.mouseMacroStartSoundPresetCombo
+        path_edit = self.mouseMacroStopCustomSoundPathEdit if event == "stop" else self.mouseMacroStartCustomSoundPathEdit
+        self._macro_service.play_sound_preview({
+            "enabled": True,
+            "preset": preset_combo.currentData() or "systemAsterisk",
+            "customFile": path_edit.text().strip(),
+        })
 
 
 
@@ -1063,7 +1127,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Select an external mouse macro JSON file."""
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
-            self.i18n.t("macro.file.title", "Select Mouse Macro JSON"),
+            self.i18n.t("macro.file.title", "Select Macro JSON"),
             "",
             self.i18n.t("macro.file.filter", "JSON Files (*.json);;All Files (*.*)"),
         )
@@ -1125,9 +1189,36 @@ class MainWindow(QtWidgets.QMainWindow):
         enabled = self.clickerSoundEnabledCheck.isChecked()
         self.clickerSoundPresetLabel.setEnabled(enabled)
         self.clickerSoundPresetCombo.setEnabled(enabled)
-        self.clickerSoundPreviewBtn.setEnabled(enabled)
+        self.clickerSoundPreviewBtn.setEnabled(True)
         self.clickerCustomSoundPathEdit.setVisible(enabled and use_custom)
         self.clickerCustomSoundBrowseBtn.setVisible(enabled and use_custom)
+        if hasattr(self, "clickerStopSoundPresetCombo"):
+            stop_preset = self.clickerStopSoundPresetCombo.currentData() or "systemHand"
+            stop_use_custom = stop_preset == "custom"
+            stop_enabled = self.clickerStopSoundEnabledCheck.isChecked()
+            self.clickerStopSoundPresetLabel.setEnabled(stop_enabled)
+            self.clickerStopSoundPresetCombo.setEnabled(stop_enabled)
+            self.clickerStopSoundPreviewBtn.setEnabled(True)
+            self.clickerStopCustomSoundPathEdit.setVisible(stop_enabled and stop_use_custom)
+            self.clickerStopCustomSoundBrowseBtn.setVisible(stop_enabled and stop_use_custom)
+
+    def _sync_macro_sound_controls(self):
+        """Show macro custom sound paths only for custom-file mode."""
+        if not hasattr(self, "mouseMacroStartSoundPresetCombo"):
+            return
+        start_enabled = self.mouseMacroStartSoundEnabledCheck.isChecked()
+        start_custom = (self.mouseMacroStartSoundPresetCombo.currentData() or "systemAsterisk") == "custom"
+        self.mouseMacroStartSoundPresetCombo.setEnabled(start_enabled)
+        self.mouseMacroStartSoundPreviewBtn.setEnabled(True)
+        self.mouseMacroStartCustomSoundPathEdit.setVisible(start_enabled and start_custom)
+        self.mouseMacroStartCustomSoundBrowseBtn.setVisible(start_enabled and start_custom)
+
+        stop_enabled = self.mouseMacroStopSoundEnabledCheck.isChecked()
+        stop_custom = (self.mouseMacroStopSoundPresetCombo.currentData() or "systemHand") == "custom"
+        self.mouseMacroStopSoundPresetCombo.setEnabled(stop_enabled)
+        self.mouseMacroStopSoundPreviewBtn.setEnabled(True)
+        self.mouseMacroStopCustomSoundPathEdit.setVisible(stop_enabled and stop_custom)
+        self.mouseMacroStopCustomSoundBrowseBtn.setVisible(stop_enabled and stop_custom)
     
     def _on_apply(self, show_feedback: bool = True):
         """Apply and save settings."""
@@ -1366,6 +1457,23 @@ class MainWindow(QtWidgets.QMainWindow):
         status = self._get_visual_status()
         self._taskbar_status_service.set_state(hwnd, status)
         self._apply_status_icon(status)
+        self._update_window_runtime_title()
+
+    def _flash_taskbar_state(self, state: str) -> None:
+        """Temporarily show a taskbar state such as green unlock feedback."""
+        taskbar_cfg = self.settings.data.get("taskbar", {})
+        if isinstance(taskbar_cfg, dict) and not taskbar_cfg.get("stateFlashEnabled", True):
+            return
+        try:
+            duration_ms = int(taskbar_cfg.get("stateFlashMs", 1000)) if isinstance(taskbar_cfg, dict) else 1000
+        except Exception:
+            duration_ms = 1000
+        duration_ms = max(100, min(10000, duration_ms))
+        if not hasattr(self, "winId") or self._taskbar_status_service is None:
+            return
+        self._taskbar_flash_timer.stop()
+        self._taskbar_status_service.set_state(int(self.winId()), state)
+        self._taskbar_flash_timer.start(duration_ms)
 
     def _apply_status_icon(self, status: str | None = None) -> None:
         """Apply the runtime status badge to the window/taskbar icon."""

@@ -187,7 +187,7 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(hold_mouse_layout)
 
     sound_enabled_layout = QtWidgets.QHBoxLayout()
-    window.clickerSoundEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("clicker.sound.enabled", "Play start sound"))
+    window.clickerSoundEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("clicker.sound.start.enabled", "Play start sound"))
     window.clickerSoundEnabledCheck.toggled.connect(window._sync_clicker_sound_controls)
     window.clickerSoundEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
     sound_enabled_layout.addWidget(window.clickerSoundEnabledCheck)
@@ -195,13 +195,19 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(sound_enabled_layout)
 
     sound_preset_layout = QtWidgets.QHBoxLayout()
-    window.clickerSoundPresetLabel = QtWidgets.QLabel(window.i18n.t("clicker.sound.preset", "Start Sound"))
+    window.clickerSoundPresetLabel = QtWidgets.QLabel(window.i18n.t("clicker.sound.start.preset", "Start Sound"))
     sound_preset_layout.addWidget(window.clickerSoundPresetLabel)
     window.clickerSoundPresetCombo = QtWidgets.QComboBox()
     window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.systemAsterisk", "System Asterisk"), "systemAsterisk")
     window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.systemExclamation", "System Exclamation"), "systemExclamation")
     window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.systemQuestion", "System Question"), "systemQuestion")
     window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.systemHand", "System Hand"), "systemHand")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win10Notify", "Windows 10 Notify"), "win10Notify")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win10Ding", "Windows 10 Ding"), "win10Ding")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win10Chimes", "Windows 10 Chimes"), "win10Chimes")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win11Notify", "Windows 11 Notify"), "win11Notify")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win11Ding", "Windows 11 Ding"), "win11Ding")
+    window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.win11Chimes", "Windows 11 Chimes"), "win11Chimes")
     window.clickerSoundPresetCombo.addItem(window.i18n.t("clicker.sound.preset.custom", "Custom File"), "custom")
     window.clickerSoundPresetCombo.currentIndexChanged.connect(window._sync_clicker_sound_controls)
     window.clickerSoundPresetCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
@@ -221,6 +227,42 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.clickerCustomSoundBrowseBtn.clicked.connect(window._browse_clicker_sound_file)
     custom_sound_layout.addWidget(window.clickerCustomSoundBrowseBtn)
     layout.addLayout(custom_sound_layout)
+
+    stop_sound_enabled_layout = QtWidgets.QHBoxLayout()
+    window.clickerStopSoundEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("clicker.sound.stop.enabled", "Play stop sound"))
+    window.clickerStopSoundEnabledCheck.toggled.connect(window._sync_clicker_sound_controls)
+    window.clickerStopSoundEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    stop_sound_enabled_layout.addWidget(window.clickerStopSoundEnabledCheck)
+    stop_sound_enabled_layout.addStretch()
+    layout.addLayout(stop_sound_enabled_layout)
+
+    stop_sound_preset_layout = QtWidgets.QHBoxLayout()
+    window.clickerStopSoundPresetLabel = QtWidgets.QLabel(window.i18n.t("clicker.sound.stop.preset", "Stop Sound"))
+    stop_sound_preset_layout.addWidget(window.clickerStopSoundPresetLabel)
+    window.clickerStopSoundPresetCombo = QtWidgets.QComboBox()
+    for key in (
+        "systemAsterisk", "systemExclamation", "systemQuestion", "systemHand",
+        "win10Notify", "win10Ding", "win10Chimes", "win11Notify", "win11Ding", "win11Chimes", "custom",
+    ):
+        window.clickerStopSoundPresetCombo.addItem(window.i18n.t(f"clicker.sound.preset.{key}", key), key)
+    window.clickerStopSoundPresetCombo.currentIndexChanged.connect(window._sync_clicker_sound_controls)
+    window.clickerStopSoundPresetCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    stop_sound_preset_layout.addWidget(window.clickerStopSoundPresetCombo)
+    window.clickerStopSoundPreviewBtn = QtWidgets.QPushButton(window.i18n.t("clicker.sound.preview", "Preview"))
+    window.clickerStopSoundPreviewBtn.clicked.connect(lambda: window._preview_clicker_sound("stop"))
+    stop_sound_preset_layout.addWidget(window.clickerStopSoundPreviewBtn)
+    stop_sound_preset_layout.addStretch()
+    layout.addLayout(stop_sound_preset_layout)
+
+    stop_custom_sound_layout = QtWidgets.QHBoxLayout()
+    window.clickerStopCustomSoundPathEdit = QtWidgets.QLineEdit()
+    window.clickerStopCustomSoundPathEdit.setPlaceholderText(window.i18n.t("clicker.sound.path.placeholder", "Select a local audio file"))
+    window.clickerStopCustomSoundPathEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    stop_custom_sound_layout.addWidget(window.clickerStopCustomSoundPathEdit)
+    window.clickerStopCustomSoundBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
+    window.clickerStopCustomSoundBrowseBtn.clicked.connect(lambda: window._browse_clicker_sound_file("stop"))
+    stop_custom_sound_layout.addWidget(window.clickerStopCustomSoundBrowseBtn)
+    layout.addLayout(stop_custom_sound_layout)
 
     layout.addWidget(create_section_label(window.i18n.t("clicker.blacklist.title", "Auto Clicker Process Blacklist")))
     blacklist_hint = QtWidgets.QLabel(
@@ -279,7 +321,7 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window._populate_clicker_profiles()
 
 
-    layout.addWidget(create_section_label(window.i18n.t("macro.section", "Mouse Macros")))
+    layout.addWidget(create_section_label(window.i18n.t("macro.section", "Macro")))
 
     input_backend_layout = QtWidgets.QHBoxLayout()
     input_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("inputBackend.title", "Input Backend")))
@@ -307,10 +349,77 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     macro_actions = macro_rule.get("actions", []) if isinstance(macro_rule.get("actions", []), list) else []
     macro_action = macro_actions[0] if macro_actions else {"type": "hotkey", "modCtrl": True, "key": "C"}
 
-    window.mouseMacroEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.enabled", "Enable mouse macros"))
+    window.mouseMacroEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.enabled", "Enable macro"))
     window.mouseMacroEnabledCheck.setChecked(bool(macro_cfg.get("enabled", False)))
     window.mouseMacroEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
     layout.addWidget(window.mouseMacroEnabledCheck)
+
+    macro_sound = macro_cfg.get("sound", {}) if isinstance(macro_cfg.get("sound", {}), dict) else {}
+    macro_start_sound = macro_sound.get("start", {}) if isinstance(macro_sound.get("start", {}), dict) else {}
+    macro_stop_sound = macro_sound.get("stop", {}) if isinstance(macro_sound.get("stop", {}), dict) else {}
+
+    macro_sound_layout = QtWidgets.QGridLayout()
+    macro_sound_layout.setHorizontalSpacing(8)
+    macro_sound_layout.setVerticalSpacing(6)
+    window.mouseMacroStartSoundEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.sound.start.enabled", "Play macro start sound"))
+    window.mouseMacroStartSoundEnabledCheck.setChecked(bool(macro_start_sound.get("enabled", False)))
+    window.mouseMacroStartSoundEnabledCheck.toggled.connect(window._sync_macro_sound_controls)
+    window.mouseMacroStartSoundEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStartSoundEnabledCheck, 0, 0)
+    window.mouseMacroStartSoundPresetCombo = QtWidgets.QComboBox()
+    for key in (
+        "systemAsterisk", "systemExclamation", "systemQuestion", "systemHand",
+        "win10Notify", "win10Ding", "win10Chimes", "win11Notify", "win11Ding", "win11Chimes", "custom",
+    ):
+        window.mouseMacroStartSoundPresetCombo.addItem(window.i18n.t(f"clicker.sound.preset.{key}", key), key)
+    for i in range(window.mouseMacroStartSoundPresetCombo.count()):
+        if window.mouseMacroStartSoundPresetCombo.itemData(i) == macro_start_sound.get("preset", "systemAsterisk"):
+            window.mouseMacroStartSoundPresetCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroStartSoundPresetCombo.currentIndexChanged.connect(window._sync_macro_sound_controls)
+    window.mouseMacroStartSoundPresetCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStartSoundPresetCombo, 0, 1)
+    window.mouseMacroStartSoundPreviewBtn = QtWidgets.QPushButton(window.i18n.t("clicker.sound.preview", "Preview"))
+    window.mouseMacroStartSoundPreviewBtn.clicked.connect(lambda: window._preview_macro_sound("start"))
+    macro_sound_layout.addWidget(window.mouseMacroStartSoundPreviewBtn, 0, 2)
+    window.mouseMacroStartCustomSoundPathEdit = QtWidgets.QLineEdit(str(macro_start_sound.get("customFile", "") or ""))
+    window.mouseMacroStartCustomSoundPathEdit.setPlaceholderText(window.i18n.t("clicker.sound.path.placeholder", "Select a local audio file"))
+    window.mouseMacroStartCustomSoundPathEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStartCustomSoundPathEdit, 1, 1)
+    window.mouseMacroStartCustomSoundBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
+    window.mouseMacroStartCustomSoundBrowseBtn.clicked.connect(lambda: window._browse_macro_sound_file("start"))
+    macro_sound_layout.addWidget(window.mouseMacroStartCustomSoundBrowseBtn, 1, 2)
+
+    window.mouseMacroStopSoundEnabledCheck = QtWidgets.QCheckBox(window.i18n.t("macro.sound.stop.enabled", "Play macro stop sound"))
+    window.mouseMacroStopSoundEnabledCheck.setChecked(bool(macro_stop_sound.get("enabled", False)))
+    window.mouseMacroStopSoundEnabledCheck.toggled.connect(window._sync_macro_sound_controls)
+    window.mouseMacroStopSoundEnabledCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStopSoundEnabledCheck, 2, 0)
+    window.mouseMacroStopSoundPresetCombo = QtWidgets.QComboBox()
+    for key in (
+        "systemAsterisk", "systemExclamation", "systemQuestion", "systemHand",
+        "win10Notify", "win10Ding", "win10Chimes", "win11Notify", "win11Ding", "win11Chimes", "custom",
+    ):
+        window.mouseMacroStopSoundPresetCombo.addItem(window.i18n.t(f"clicker.sound.preset.{key}", key), key)
+    for i in range(window.mouseMacroStopSoundPresetCombo.count()):
+        if window.mouseMacroStopSoundPresetCombo.itemData(i) == macro_stop_sound.get("preset", "systemHand"):
+            window.mouseMacroStopSoundPresetCombo.setCurrentIndex(i)
+            break
+    window.mouseMacroStopSoundPresetCombo.currentIndexChanged.connect(window._sync_macro_sound_controls)
+    window.mouseMacroStopSoundPresetCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStopSoundPresetCombo, 2, 1)
+    window.mouseMacroStopSoundPreviewBtn = QtWidgets.QPushButton(window.i18n.t("clicker.sound.preview", "Preview"))
+    window.mouseMacroStopSoundPreviewBtn.clicked.connect(lambda: window._preview_macro_sound("stop"))
+    macro_sound_layout.addWidget(window.mouseMacroStopSoundPreviewBtn, 2, 2)
+    window.mouseMacroStopCustomSoundPathEdit = QtWidgets.QLineEdit(str(macro_stop_sound.get("customFile", "") or ""))
+    window.mouseMacroStopCustomSoundPathEdit.setPlaceholderText(window.i18n.t("clicker.sound.path.placeholder", "Select a local audio file"))
+    window.mouseMacroStopCustomSoundPathEdit.textChanged.connect(lambda _text: window._schedule_live_apply())
+    macro_sound_layout.addWidget(window.mouseMacroStopCustomSoundPathEdit, 3, 1)
+    window.mouseMacroStopCustomSoundBrowseBtn = QtWidgets.QPushButton(window.i18n.t("browse", "Browse"))
+    window.mouseMacroStopCustomSoundBrowseBtn.clicked.connect(lambda: window._browse_macro_sound_file("stop"))
+    macro_sound_layout.addWidget(window.mouseMacroStopCustomSoundBrowseBtn, 3, 2)
+    layout.addLayout(macro_sound_layout)
+    window._sync_macro_sound_controls()
 
     panic_layout = QtWidgets.QHBoxLayout()
     panic_layout.addWidget(QtWidgets.QLabel(window.i18n.t("macro.panicHotkey", "Panic Stop")))
@@ -643,6 +752,26 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     window.rememberWindowSizeCheck.setChecked(window.settings.data.get("ui", {}).get("rememberWindowSize", False))
     window.rememberWindowSizeCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
     layout.addWidget(window.rememberWindowSizeCheck)
+
+    taskbar_cfg = window.settings.data.get("taskbar", {})
+    window.taskbarStateFlashCheck = QtWidgets.QCheckBox(
+        window.i18n.t("taskbar.flash.enabled", "Flash green taskbar hint when unlocked")
+    )
+    window.taskbarStateFlashCheck.setChecked(bool(taskbar_cfg.get("stateFlashEnabled", True)))
+    window.taskbarStateFlashCheck.toggled.connect(lambda _checked: window._schedule_live_apply())
+    layout.addWidget(window.taskbarStateFlashCheck)
+
+    taskbar_flash_layout = QtWidgets.QHBoxLayout()
+    taskbar_flash_layout.addWidget(QtWidgets.QLabel(window.i18n.t("taskbar.flash.duration", "Unlock flash duration")))
+    window.taskbarStateFlashSpin = QtWidgets.QSpinBox()
+    window.taskbarStateFlashSpin.setRange(100, 10000)
+    window.taskbarStateFlashSpin.setSingleStep(100)
+    window.taskbarStateFlashSpin.setSuffix(" ms")
+    window.taskbarStateFlashSpin.setValue(int(taskbar_cfg.get("stateFlashMs", 1000)))
+    window.taskbarStateFlashSpin.valueChanged.connect(lambda _value: window._schedule_live_apply())
+    taskbar_flash_layout.addWidget(window.taskbarStateFlashSpin)
+    taskbar_flash_layout.addStretch()
+    layout.addLayout(taskbar_flash_layout)
 
     close_action_layout = QtWidgets.QHBoxLayout()
     close_action_layout.addWidget(QtWidgets.QLabel(window.i18n.t("close.action.title", "Close Behavior")))

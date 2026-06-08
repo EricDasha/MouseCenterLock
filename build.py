@@ -52,6 +52,7 @@ SOURCE_FILES = [
     "services/lock_service.py",
     "services/macro_service.py",
     "services/settings_apply_controller.py",
+    "services/sound_service.py",
     "services/theme_service.py",
     "services/tray_service.py",
     "ui/main_window.py",
@@ -171,7 +172,14 @@ def build_native_input_backend() -> bool:
 
     NATIVE_OUTPUT_DIR.mkdir(exist_ok=True)
     target_dll = NATIVE_OUTPUT_DIR / NATIVE_DLL_NAME
-    shutil.copy2(built_dll, target_dll)
+    try:
+        shutil.copy2(built_dll, target_dll)
+    except PermissionError as exc:
+        if target_dll.exists():
+            print(f"  WARN: {target_dll} is locked by a running process; keeping existing DLL. ({exc})")
+        else:
+            print(f"  FAIL: cannot write {target_dll}: {exc}")
+            return False
     (NATIVE_OUTPUT_DIR / NATIVE_VERSION_NAME).write_text(
         "name=mcl_input_backend\nversion=0.1.0\narch=x86_64\nprofile=release\n",
         encoding="utf-8",
@@ -193,6 +201,11 @@ def build_exe(*, dev: bool = False) -> bool:
     step("Building executable with PyInstaller")
     if not SPEC_FILE.exists():
         print(f"  ERROR: Spec file not found: {SPEC_FILE}")
+        return False
+
+    if sys.version_info >= (3, 15):
+        print(f"  FAIL: PyInstaller does not support this Python runtime yet: {sys.version.split()[0]}")
+        print("        Use Python 3.12/3.13 for local packaging, or run the GitHub Actions release workflow.")
         return False
 
     cmd = [

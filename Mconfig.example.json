@@ -37,9 +37,16 @@
       "intervalMs": 100,
       "preset": "efficient",
       "sound": {
-        "enabled": false,
-        "preset": "systemAsterisk",
-        "customFile": ""
+        "start": {
+          "enabled": false,
+          "preset": "systemAsterisk",
+          "customFile": ""
+        },
+        "stop": {
+          "enabled": false,
+          "preset": "systemHand",
+          "customFile": ""
+        }
       },
       "processBlacklist": [],
       "triggers": {
@@ -108,10 +115,26 @@
       "modShift": false,
       "modWin": false,
       "key": "F12"
+    },
+    "sound": {
+      "start": {
+        "enabled": false,
+        "preset": "systemAsterisk",
+        "customFile": ""
+      },
+      "stop": {
+        "enabled": false,
+        "preset": "systemHand",
+        "customFile": ""
+      }
     }
   },
   "inputBackend": "auto",
   "inputMode": "scan-code",
   "fallbackBackend": "native-sendinput",
-  "fallbackPolicy": "auto"
+  "fallbackPolicy": "auto",
+  "taskbar": {
+    "stateFlashEnabled": true,
+    "stateFlashMs": 1000
+  }
 }

@@ -1,4 +1,4 @@
-# Mouse macro examples / 鼠标宏示例
+# Mouse macro examples / 宏示例
 
 Choose your language:
 

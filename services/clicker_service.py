@@ -8,11 +8,6 @@ from typing import Any, Callable, Dict, Optional, Set
 
 from PySide6 import QtCore
 
-try:
-    from PySide6 import QtMultimedia
-except Exception:
-    QtMultimedia = None
-
 from win_api import (
     GlobalInputListener,
     click_mouse,
@@ -22,67 +17,7 @@ from win_api import (
     user32,
 )
 from services.macro_runtime import MacroActionExecutor
-
-
-class ClickerSoundPlayer(QtCore.QObject):
-    """Play clicker start sounds from system presets or local files."""
-
-    def __init__(self, sound_presets: Dict[str, Any], parent=None):
-        super().__init__(parent)
-        self._sound_presets = sound_presets
-        self._media_player = None
-        self._audio_output = None
-        if QtMultimedia is not None:
-            try:
-                self._audio_output = QtMultimedia.QAudioOutput(self)
-                self._media_player = QtMultimedia.QMediaPlayer(self)
-                self._media_player.setAudioOutput(self._audio_output)
-                self._audio_output.setVolume(0.8)
-            except Exception:
-                self._audio_output = None
-                self._media_player = None
-
-    def play_for_profile(self, profile: Dict[str, Any]) -> None:
-        """Play the configured start sound for a clicker profile."""
-        self.play_sound_config(profile.get("sound", {}))
-
-    def play_sound_config(self, sound: Dict[str, Any]) -> None:
-        """Play a sound from raw sound settings."""
-        if not sound.get("enabled", False):
-            return
-
-        preset = sound.get("preset", "systemAsterisk")
-        if preset == "custom":
-            self._play_custom_file(sound.get("customFile", ""))
-            return
-
-        try:
-            import winsound
-            winsound.MessageBeep(self._sound_presets.get(preset, self._sound_presets["systemAsterisk"]))
-        except Exception:
-            pass
-
-    def _play_custom_file(self, file_path: str) -> None:
-        """Play a local audio file when supported."""
-        if not file_path:
-            return
-        path = Path(file_path)
-        if not path.exists():
-            return
-        if self._media_player is None:
-            try:
-                import winsound
-                if path.suffix.lower() == ".wav":
-                    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
-            except Exception:
-                pass
-            return
-        try:
-            self._media_player.stop()
-            self._media_player.setSource(QtCore.QUrl.fromLocalFile(str(path)))
-            self._media_player.play()
-        except Exception:
-            pass
+from services.sound_service import SoundPlayer
 
 
 class ClickerService(QtCore.QObject):
@@ -97,7 +32,6 @@ class ClickerService(QtCore.QObject):
         on_state_changed: Callable[[], None],
         on_notify_started: Callable[[Dict[str, Any]], None],
         on_notify_stopped: Callable[[Dict[str, Any]], None],
-        sound_presets: Dict[str, Any],
         input_service=None,
         click_mouse_func: Optional[Callable[[str], None]] = None,
         input_listener_factory: Callable[..., GlobalInputListener] = GlobalInputListener,
@@ -116,7 +50,7 @@ class ClickerService(QtCore.QObject):
             input_service=input_service,
             click_mouse_func=click_mouse_func,
         )
-        self._sound_player = ClickerSoundPlayer(sound_presets, self)
+        self._sound_player = SoundPlayer(self)
 
         self.clicker_timer = QtCore.QTimer(self)
         self.clicker_timer.timeout.connect(self._on_clicker_tick)
@@ -140,7 +74,7 @@ class ClickerService(QtCore.QObject):
 
     def play_sound_preview(self, sound_config: Dict[str, Any]) -> None:
         """Preview a sound selection."""
-        self._sound_player.play_sound_config(sound_config)
+        self._sound_player.play_event(sound_config)
 
     def sync_runtime(self) -> None:
         """Apply the current settings to runtime timers."""
@@ -163,7 +97,7 @@ class ClickerService(QtCore.QObject):
         if immediate_click:
             self._click_once(profile)
         self._apply_clicker_timer()
-        self._sound_player.play_for_profile(profile)
+        self._sound_player.play_event(profile.get("sound", {}).get("start", {}))
         self._on_state_changed()
         if show_message:
             self._on_notify_started(profile)
@@ -175,6 +109,7 @@ class ClickerService(QtCore.QObject):
 
         self._running = False
         self._apply_clicker_timer()
+        self._sound_player.play_event(self._get_profile().get("sound", {}).get("stop", {}))
         self._on_state_changed()
         if show_message:
             self._on_notify_stopped(self._get_profile())

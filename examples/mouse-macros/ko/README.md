@@ -1,6 +1,6 @@
 # 마우스 매크로 예제
 
-이 폴더에는 고급 설정 → Mouse Macros → External JSON file 에서 선택할 수 있는 JSON 예제가 있습니다.
+이 폴더에는 고급 설정 → Macro → External JSON file 에서 선택할 수 있는 JSON 예제가 있습니다.
 
 ## 목차
 

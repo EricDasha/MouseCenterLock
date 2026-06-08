@@ -1,6 +1,6 @@
 # マウスマクロ例
 
-このフォルダーには、Advanced Settings → Mouse Macros → External JSON file で選択できる JSON 例があります。
+このフォルダーには、Advanced Settings → Macro → External JSON file で選択できる JSON 例があります。
 
 ## 目次
 

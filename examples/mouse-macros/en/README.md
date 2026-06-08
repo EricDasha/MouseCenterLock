@@ -1,6 +1,6 @@
-# Mouse Macro Examples
+# Macro Examples
 
-This folder contains JSON presets that can be selected from Advanced Settings → Mouse Macros → External JSON file.
+This folder contains JSON presets that can be selected from Advanced Settings → Macro → External JSON file.
 
 ## Contents
 

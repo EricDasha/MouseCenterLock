@@ -106,11 +106,11 @@ exe 文件将位于 `dist/MouseControlLayer.exe`。
 
 如需恢复默认设置，请删除本地 `Mconfig.json`，程序会回退读取 `Mconfig.example.json`。如果程序目录中仍有旧版 `config.json`，新版本也会兼容读取。
 
-## 鼠标宏配置
+## 宏配置
 
-鼠标宏支持「界面拼装」和「外部 JSON 配置文件」两种方式。完整写法、示例文件、鼠标键名与键盘 `key` 名称见：
+宏支持「界面拼装」和「外部 JSON 配置文件」两种方式。完整写法、示例文件、鼠标键名与键盘 `key` 名称见：
 
-- [鼠标宏示例与配置说明](examples/mouse-macros/zh-Hans/README.md)
+- [宏示例与配置说明](examples/mouse-macros/zh-Hans/README.md)
 
 后端阶段、fallback 策略与非目标见：[输入后端路线图](docs/backend-roadmap.md)。
 

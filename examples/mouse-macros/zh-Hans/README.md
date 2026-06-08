@@ -1,6 +1,6 @@
-# 鼠标宏示例
+# 宏示例
 
-本目录放可直接在「高级设置 → 鼠标宏 → External JSON file」中选择的 JSON 示例。
+本目录放可直接在「高级设置 → 宏 → External JSON file」中选择的 JSON 示例。
 
 ## 目录
 

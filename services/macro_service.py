@@ -16,6 +16,7 @@ from services.action_scheduler import ActionScheduler
 from services.macro_runtime import MacroActionExecutor
 from services.macro_schema import MOUSE_BUTTON_ALIASES
 from services.input_service import InputService
+from services.sound_service import SoundPlayer
 from win_api import GlobalInputListener, key_to_vk, user32
 
 
@@ -61,6 +62,7 @@ class MouseMacroService(QtCore.QObject):
     """
 
     inputEvent = QtCore.Signal(str, str, bool)
+    stateChanged = QtCore.Signal()
 
     def __init__(
         self,
@@ -74,6 +76,9 @@ class MouseMacroService(QtCore.QObject):
         self._get_config = get_config
         self._input_service = input_service or InputService()
         self._action_executor = MacroActionExecutor(input_service=self._input_service)
+        self._sound_player = SoundPlayer(self)
+        self._runtime_enabled = False
+        self._last_active_state = False
         self._pressed_mouse_buttons: Set[str] = set()
         self._pressed_keys: Set[str] = set()
         self._active_rule_keys: Set[str] = set()
@@ -113,6 +118,29 @@ class MouseMacroService(QtCore.QObject):
         self._stop_loop_rule("service_stopping")
         self._poll_timer.stop()
         self._input_listener.stop()
+        self._runtime_enabled = False
+        self._notify_active_state_changed()
+
+    @property
+    def is_active(self) -> bool:
+        """Return whether a macro is actively armed/executing/looping."""
+        return bool(
+            self._runtime_enabled
+            and (
+                self._executing
+                or self._loop_timer.isActive()
+                or self._loop_rule is not None
+                or bool(self._toggled_rule_ids)
+            )
+        )
+
+    def _notify_active_state_changed(self) -> None:
+        """Emit stateChanged only when the visible macro active state changes."""
+        active = self.is_active
+        if active == self._last_active_state:
+            return
+        self._last_active_state = active
+        self.stateChanged.emit()
 
     def sync_runtime(self) -> None:
         """Apply current runtime state and keep polling as a hook fallback."""
@@ -122,6 +150,10 @@ class MouseMacroService(QtCore.QObject):
             f"source={config.get('source')} configFile={config.get('configFile', '')}"
         )
         if not config.get("enabled", False):
+            if self._runtime_enabled:
+                self._sound_player.play_event(config.get("sound", {}).get("stop", {}))
+                self._runtime_enabled = False
+                self._notify_active_state_changed()
             self._poll_timer.stop()
             self._pressed_mouse_buttons.clear()
             self._pressed_keys.clear()
@@ -129,9 +161,17 @@ class MouseMacroService(QtCore.QObject):
             self._toggled_rule_ids.clear()
             self._stop_loop_rule("macros_disabled")
             return
+        if not self._runtime_enabled:
+            self._runtime_enabled = True
+            self._sound_player.play_event(config.get("sound", {}).get("start", {}))
+            self._notify_active_state_changed()
         if not self._poll_timer.isActive():
             self._poll_timer.start(12)
             log_message("MouseMacroService polling fallback active: interval=12ms")
+
+    def play_sound_preview(self, sound_config: Dict[str, Any]) -> None:
+        """Preview a macro sound selection."""
+        self._sound_player.play_event(sound_config)
 
     def _emit_key_event(self, key_name: str, is_pressed: bool) -> None:
         """Bridge low-level keyboard input into the Qt thread."""
@@ -310,11 +350,13 @@ class MouseMacroService(QtCore.QObject):
                 if self._executing and self._current_rule and str(self._current_rule.get("id") or "") == rule_id:
                     self._cancel_requested = True
                     log_message(f"MouseMacro toggle-off cancellation requested: {self._current_rule_key}")
+                self._notify_active_state_changed()
             else:
                 self._toggled_rule_ids.add(rule_id)
                 log_message(f"MouseMacro toggle on: id={rule_id} trigger={event_type}:{normalized}")
                 if trigger_mode == "toggleloop":
                     self._start_loop_rule(rule, rule_id, event_type, normalized)
+                self._notify_active_state_changed()
 
     def _rule_is_armed(self, rule: Dict[str, Any], rule_id: str) -> bool:
         return str(rule.get("triggerMode", "hold") or "hold").lower() not in {"toggle", "toggleloop"} or rule_id in self._toggled_rule_ids
@@ -357,6 +399,7 @@ class MouseMacroService(QtCore.QObject):
         self._loop_timer.setInterval(interval_ms)
         self._loop_timer.start()
         log_message(f"MouseMacro loop start: {self._loop_rule_key} intervalMs={interval_ms}")
+        self._notify_active_state_changed()
 
     def _stop_loop_rule(self, reason: str) -> None:
         """Stop the active repeating macro rule and request cancellation if mid-run."""
@@ -507,9 +550,11 @@ class MouseMacroService(QtCore.QObject):
         self._loop_rule = None
         self._loop_rule_id = ""
         self._loop_rule_key = ""
+        self._notify_active_state_changed()
         self._toggled_rule_ids.clear()
         self._active_rule_keys.clear()
         self._release_held_outputs()
+        self._notify_active_state_changed()
 
     def _execute_actions(
         self,
@@ -522,6 +567,7 @@ class MouseMacroService(QtCore.QObject):
         if not isinstance(actions, list):
             return
         self._executing = True
+        self._notify_active_state_changed()
         self._cancel_requested = False
         self._force_cancel_requested = False
         self._held_output_keys.clear()
@@ -547,6 +593,7 @@ class MouseMacroService(QtCore.QObject):
             self._force_cancel_requested = False
             self._current_rule = None
             self._current_rule_key = ""
+            self._notify_active_state_changed()
 
     def _should_cancel_actions(self) -> bool:
         return bool(self._force_cancel_requested or (self._current_rule and self._current_rule.get("interruptible") and self._cancel_requested))
