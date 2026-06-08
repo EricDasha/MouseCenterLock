@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import importlib.util
 import os
 import re
 import shutil
@@ -33,6 +34,10 @@ NATIVE_CRATE_DIR = ROOT_DIR / "rust" / "input_backend"
 NATIVE_OUTPUT_DIR = ROOT_DIR / "native"
 NATIVE_DLL_NAME = "mcl_input_backend.dll"
 NATIVE_VERSION_NAME = "mcl_input_backend.version"
+MIN_BUILD_PYTHON = (3, 9)
+MAX_BUILD_PYTHON_EXCLUSIVE = (3, 15)
+PREFERRED_WINDOWS_PYTHON_VERSIONS = ("3.13", "3.12", "3.11", "3.10", "3.9")
+REEXEC_ENV_FLAG = "MCL_BUILD_PYTHON_REEXEC"
 
 SOURCE_FILES = [
     "app_logging.py",
@@ -75,6 +80,132 @@ def step(name: str) -> None:
 def run(cmd: list[str], *, check: bool = True, cwd: Path | None = None) -> subprocess.CompletedProcess:
     print(f"  > {' '.join(str(c) for c in cmd)}")
     return subprocess.run(cmd, check=check, cwd=cwd or ROOT_DIR)
+
+
+def _version_tuple_text(version: tuple[int, int, int]) -> str:
+    return ".".join(str(part) for part in version)
+
+
+def _is_supported_build_python(version_info: tuple[int, int, int]) -> bool:
+    return MIN_BUILD_PYTHON <= version_info[:2] < MAX_BUILD_PYTHON_EXCLUSIVE
+
+
+def _candidate_python_commands() -> list[list[str]]:
+    commands: list[list[str]] = []
+
+    env_python = os.environ.get("MCL_BUILD_PYTHON")
+    if env_python:
+        commands.append([env_python])
+
+    commands.append([sys.executable])
+    if os.name == "nt":
+        commands.append(["python"])
+        commands.extend([["py", f"-{version}"] for version in PREFERRED_WINDOWS_PYTHON_VERSIONS])
+    else:
+        commands.extend([[f"python{version}"] for version in PREFERRED_WINDOWS_PYTHON_VERSIONS])
+        commands.extend([["python3"], ["python"]])
+
+    deduped: list[list[str]] = []
+    seen: set[tuple[str, ...]] = set()
+    for command in commands:
+        key = tuple(command)
+        if key not in seen:
+            deduped.append(command)
+            seen.add(key)
+    return deduped
+
+
+def _probe_python(command: list[str]) -> tuple[tuple[int, int, int], str, bool] | None:
+    probe = (
+        "import importlib.util, sys\n"
+        "print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')\n"
+        "print(sys.executable)\n"
+        "print('1' if importlib.util.find_spec('PyInstaller') is not None else '0')\n"
+    )
+    try:
+        result = subprocess.run(
+            [*command, "-c", probe],
+            check=False,
+            cwd=ROOT_DIR,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return None
+    try:
+        parts = tuple(int(part) for part in lines[0].split(".")[:3])
+    except ValueError:
+        return None
+    if len(parts) != 3:
+        return None
+    return parts, lines[1], lines[2] == "1"
+
+
+def _same_executable(left: str, right: str) -> bool:
+    try:
+        return Path(left).resolve() == Path(right).resolve()
+    except OSError:
+        return left.lower() == right.lower()
+
+
+def _current_python_has_pyinstaller() -> bool:
+    return importlib.util.find_spec("PyInstaller") is not None
+
+
+def ensure_build_python() -> int | None:
+    current_version = sys.version_info[:3]
+    current_supported = _is_supported_build_python(current_version)
+    current_ready = current_supported and _current_python_has_pyinstaller()
+    if current_ready:
+        print(f"Build Python: {sys.version.split()[0]} ({sys.executable})")
+        return None
+
+    print("Selecting build Python runtime")
+    print(f"  Current: {sys.version.split()[0]} ({sys.executable})")
+    if not current_supported:
+        print(
+            "  Reason: packaging supports Python "
+            f"{_version_tuple_text((*MIN_BUILD_PYTHON, 0)[:3])}+ "
+            f"and < {_version_tuple_text((*MAX_BUILD_PYTHON_EXCLUSIVE, 0)[:3])}; "
+            f"{sys.version.split()[0]} is not suitable."
+        )
+    elif not _current_python_has_pyinstaller():
+        print("  Reason: PyInstaller is not installed in the current runtime.")
+
+    for command in _candidate_python_commands():
+        probed = _probe_python(command)
+        if probed is None:
+            continue
+        version, executable, has_pyinstaller = probed
+        if not _is_supported_build_python(version):
+            print(f"  Skip {executable}: Python {_version_tuple_text(version)} is outside build range.")
+            continue
+        if not has_pyinstaller:
+            print(f"  Skip {executable}: PyInstaller not installed.")
+            continue
+        if _same_executable(executable, sys.executable):
+            print(f"  Selected current runtime: Python {_version_tuple_text(version)}")
+            return None
+
+        if os.environ.get(REEXEC_ENV_FLAG) == "1":
+            print(f"  FAIL: re-exec guard tripped before switching to {executable}.")
+            return 1
+
+        print(f"  Selected: Python {_version_tuple_text(version)} ({executable})")
+        env = os.environ.copy()
+        env[REEXEC_ENV_FLAG] = "1"
+        result = subprocess.run([*command, str(Path(__file__).resolve()), *sys.argv[1:]], cwd=ROOT_DIR, env=env)
+        return result.returncode
+
+    print("  FAIL: no suitable Python runtime with PyInstaller was found.")
+    print("        Preferred local default for packaging: Python 3.13, fallback: Python 3.12.")
+    return 1
 
 
 def clean() -> None:
@@ -295,8 +426,13 @@ def main() -> int:
     parser.add_argument("--no-archive", action="store_true", help="Skip local release zip creation")
     args = parser.parse_args()
 
+    if not args.clean_only:
+        selected_python_result = ensure_build_python()
+        if selected_python_result is not None:
+            return selected_python_result
+
     version = extract_version()
-    print(f"MCL Build Script — version {version}")
+    print(f"MCL Build Script - version {version}")
 
     if args.clean_only:
         clean()
