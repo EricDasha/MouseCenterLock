@@ -71,6 +71,38 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     interval_layout.addStretch()
     layout.addLayout(interval_layout)
 
+    layout.addWidget(create_section_label(window.i18n.t("section.inputOutput", "Input Output")))
+
+    input_backend_layout = QtWidgets.QHBoxLayout()
+    input_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("inputBackend.title", "Input Backend")))
+    window.inputBackendCombo = QtWidgets.QComboBox()
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.auto", "Auto"), "auto")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.nativeSendInput", "Native SendInput"), "native-sendinput")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.pythonSendInput", "Python SendInput"), "python-sendinput")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.windowMessage", "Window Message"), "window-message")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.virtualHid", "Virtual HID (planned)"), "virtual-hid")
+    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.hardwareHid", "Hardware HID (planned)"), "hardware-hid")
+    current_backend = window.settings.data.get("inputBackend", "auto")
+    current_backend = {"sendinput": "native-sendinput", "native-scancode": "native-sendinput", "python-fallback": "python-sendinput"}.get(current_backend, current_backend)
+    for i in range(window.inputBackendCombo.count()):
+        if window.inputBackendCombo.itemData(i) == current_backend:
+            window.inputBackendCombo.setCurrentIndex(i)
+            break
+    window.inputBackendCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
+    input_backend_layout.addWidget(window.inputBackendCombo)
+    input_backend_layout.addStretch()
+    layout.addLayout(input_backend_layout)
+
+    input_backend_hint = QtWidgets.QLabel(
+        window.i18n.t(
+            "inputBackend.sharedHint",
+            "This backend is shared by auto clicker and macro output. If a target ignores instant clicks, try Native SendInput plus mouse down hold, then Window Message.",
+        )
+    )
+    input_backend_hint.setWordWrap(True)
+    input_backend_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(input_backend_hint)
+
     layout.addWidget(create_section_label(window.i18n.t("clicker.section", "Auto Clicker")))
 
     profile_layout = QtWidgets.QHBoxLayout()
@@ -143,6 +175,21 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     clicker_interval_layout.addWidget(window.clickerIntervalSpin)
     clicker_interval_layout.addStretch()
     layout.addLayout(clicker_interval_layout)
+
+    clicker_hold_layout = QtWidgets.QHBoxLayout()
+    clicker_hold_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.holdMs", "Mouse down hold (ms)")))
+    window.clickerHoldMsSpin = QtWidgets.QSpinBox()
+    window.clickerHoldMsSpin.setRange(0, 1000)
+    window.clickerHoldMsSpin.setSingleStep(1)
+    window.clickerHoldMsSpin.setSuffix(" ms")
+    window.clickerHoldMsSpin.setToolTip(window.i18n.t(
+        "clicker.holdMs.tooltip",
+        "Compatibility mode: keep mouse down before release. Try 8-20ms if a target ignores instant clicks."
+    ))
+    window.clickerHoldMsSpin.valueChanged.connect(lambda _value: window._schedule_live_apply())
+    clicker_hold_layout.addWidget(window.clickerHoldMsSpin)
+    clicker_hold_layout.addStretch()
+    layout.addLayout(clicker_hold_layout)
 
     trigger_mode_layout = QtWidgets.QHBoxLayout()
     trigger_mode_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.trigger.mode", "Trigger Mode")))
@@ -264,6 +311,26 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     stop_custom_sound_layout.addWidget(window.clickerStopCustomSoundBrowseBtn)
     layout.addLayout(stop_custom_sound_layout)
 
+    list_binding = window.settings.data.get("profileListBinding", {})
+    if not isinstance(list_binding, dict):
+        list_binding = {}
+    window.profileListFollowCheck = QtWidgets.QCheckBox(
+        window.i18n.t("profile.lists.follow", "Follow profile for clicker blacklist and target windows")
+    )
+    window.profileListFollowCheck.setChecked(bool(list_binding.get("followProfile", True)))
+    window.profileListFollowCheck.toggled.connect(window._on_profile_list_follow_toggled)
+    layout.addWidget(window.profileListFollowCheck)
+    profile_list_follow_hint = QtWidgets.QLabel(
+        window.i18n.t(
+            "profile.lists.follow.hint",
+            "On: profile switches load each profile's blacklist and target-window list. "
+            "Off: current lists are frozen globally; profile copies are kept and restored when re-enabled.",
+        )
+    )
+    profile_list_follow_hint.setWordWrap(True)
+    profile_list_follow_hint.setStyleSheet("color: rgba(142, 142, 147, 0.95); font-size: 12px;")
+    layout.addWidget(profile_list_follow_hint)
+
     layout.addWidget(create_section_label(window.i18n.t("clicker.blacklist.title", "Auto Clicker Process Blacklist")))
     blacklist_hint = QtWidgets.QLabel(
         window.i18n.t(
@@ -322,26 +389,6 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
 
 
     layout.addWidget(create_section_label(window.i18n.t("macro.section", "Macro")))
-
-    input_backend_layout = QtWidgets.QHBoxLayout()
-    input_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("inputBackend.title", "Input Backend")))
-    window.inputBackendCombo = QtWidgets.QComboBox()
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.auto", "Auto"), "auto")
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.nativeSendInput", "Native SendInput"), "native-sendinput")
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.pythonSendInput", "Python SendInput"), "python-sendinput")
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.windowMessage", "Window Message"), "window-message")
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.virtualHid", "Virtual HID (planned)"), "virtual-hid")
-    window.inputBackendCombo.addItem(window.i18n.t("inputBackend.hardwareHid", "Hardware HID (planned)"), "hardware-hid")
-    current_backend = window.settings.data.get("inputBackend", "auto")
-    current_backend = {"sendinput": "native-sendinput", "native-scancode": "native-sendinput", "python-fallback": "python-sendinput"}.get(current_backend, current_backend)
-    for i in range(window.inputBackendCombo.count()):
-        if window.inputBackendCombo.itemData(i) == current_backend:
-            window.inputBackendCombo.setCurrentIndex(i)
-            break
-    window.inputBackendCombo.currentIndexChanged.connect(lambda _index: window._schedule_live_apply())
-    input_backend_layout.addWidget(window.inputBackendCombo)
-    input_backend_layout.addStretch()
-    layout.addLayout(input_backend_layout)
 
     macro_cfg = window.settings.data.get("mouseMacros", {})
     macro_rules = macro_cfg.get("rules", []) if isinstance(macro_cfg.get("rules", []), list) else []

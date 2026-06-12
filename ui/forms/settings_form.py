@@ -14,6 +14,11 @@ def _collect_target_windows(window) -> list[str]:
     return [window.targetList.item(i).text() for i in range(window.targetList.count())]
 
 
+def _collect_list_widget_items(widget) -> list[str]:
+    """Collect text entries from a QListWidget-like object."""
+    return [widget.item(i).text() for i in range(widget.count())]
+
+
 def _collect_window_size(window) -> Dict[str, int]:
     """Collect the current window size with test-double fallback support."""
     width = 0
@@ -43,6 +48,11 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         settings = getattr(window, "settings", None)
         return getattr(settings, "data", {}).get("mouseMacros", {})
 
+    settings = getattr(window, "settings", None)
+    current_macro_cfg = getattr(settings, "data", {}).get("mouseMacros", {}) if settings else {}
+    current_rules = current_macro_cfg.get("rules", []) if isinstance(current_macro_cfg, dict) else []
+    current_rule = current_rules[0] if isinstance(current_rules, list) and current_rules and isinstance(current_rules[0], dict) else {}
+
     action_type = window.mouseMacroActionTypeCombo.currentData() or "hotkey"
     action: Dict[str, Any] = {"type": action_type}
     if action_type in ("mouseDown", "mouseUp", "mouseClick"):
@@ -55,6 +65,28 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
         action.update(window.mouseMacroActionHotkeyCapture.get_hotkey())
         if action_type in ("key", "keyDown", "keyUp"):
             action = {"type": action_type, "key": action.get("key", "")}
+
+    builder_rule: Dict[str, Any] = {
+        "id": "builder-rule-1",
+        "name": window.mouseMacroNameEdit.text().strip() or "Macro",
+        "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
+        "triggerMode": window.mouseMacroTriggerModeCombo.currentData() or "hold",
+        "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
+        "pressMouseButton": window.mouseMacroPressCombo.currentData() or "left",
+        "actions": [action],
+    }
+    for field in (
+        "holdKey",
+        "pressKey",
+        "toggleOnKey",
+        "toggleOffKey",
+        "toggleOnMouseButton",
+        "toggleOffMouseButton",
+        "loopIntervalMs",
+        "loopWhilePressHeld",
+    ):
+        if field in current_rule:
+            builder_rule[field] = current_rule[field]
 
     return {
         "enabled": window.mouseMacroEnabledCheck.isChecked(),
@@ -75,22 +107,32 @@ def _collect_mouse_macro_settings(window) -> Dict[str, Any]:
                 "customFile": window.mouseMacroStopCustomSoundPathEdit.text().strip(),
             },
         },
-        "rules": [
-            {
-                "id": "builder-rule-1",
-                "name": window.mouseMacroNameEdit.text().strip() or "Macro",
-                "enabled": window.mouseMacroRuleEnabledCheck.isChecked(),
-                "triggerMode": window.mouseMacroTriggerModeCombo.currentData() or "hold",
-                "holdMouseButton": window.mouseMacroHoldCombo.currentData() or "x2",
-                "pressMouseButton": window.mouseMacroPressCombo.currentData() or "left",
-                "actions": [action],
-            }
-        ],
+        "rules": [builder_rule],
     }
 
 
 def collect_general_settings_form_data(window) -> Dict[str, Any]:
     """Build a settings payload from the non-clicker controls."""
+    existing_binding = getattr(getattr(window, "settings", None), "data", {}).get("profileListBinding", {})
+    if not isinstance(existing_binding, dict):
+        existing_binding = {}
+    follow_profile_lists = (
+        window.profileListFollowCheck.isChecked()
+        if hasattr(window, "profileListFollowCheck")
+        else bool(existing_binding.get("followProfile", True))
+    )
+    frozen_process_blacklist = existing_binding.get("processBlacklist", [])
+    frozen_window_specific = existing_binding.get("windowSpecific", {})
+    if not follow_profile_lists:
+        if hasattr(window, "clickerProcessBlacklist"):
+            frozen_process_blacklist = _collect_list_widget_items(window.clickerProcessBlacklist)
+        frozen_window_specific = {
+            "enabled": window.windowSpecificCheck.isChecked(),
+            "targetWindows": _collect_target_windows(window),
+            "targetWindowHandle": 0,
+            "autoLockOnWindowFocus": window.autoLockCheck.isChecked(),
+            "resumeAfterWindowSwitch": window.resumeAfterSwitchCheck.isChecked(),
+        }
     return {
         "hotkeys": {
             "lock": window.lockHotkeyCapture.get_hotkey(),
@@ -124,6 +166,11 @@ def collect_general_settings_form_data(window) -> Dict[str, Any]:
         "taskbar": {
             "stateFlashEnabled": window.taskbarStateFlashCheck.isChecked() if hasattr(window, "taskbarStateFlashCheck") else True,
             "stateFlashMs": window.taskbarStateFlashSpin.value() if hasattr(window, "taskbarStateFlashSpin") else 1000,
+        },
+        "profileListBinding": {
+            "followProfile": follow_profile_lists,
+            "processBlacklist": frozen_process_blacklist if isinstance(frozen_process_blacklist, list) else [],
+            "windowSpecific": frozen_window_specific if isinstance(frozen_window_specific, dict) else {},
         },
         "inputBackend": window.inputBackendCombo.currentData() if hasattr(window, "inputBackendCombo") else "auto",
         "mouseMacros": _collect_mouse_macro_settings(window),
@@ -184,6 +231,39 @@ def apply_general_settings_form_data(settings, form_data: Dict[str, Any]) -> Non
             settings.data.setdefault("taskbar", {})
             settings.data["taskbar"]["stateFlashEnabled"] = bool(taskbar_data.get("stateFlashEnabled", True))
             settings.data["taskbar"]["stateFlashMs"] = max(100, min(10000, int(taskbar_data.get("stateFlashMs", 1000) or 1000)))
+
+    if "profileListBinding" in form_data:
+        binding = form_data.get("profileListBinding", {})
+        if isinstance(binding, dict):
+            frozen_process_blacklist = binding.get("processBlacklist", [])
+            if not isinstance(frozen_process_blacklist, list):
+                frozen_process_blacklist = []
+            frozen_window_specific = binding.get("windowSpecific", {})
+            if not isinstance(frozen_window_specific, dict):
+                frozen_window_specific = {}
+            settings.data["profileListBinding"] = {
+                "followProfile": bool(binding.get("followProfile", True)),
+                "processBlacklist": [
+                    str(item).strip()
+                    for item in frozen_process_blacklist
+                    if str(item).strip()
+                ],
+                "windowSpecific": {
+                    "enabled": bool(frozen_window_specific.get("enabled", form_data["windowSpecific"]["enabled"])),
+                    "targetWindows": [
+                        str(item).strip()
+                        for item in frozen_window_specific.get("targetWindows", form_data["windowSpecific"]["targetWindows"])
+                        if str(item).strip()
+                    ],
+                    "targetWindowHandle": 0,
+                    "autoLockOnWindowFocus": bool(
+                        frozen_window_specific.get("autoLockOnWindowFocus", form_data["windowSpecific"]["autoLockOnWindowFocus"])
+                    ),
+                    "resumeAfterWindowSwitch": bool(
+                        frozen_window_specific.get("resumeAfterWindowSwitch", form_data["windowSpecific"]["resumeAfterWindowSwitch"])
+                    ),
+                },
+            }
 
     if "mouseMacros" in form_data:
         settings.data["mouseMacros"] = form_data["mouseMacros"]

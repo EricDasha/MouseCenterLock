@@ -66,6 +66,9 @@ MOUSEEVENTF_MIDDLEDOWN = 0x0020
 MOUSEEVENTF_MIDDLEUP = 0x0040
 MOUSEEVENTF_XDOWN = 0x0080
 MOUSEEVENTF_XUP = 0x0100
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_HWHEEL = 0x01000
 XBUTTON1 = 0x0001
 XBUTTON2 = 0x0002
 
@@ -85,8 +88,10 @@ WM_RBUTTONDOWN = 0x0204
 WM_RBUTTONUP = 0x0205
 WM_MBUTTONDOWN = 0x0207
 WM_MBUTTONUP = 0x0208
+WM_MOUSEWHEEL = 0x020A
 WM_XBUTTONDOWN = 0x020B
 WM_XBUTTONUP = 0x020C
+WM_MOUSEHWHEEL = 0x020E
 VK_SPACE = 0x20
 VK_TAB = 0x09
 VK_RETURN = 0x0D
@@ -320,10 +325,10 @@ def _send_input(inputs: List[INPUT]) -> bool:
     return True
 
 
-def _mouse_input(flags: int, mouse_data: int = 0) -> INPUT:
+def _mouse_input(flags: int, mouse_data: int = 0, dx: int = 0, dy: int = 0) -> INPUT:
     item = INPUT()
     item.type = INPUT_MOUSE
-    item.union.mi = MOUSEINPUT(0, 0, mouse_data, flags, 0, 0)
+    item.union.mi = MOUSEINPUT(int(dx), int(dy), mouse_data, flags, 0, 0)
     return item
 
 
@@ -412,6 +417,30 @@ def mouse_up(button: str = "left") -> bool:
     if _send_input([_mouse_input(up_flag, mouse_data)]):
         return True
     mouse_up_fallback(button_name)
+    return False
+
+
+def mouse_move_relative(dx: int, dy: int) -> bool:
+    """Move the cursor by a relative offset using SendInput."""
+    move_x = int(max(-32767, min(32767, int(dx or 0))))
+    move_y = int(max(-32767, min(32767, int(dy or 0))))
+    if move_x == 0 and move_y == 0:
+        return True
+    if _send_input([_mouse_input(MOUSEEVENTF_MOVE, 0, move_x, move_y)]):
+        return True
+    user32.mouse_event(MOUSEEVENTF_MOVE, move_x, move_y, 0, 0)
+    return False
+
+
+def mouse_scroll(delta: int = 120, *, horizontal: bool = False) -> bool:
+    """Scroll the mouse wheel; positive values scroll up/right, negative down/left."""
+    amount = int(max(-12000, min(12000, int(delta or 0))))
+    if amount == 0:
+        return True
+    flag = MOUSEEVENTF_HWHEEL if horizontal else MOUSEEVENTF_WHEEL
+    if _send_input([_mouse_input(flag, amount)]):
+        return True
+    user32.mouse_event(flag, 0, 0, amount, 0)
     return False
 
 

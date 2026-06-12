@@ -101,6 +101,38 @@ class SettingsFormTests(unittest.TestCase):
         self.assertEqual(settings.data["language"], "zh-Hant")
         self.assertTrue(settings.data["startup"]["launchOnBoot"])
 
+    def test_collect_and_apply_profile_list_binding_freezes_current_lists(self):
+        window = types.SimpleNamespace(
+            settings=types.SimpleNamespace(data={"profileListBinding": {"followProfile": True}}),
+            lockHotkeyCapture=_HotkeyWidget({"key": "F9"}),
+            unlockHotkeyCapture=_HotkeyWidget({"key": "F10"}),
+            toggleHotkeyCapture=_HotkeyWidget({"key": "K"}),
+            recenterCheck=_CheckWidget(True),
+            recenterSpin=_ValueWidget(250),
+            posCombo=_ComboWidget("virtualCenter"),
+            customXSpin=_ValueWidget(0),
+            customYSpin=_ValueWidget(0),
+            windowSpecificCheck=_CheckWidget(True),
+            targetList=_ListWidget(["game.exe", "tool.exe"]),
+            autoLockCheck=_CheckWidget(True),
+            resumeAfterSwitchCheck=_CheckWidget(False),
+            profileListFollowCheck=_CheckWidget(False),
+            clickerProcessBlacklist=_ListWidget(["steam.exe", "overlay.exe"]),
+            langCombo=_ComboWidget("zh-Hans"),
+            themeCombo=_ComboWidget("dark"),
+            startupCheck=_CheckWidget(False),
+        )
+        settings = types.SimpleNamespace(data={})
+
+        form_data = collect_general_settings_form_data(window)
+        apply_general_settings_form_data(settings, form_data)
+
+        binding = settings.data["profileListBinding"]
+        self.assertFalse(binding["followProfile"])
+        self.assertEqual(binding["processBlacklist"], ["steam.exe", "overlay.exe"])
+        self.assertEqual(binding["windowSpecific"]["targetWindows"], ["game.exe", "tool.exe"])
+        self.assertTrue(binding["windowSpecific"]["enabled"])
+
     def test_collect_clicker_profile_includes_process_blacklist(self):
         window = types.SimpleNamespace(
             _get_active_clicker_profile=lambda: {"id": "default", "name": "默认方案"},

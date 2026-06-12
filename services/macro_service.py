@@ -55,10 +55,13 @@ class MouseMacroService(QtCore.QObject):
     """Execute configured mouse/key combo macro rules from global input events.
 
     Rules primarily use ``holdMouseButton`` + ``pressMouseButton``. For advanced
-    JSON files, ``holdKey`` + ``pressKey`` is also accepted. ``triggerMode`` can
-    be ``hold``, ``toggle``, ``holdLoop`` or ``toggleLoop``. Press/release edges
-    are tracked so holding A and repeatedly pressing B repeatedly fires the
-    rule; loop modes repeat the action stream until their stop condition.
+    JSON files, ``holdKey`` + ``pressKey`` is also accepted. Toggle rules may
+    use ``toggleOnKey``/``toggleOffKey`` (or mouse-button variants) for strict
+    one-way enable/disable controls; when omitted, the legacy hold trigger keeps
+    acting as a same-key toggle. ``triggerMode`` can be ``hold``, ``toggle``,
+    ``holdLoop`` or ``toggleLoop``. Press/release edges are tracked so holding A
+    and repeatedly pressing B repeatedly fires the rule; loop modes repeat the
+    action stream until their stop condition.
     """
 
     inputEvent = QtCore.Signal(str, str, bool)
@@ -102,8 +105,8 @@ class MouseMacroService(QtCore.QObject):
             on_mouse_event=self._emit_mouse_event,
         )
         self.inputEvent.connect(self._on_global_input_event)
-        self._hook_mode_active = self._input_listener.start()
-        log_message(f"MouseMacroService started: hook_mode={self._hook_mode_active}")
+        self._hook_mode_active = False
+        log_message("MouseMacroService initialized")
 
         self._poll_timer = QtCore.QTimer(self)
         self._poll_timer.timeout.connect(self._poll_input_state)
@@ -155,12 +158,21 @@ class MouseMacroService(QtCore.QObject):
                 self._runtime_enabled = False
                 self._notify_active_state_changed()
             self._poll_timer.stop()
+            self._input_listener.stop()
+            if self._hook_mode_active:
+                log_message("MouseMacroService input hooks stopped: macros disabled")
+            self._hook_mode_active = False
             self._pressed_mouse_buttons.clear()
             self._pressed_keys.clear()
             self._active_rule_keys.clear()
             self._toggled_rule_ids.clear()
             self._stop_loop_rule("macros_disabled")
             return
+        if not self._hook_mode_active:
+            self._hook_mode_active = self._input_listener.start()
+            log_message(f"MouseMacroService input hooks started: hook_mode={self._hook_mode_active}")
+            if not self._hook_mode_active:
+                self._input_listener.stop()
         if not self._runtime_enabled:
             self._runtime_enabled = True
             self._sound_player.play_event(config.get("sound", {}).get("start", {}))
@@ -175,6 +187,8 @@ class MouseMacroService(QtCore.QObject):
 
     def _emit_key_event(self, key_name: str, is_pressed: bool) -> None:
         """Bridge low-level keyboard input into the Qt thread."""
+        if not self._runtime_enabled or not self._get_config().get("enabled", False):
+            return
         normalized = self._normalize_input_name("key", key_name)
         if is_pressed and self._panic_hotkey_matches(normalized):
             self._force_cancel_requested = True
@@ -185,10 +199,14 @@ class MouseMacroService(QtCore.QObject):
 
     def _emit_mouse_event(self, button_name: str, is_pressed: bool) -> None:
         """Bridge low-level mouse input into the Qt thread."""
+        if not self._runtime_enabled or not self._get_config().get("enabled", False):
+            return
         self.inputEvent.emit("mouse", button_name, is_pressed)
 
     def _on_global_input_event(self, event_type: str, name: str, is_pressed: bool) -> None:
         """Track input state and fire matching rules on press edges."""
+        if not self._runtime_enabled or not self._get_config().get("enabled", False):
+            return
         normalized = self._normalize_input_name(event_type, name)
         if not normalized:
             return
@@ -301,6 +319,40 @@ class MouseMacroService(QtCore.QObject):
             return "mouse", self._normalize_input_name("mouse", str(rule.get("holdMouseButton", "")))
         return "", ""
 
+    def _rule_named_input_target(
+        self,
+        rule: Dict[str, Any],
+        *,
+        key_field: str,
+        mouse_field: str,
+    ) -> tuple[str, str]:
+        """Return an optional explicit key/mouse target from a rule field pair."""
+        if key_field in rule:
+            name = self._normalize_input_name("key", str(rule.get(key_field, "")))
+            return ("key", name) if name else ("", "")
+        if mouse_field in rule:
+            name = self._normalize_input_name("mouse", str(rule.get(mouse_field, "")))
+            return ("mouse", name) if name else ("", "")
+        return "", ""
+
+    def _rule_toggle_on_target(self, rule: Dict[str, Any]) -> tuple[str, str]:
+        """Return the explicit one-way enable target, falling back to legacy hold."""
+        target = self._rule_named_input_target(
+            rule,
+            key_field="toggleOnKey",
+            mouse_field="toggleOnMouseButton",
+        )
+        return target if target != ("", "") else self._rule_hold_target(rule)
+
+    def _rule_toggle_off_target(self, rule: Dict[str, Any]) -> tuple[str, str]:
+        """Return the explicit one-way disable target, falling back to enable target."""
+        target = self._rule_named_input_target(
+            rule,
+            key_field="toggleOffKey",
+            mouse_field="toggleOffMouseButton",
+        )
+        return target if target != ("", "") else self._rule_toggle_on_target(rule)
+
     def _rule_hold_is_pressed(self, rule: Dict[str, Any], rule_id: str, _event_type: str) -> bool:
         """Return whether the hold side of a rule is currently pressed.
 
@@ -317,6 +369,15 @@ class MouseMacroService(QtCore.QObject):
             return bool(hold_name and hold_name in self._pressed_keys)
         return bool(hold_name and hold_name in self._pressed_mouse_buttons)
 
+    def _rule_press_is_pressed(self, rule: Dict[str, Any]) -> bool:
+        """Return whether the press side of a rule is currently held down."""
+        press_type, press_name = self._rule_press_target(rule)
+        if not press_type or not press_name:
+            return False
+        if press_type == "key":
+            return press_name in self._pressed_keys
+        return press_name in self._pressed_mouse_buttons
+
     def _current_rule_cancel_matches(self, event_type: str, normalized: str) -> bool:
         """Return whether an input release should cancel the current interruptible rule."""
         if not self._current_rule:
@@ -330,7 +391,7 @@ class MouseMacroService(QtCore.QObject):
         return False
 
     def _handle_toggle_rules(self, event_type: str, normalized: str) -> None:
-        """Flip toggle-mode rules on the trigger edge."""
+        """Arm/disarm toggle-mode rules on their configured trigger edge."""
         config = self._get_config()
         for index, rule in enumerate(self._load_rules(config)):
             if not isinstance(rule, dict) or not rule.get("enabled", False):
@@ -338,11 +399,16 @@ class MouseMacroService(QtCore.QObject):
             trigger_mode = str(rule.get("triggerMode", "hold") or "hold").lower()
             if trigger_mode not in {"toggle", "toggleloop"}:
                 continue
-            toggle_type, toggle_name = self._rule_hold_target(rule)
-            if (event_type, normalized) != (toggle_type, toggle_name):
+            toggle_on_type, toggle_on_name = self._rule_toggle_on_target(rule)
+            toggle_off_type, toggle_off_name = self._rule_toggle_off_target(rule)
+            if (event_type, normalized) not in {
+                (toggle_on_type, toggle_on_name),
+                (toggle_off_type, toggle_off_name),
+            }:
                 continue
             rule_id = str(rule.get("id") or index)
-            if rule_id in self._toggled_rule_ids:
+            is_armed = rule_id in self._toggled_rule_ids
+            if is_armed and (event_type, normalized) == (toggle_off_type, toggle_off_name):
                 self._toggled_rule_ids.discard(rule_id)
                 log_message(f"MouseMacro toggle off: id={rule_id} trigger={event_type}:{normalized}")
                 if trigger_mode == "toggleloop":
@@ -351,12 +417,16 @@ class MouseMacroService(QtCore.QObject):
                     self._cancel_requested = True
                     log_message(f"MouseMacro toggle-off cancellation requested: {self._current_rule_key}")
                 self._notify_active_state_changed()
-            else:
+                continue
+            if not is_armed and (event_type, normalized) == (toggle_on_type, toggle_on_name):
                 self._toggled_rule_ids.add(rule_id)
                 log_message(f"MouseMacro toggle on: id={rule_id} trigger={event_type}:{normalized}")
                 if trigger_mode == "toggleloop":
                     self._start_loop_rule(rule, rule_id, event_type, normalized)
                 self._notify_active_state_changed()
+                continue
+            if is_armed and (event_type, normalized) == (toggle_on_type, toggle_on_name):
+                log_message(f"MouseMacro toggle already on: id={rule_id} trigger={event_type}:{normalized}")
 
     def _rule_is_armed(self, rule: Dict[str, Any], rule_id: str) -> bool:
         return str(rule.get("triggerMode", "hold") or "hold").lower() not in {"toggle", "toggleloop"} or rule_id in self._toggled_rule_ids
@@ -430,6 +500,8 @@ class MouseMacroService(QtCore.QObject):
         if trigger_mode == "toggleloop" and rule_id not in self._toggled_rule_ids:
             self._stop_loop_rule("toggle_not_armed")
             return
+        if bool(rule.get("loopWhilePressHeld", False)) and not self._rule_press_is_pressed(rule):
+            return
         actions = rule.get("actions", [])
         log_message(f"MouseMacro loop firing rule: {self._loop_rule_key} actions={len(actions) if isinstance(actions, list) else 'invalid'}")
         self._execute_actions(actions, rule=rule, rule_key=self._loop_rule_key)
@@ -481,11 +553,11 @@ class MouseMacroService(QtCore.QObject):
         for rule in self._load_rules(self._get_config()):
             if not isinstance(rule, dict) or not rule.get("enabled", False):
                 continue
-            for field in ("holdMouseButton", "pressMouseButton"):
+            for field in ("holdMouseButton", "pressMouseButton", "toggleOnMouseButton", "toggleOffMouseButton"):
                 value = self._normalize_input_name("mouse", str(rule.get(field, "")))
                 if value:
                     mouse_names.add(value)
-            for field in ("holdKey", "pressKey"):
+            for field in ("holdKey", "pressKey", "toggleOnKey", "toggleOffKey"):
                 value = self._normalize_input_name("key", str(rule.get(field, "")))
                 if value:
                     key_names.add(value)
@@ -605,11 +677,29 @@ class MouseMacroService(QtCore.QObject):
     def _execute_action(self, action: Dict[str, Any]) -> None:
         action_type = str(action.get("type", "") or "")
         if action_type == "mouseClick":
-            self._action_executor.click_mouse(str(action.get("button", "left") or "left"))
+            self._action_executor.click_mouse(
+                str(action.get("button", "left") or "left"),
+                hold_ms=self._bounded_int(action.get("holdMs", 0), 0, 0, 5000),
+            )
         elif action_type == "mouseDown":
             self._send_mouse_down(str(action.get("button", "left") or "left"))
         elif action_type == "mouseUp":
             self._send_mouse_up(str(action.get("button", "left") or "left"))
+        elif action_type == "mouseMove":
+            self._action_executor.mouse_move(
+                self._bounded_int(action.get("x", 0), 0, -100000, 100000),
+                self._bounded_int(action.get("y", 0), 0, -100000, 100000),
+            )
+        elif action_type == "mouseMoveRelative":
+            self._action_executor.mouse_move_relative(
+                self._bounded_int(action.get("dx", 0), 0, -32767, 32767),
+                self._bounded_int(action.get("dy", 0), 0, -32767, 32767),
+            )
+        elif action_type == "mouseScroll":
+            self._action_executor.mouse_scroll(
+                dx=self._bounded_int(action.get("dx", 0), 0, -12000, 12000),
+                dy=self._bounded_int(action.get("dy", action.get("amount", 0)), 0, -12000, 12000),
+            )
         elif action_type == "key":
             self._send_key(str(action.get("key", "") or ""))
         elif action_type == "keyDown":
@@ -620,6 +710,13 @@ class MouseMacroService(QtCore.QObject):
             self._action_executor.press_hotkey(action)
         elif action_type == "text":
             self._action_executor.type_text(str(action.get("text", "") or ""))
+
+    def _bounded_int(self, value: Any, default: int = 0, minimum: int = 0, maximum: int = 60000) -> int:
+        try:
+            parsed = int(value)
+        except Exception:
+            parsed = default
+        return max(minimum, min(maximum, parsed))
 
     def _send_key(self, key: str) -> None:
         vk = key_to_vk(key)
@@ -667,7 +764,7 @@ class MouseMacroService(QtCore.QObject):
             if not isinstance(action, dict):
                 continue
             action_type = str(action.get("type", "") or "")
-            if action_type in {"keyUp", "mouseClick", "mouseDown", "mouseUp", "key", "hotkey", "text"}:
+            if action_type in {"keyUp", "mouseClick", "mouseDown", "mouseUp", "mouseMove", "mouseMoveRelative", "mouseScroll", "key", "hotkey", "text"}:
                 log_message(f"MouseMacro cancel action: {action}")
                 self._execute_action(action)
 

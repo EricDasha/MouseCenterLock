@@ -13,6 +13,7 @@ Backends:
 """
 from __future__ import annotations
 
+import time
 from ctypes import byref
 from typing import Any, Callable, Dict, Iterable
 
@@ -35,17 +36,22 @@ from win_api import (
     WM_LBUTTONUP,
     WM_MBUTTONDOWN,
     WM_MBUTTONUP,
+    WM_MOUSEHWHEEL,
+    WM_MOUSEWHEEL,
     WM_RBUTTONDOWN,
     WM_RBUTTONUP,
     POINT,
     click_mouse as sendinput_click_mouse,
     get_active_window_info,
+    mouse_move_relative as sendinput_mouse_move_relative,
+    mouse_scroll as sendinput_mouse_scroll,
     mouse_down as sendinput_mouse_down,
     mouse_up as sendinput_mouse_up,
     key_down_vk,
     key_to_vk,
     key_up_vk,
     press_vk as sendinput_press_vk,
+    set_cursor_to,
     user32,
 )
 
@@ -125,8 +131,18 @@ class InputService:
     def click_mouse(self, button: str = "left") -> None:
         self.mouse_click(button)
 
-    def mouse_click(self, button: str = "left") -> None:
+    def mouse_click(self, button: str = "left", hold_ms: int = 0) -> None:
         button_name = (button or "left").lower()
+        try:
+            hold_ms = max(0, min(5000, int(hold_ms or 0)))
+        except Exception:
+            hold_ms = 0
+        if hold_ms > 0:
+            self.mouse_down(button_name)
+            time.sleep(hold_ms / 1000.0)
+            self.mouse_up(button_name)
+            self._log_route("mouseClick", self.backend(), "down-up-hold", f"button={button_name} holdMs={hold_ms}")
+            return
         requested = self.backend()
         backend, fallback_reason = self._resolve_backend(requested)
         if fallback_reason and backend == requested:
@@ -181,6 +197,53 @@ class InputService:
         else:
             sendinput_click_mouse(button_name)
         self._log_route(action, backend, "python-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+
+    def mouse_move(self, x: int, y: int) -> None:
+        """Move cursor to an absolute screen coordinate."""
+        try:
+            move_x = int(x)
+            move_y = int(y)
+        except Exception:
+            self._log_route("mouseMove", self.backend(), "invalid", f"x={x} y={y}")
+            return
+        set_cursor_to(move_x, move_y)
+        self._log_route("mouseMove", self.backend(), "set-cursor-pos", f"x={move_x} y={move_y}")
+
+    def mouse_move_relative(self, dx: int, dy: int) -> None:
+        """Move cursor by a relative offset."""
+        try:
+            move_x = int(dx)
+            move_y = int(dy)
+        except Exception:
+            self._log_route("mouseMoveRelative", self.backend(), "invalid", f"dx={dx} dy={dy}")
+            return
+        sendinput_mouse_move_relative(move_x, move_y)
+        self._log_route("mouseMoveRelative", self.backend(), "python-sendinput", f"dx={move_x} dy={move_y}")
+
+    def mouse_scroll(self, *, dx: int = 0, dy: int = 0) -> None:
+        """Scroll the mouse wheel vertically and/or horizontally."""
+        try:
+            scroll_x = int(dx or 0)
+            scroll_y = int(dy or 0)
+        except Exception:
+            self._log_route("mouseScroll", self.backend(), "invalid", f"dx={dx} dy={dy}")
+            return
+        requested = self.backend()
+        backend, fallback_reason = self._resolve_backend(requested)
+        if fallback_reason and backend == requested:
+            self._log_route("mouseScroll", backend, "unavailable", f"dx={scroll_x} dy={scroll_y}", requested=requested, reason=fallback_reason)
+            return
+        if backend == BACKEND_WINDOW_MESSAGE:
+            if self._mouse_wheel_window_message(scroll_y, horizontal=False) and self._mouse_wheel_window_message(scroll_x, horizontal=True):
+                self._log_route("mouseScroll", backend, "window-message", f"dx={scroll_x} dy={scroll_y}", requested=requested, reason=fallback_reason)
+                return
+            log_message(f"InputService window-message scroll failed: dx={scroll_x} dy={scroll_y}")
+            return
+        if scroll_y:
+            sendinput_mouse_scroll(scroll_y, horizontal=False)
+        if scroll_x:
+            sendinput_mouse_scroll(scroll_x, horizontal=True)
+        self._log_route("mouseScroll", backend, "python-sendinput", f"dx={scroll_x} dy={scroll_y}", requested=requested, reason=fallback_reason)
 
     def press_key(self, key: str) -> None:
         vk = key_to_vk(key)
@@ -343,6 +406,22 @@ class InputService:
         if up:
             ok = self._post_message(hwnd, up_msg, 0, lparam) and ok
         return ok
+
+    def _mouse_wheel_window_message(self, delta: int, *, horizontal: bool = False) -> bool:
+        if not delta:
+            return True
+        hwnd = self._foreground_hwnd()
+        if not hwnd:
+            return False
+        try:
+            pt = POINT()
+            user32.GetCursorPos(byref(pt))
+            lparam = _lparam_from_point(pt.x, pt.y)
+        except Exception:
+            lparam = 0
+        msg = WM_MOUSEHWHEEL if horizontal else WM_MOUSEWHEEL
+        wparam = (int(delta) & 0xFFFF) << 16
+        return self._post_message(hwnd, msg, wparam, lparam)
 
     def _press_vk_window_message(self, vk: int) -> bool:
         hwnd = self._foreground_hwnd()

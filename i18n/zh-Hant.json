@@ -232,6 +232,12 @@
   "clicker.profile.import.failed": "匯入方案失敗。",
   "clicker.profile.unsaved.title": "方案有未儲存變更",
   "clicker.profile.unsaved.message": "切換方案前是否儲存目前方案的變更？",
+  "profile.lists.follow": "連點黑名單和目標視窗跟隨方案",
+  "profile.lists.follow.hint": "開啟：切換方案時載入各方案保存的黑名單和目標視窗。關閉：凍結目前黑/白名單為全域生效，方案內原名單保留，重新開啟後恢復生效。",
+  "profile.lists.follow.disable.title": "凍結目前黑/白名單？",
+  "profile.lists.follow.disable.message": "將把目前連點程序黑名單和目標視窗列表凍結為全域生效。各方案裡保存的名單不會刪除，只會在關閉跟隨期間被忽略；重新開啟跟隨後會恢復使用。",
+  "profile.lists.follow.enabled": "黑/白名單已恢復跟隨方案。",
+  "profile.lists.follow.disabled": "目前黑/白名單已凍結為全域生效。",
   "save": "儲存",
   "discard": "不儲存",
   "cancel": "取消",
@@ -251,5 +257,7 @@
   "taskbar.title.clicker": "滑鼠連點已啟動",
   "taskbar.title.macro": "滑鼠宏已啟動",
   "taskbar.flash.enabled": "解鎖時工作列綠色閃爍提示",
-  "taskbar.flash.duration": "解鎖閃爍時長"
+  "taskbar.flash.duration": "解鎖閃爍時長",
+  "section.inputOutput": "輸入輸出",
+  "inputBackend.sharedHint": "此後端同時用於連點器與巨集輸出。目標忽略瞬時點擊時，優先嘗試原生 SendInput + 滑鼠按住時長，再嘗試視窗訊息。"
 }

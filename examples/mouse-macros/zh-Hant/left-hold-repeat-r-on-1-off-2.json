@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {
+      "id": "left-hold-repeat-r-on-1-off-2",
+      "name": "按 1 開啟偵測：按住左鍵每 100ms 按 R，按 2 停止",
+      "enabled": true,
+      "triggerMode": "toggleLoop",
+      "toggleOnKey": "1",
+      "toggleOffKey": "2",
+      "pressMouseButton": "left",
+      "loopWhilePressHeld": true,
+      "loopIntervalMs": 100,
+      "actions": [
+        {
+          "type": "key",
+          "key": "R"
+        }
+      ]
+    }
+  ]
+}

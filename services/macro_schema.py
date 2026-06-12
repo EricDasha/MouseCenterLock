@@ -27,8 +27,12 @@ MOUSE_MACRO_ACTION_TYPES = (
     "mouseDown",
     "mouseUp",
     "mouseClick",
+    "mouseMove",
+    "mouseMoveRelative",
+    "mouseScroll",
     "text",
     "delay",
+    "repeat",
 )
 
 MOUSE_MACRO_TRIGGER_MODES = ("hold", "toggle", "holdLoop", "toggleLoop")

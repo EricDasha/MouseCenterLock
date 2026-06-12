@@ -30,6 +30,11 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
     profile_name = window.clickerProfileNameEdit.text().strip() or active.get("name", "默认方案")
     preset = window.clickerPresetCombo.currentData() or "custom"
     interval_ms = window.clickerIntervalSpin.value()
+    click_hold_ms = (
+        window.clickerHoldMsSpin.value()
+        if hasattr(window, "clickerHoldMsSpin")
+        else int(active.get("clickHoldMs", 0) or 0)
+    )
     feature_settings: Dict[str, Any] = {}
     if hasattr(window, "_current_general_settings_form_data"):
         general_settings = window._current_general_settings_form_data()
@@ -45,6 +50,7 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
         "button": window.clickerButtonCombo.currentData(),
         "preset": preset,
         "intervalMs": interval_ms,
+        "clickHoldMs": click_hold_ms,
         "sound": {
             "start": {
                 "enabled": window.clickerSoundEnabledCheck.isChecked(),
@@ -87,6 +93,8 @@ def load_clicker_profile_into_form(window, profile: Dict[str, Any]) -> None:
                 window.clickerPresetCombo.setCurrentIndex(i)
                 break
         window.clickerIntervalSpin.setValue(int(profile.get("intervalMs", 100)))
+        if hasattr(window, "clickerHoldMsSpin"):
+            window.clickerHoldMsSpin.setValue(int(profile.get("clickHoldMs", 0) or 0))
 
         triggers = profile.get("triggers", {})
         for i in range(window.clickerTriggerModeCombo.count()):

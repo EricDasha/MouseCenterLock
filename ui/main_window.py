@@ -56,7 +56,7 @@ class MainWindow(QtWidgets.QMainWindow):
     """Main application window."""
 
     _BASE_SCREEN_SIZE = (1920, 1080)
-    _BASE_WINDOW_SIZE = (570, 700)
+    _BASE_WINDOW_SIZE = (600, 800)
     _MIN_WINDOW_SIZE = (450, 500)
     _WINDOW_DISPLAY_TITLE = "鼠标中心锁定"
     
@@ -187,8 +187,101 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setWindowTitle(title)
 
     def _get_active_clicker_profile(self) -> Dict[str, Any]:
-        """Return the active clicker profile from settings."""
+        """Return the active clicker profile, applying frozen list overlay if enabled."""
+        profile = self.settings.get_active_clicker_profile()
+        if not self._profile_lists_follow_profile():
+            profile["processBlacklist"] = self._frozen_process_blacklist()
+        return profile
+
+    def _get_raw_active_clicker_profile(self) -> Dict[str, Any]:
+        """Return the active clicker profile exactly as stored in settings."""
         return self.settings.get_active_clicker_profile()
+
+    def _profile_list_binding(self) -> Dict[str, Any]:
+        """Return normalized profile list binding config."""
+        binding = self.settings.data.setdefault("profileListBinding", {})
+        if not isinstance(binding, dict):
+            binding = {}
+            self.settings.data["profileListBinding"] = binding
+        binding.setdefault("followProfile", True)
+        binding.setdefault("processBlacklist", [])
+        binding.setdefault("windowSpecific", {})
+        return binding
+
+    def _profile_lists_follow_profile(self) -> bool:
+        """Return whether blacklist/target-window lists should follow profile switches."""
+        return bool(self._profile_list_binding().get("followProfile", True))
+
+    def _frozen_process_blacklist(self) -> list[str]:
+        """Return the frozen auto-clicker process blacklist."""
+        items = self._profile_list_binding().get("processBlacklist", [])
+        if not isinstance(items, list):
+            return []
+        return [str(item).strip() for item in items if str(item).strip()]
+
+    def _frozen_window_specific(self) -> Dict[str, Any]:
+        """Return the frozen target-window lock settings."""
+        value = self._profile_list_binding().get("windowSpecific", {})
+        if not isinstance(value, dict):
+            value = {}
+        current = self.settings.data.get("windowSpecific", {}) if isinstance(self.settings.data.get("windowSpecific", {}), dict) else {}
+        targets = value.get("targetWindows", current.get("targetWindows", []))
+        if not isinstance(targets, list):
+            targets = []
+        return {
+            "enabled": bool(value.get("enabled", current.get("enabled", False))),
+            "targetWindows": [str(item).strip() for item in targets if str(item).strip()],
+            "targetWindowHandle": 0,
+            "autoLockOnWindowFocus": bool(value.get("autoLockOnWindowFocus", current.get("autoLockOnWindowFocus", False))),
+            "resumeAfterWindowSwitch": bool(value.get("resumeAfterWindowSwitch", current.get("resumeAfterWindowSwitch", False))),
+        }
+
+    def _snapshot_profile_lists_from_form(self) -> Dict[str, Any]:
+        """Capture currently effective blacklist and target-window whitelist from UI."""
+        process_blacklist = []
+        if hasattr(self, "clickerProcessBlacklist"):
+            process_blacklist = [
+                self.clickerProcessBlacklist.item(i).text()
+                for i in range(self.clickerProcessBlacklist.count())
+            ]
+        window_specific = {
+            "enabled": self.windowSpecificCheck.isChecked() if hasattr(self, "windowSpecificCheck") else False,
+            "targetWindows": [
+                self.targetList.item(i).text()
+                for i in range(self.targetList.count())
+            ] if hasattr(self, "targetList") else [],
+            "targetWindowHandle": 0,
+            "autoLockOnWindowFocus": self.autoLockCheck.isChecked() if hasattr(self, "autoLockCheck") else False,
+            "resumeAfterWindowSwitch": self.resumeAfterSwitchCheck.isChecked() if hasattr(self, "resumeAfterSwitchCheck") else False,
+        }
+        return {
+            "processBlacklist": [str(item).strip() for item in process_blacklist if str(item).strip()],
+            "windowSpecific": window_specific,
+        }
+
+    def _apply_frozen_lists_to_runtime_and_form(self) -> None:
+        """Apply frozen blacklist/target-window lists without touching saved profile copies."""
+        if self._profile_lists_follow_profile():
+            return
+        snapshot = self._profile_list_binding()
+        frozen_window = self._frozen_window_specific()
+        self.settings.data["windowSpecific"] = json.loads(json.dumps(frozen_window))
+        if hasattr(self, "clickerProcessBlacklist"):
+            self.clickerProcessBlacklist.clear()
+            for process_name in self._frozen_process_blacklist():
+                self.clickerProcessBlacklist.addItem(process_name)
+        if hasattr(self, "windowSpecificCheck"):
+            self.windowSpecificCheck.setChecked(bool(frozen_window.get("enabled", False)))
+        if hasattr(self, "targetList"):
+            self.targetList.clear()
+            for win_title in frozen_window.get("targetWindows", []):
+                self.targetList.addItem(str(win_title))
+        if hasattr(self, "autoLockCheck"):
+            self.autoLockCheck.setChecked(bool(frozen_window.get("autoLockOnWindowFocus", False)))
+        if hasattr(self, "resumeAfterSwitchCheck"):
+            self.resumeAfterSwitchCheck.setChecked(bool(frozen_window.get("resumeAfterWindowSwitch", False)))
+        snapshot["processBlacklist"] = self._frozen_process_blacklist()
+        snapshot["windowSpecific"] = frozen_window
 
     def _on_clicker_runtime_changed(self) -> None:
         """Refresh UI elements affected by clicker runtime state."""
@@ -373,7 +466,7 @@ class MainWindow(QtWidgets.QMainWindow):
         effective_height = max(1.0, available.height() * scale)
         width_ratio = effective_width / self._BASE_SCREEN_SIZE[0]
         height_ratio = effective_height / self._BASE_SCREEN_SIZE[1]
-        ratio = max(1.0, min(width_ratio, height_ratio))
+        ratio = min(1.0, width_ratio, height_ratio)
 
         width = int(round(self._BASE_WINDOW_SIZE[0] * ratio))
         height = int(round(self._BASE_WINDOW_SIZE[1] * ratio))
@@ -543,9 +636,62 @@ class MainWindow(QtWidgets.QMainWindow):
             self.clickerProcessBlacklist.takeItem(row)
             self._schedule_live_apply()
 
+    def _on_profile_list_follow_toggled(self, checked: bool):
+        """Toggle whether black/white lists follow clicker profile switching."""
+        if self._suspend_live_apply > 0:
+            return
+        binding = self._profile_list_binding()
+        if checked:
+            binding["followProfile"] = True
+            self._profile_dirty = True
+            active = self._get_raw_active_clicker_profile()
+            self._load_profile_into_form(active)
+            self._schedule_live_apply()
+            self._notify(self.i18n.t("profile.lists.follow.enabled", "Black/white lists now follow profiles."))
+            return
+
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            self.i18n.t("profile.lists.follow.disable.title", "Freeze black/white lists?"),
+            self.i18n.t(
+                "profile.lists.follow.disable.message",
+                "Current auto-clicker process blacklist and target-window list will be frozen globally. "
+                "Profile-stored lists are kept but ignored until you enable following profiles again.",
+            ),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply != QtWidgets.QMessageBox.Yes:
+            self.profileListFollowCheck.blockSignals(True)
+            try:
+                self.profileListFollowCheck.setChecked(True)
+            finally:
+                self.profileListFollowCheck.blockSignals(False)
+            return
+
+        snapshot = self._snapshot_profile_lists_from_form()
+        binding["followProfile"] = False
+        binding["processBlacklist"] = snapshot["processBlacklist"]
+        binding["windowSpecific"] = snapshot["windowSpecific"]
+        self.settings.data["windowSpecific"] = json.loads(json.dumps(snapshot["windowSpecific"]))
+        self._profile_dirty = True
+        self._schedule_live_apply()
+        self._notify(self.i18n.t("profile.lists.follow.disabled", "Current black/white lists are frozen globally."))
+
     def _current_profile_form_data(self) -> Dict[str, Any]:
         """Build a clicker profile from the current form controls."""
-        return collect_clicker_profile_form_data(self)
+        profile = collect_clicker_profile_form_data(self)
+        if not self._profile_lists_follow_profile():
+            raw_profile = self._get_raw_active_clicker_profile()
+            profile["processBlacklist"] = json.loads(json.dumps(raw_profile.get("processBlacklist", [])))
+            raw_feature_settings = raw_profile.get("featureSettings", {})
+            raw_window_specific = raw_feature_settings.get("windowSpecific") if isinstance(raw_feature_settings, dict) else None
+            feature_settings = profile.setdefault("featureSettings", {})
+            if isinstance(raw_window_specific, dict):
+                feature_settings["windowSpecific"] = json.loads(json.dumps(raw_window_specific))
+            else:
+                feature_settings.pop("windowSpecific", None)
+        return profile
 
     def _current_general_settings_form_data(self) -> Dict[str, Any]:
         """Build a general settings payload from the current form controls."""
@@ -556,6 +702,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._apply_profile_feature_settings(profile)
         load_clicker_profile_into_form(self, profile)
         self._load_feature_settings_into_form(profile.get("featureSettings", {}))
+        self._begin_form_update()
+        try:
+            self._apply_frozen_lists_to_runtime_and_form()
+            if hasattr(self, "profileListFollowCheck"):
+                self.profileListFollowCheck.setChecked(self._profile_lists_follow_profile())
+        finally:
+            self._end_form_update()
 
     def _apply_profile_feature_settings(self, profile: Dict[str, Any]) -> None:
         """Apply feature settings stored inside a clicker profile."""
@@ -565,7 +718,6 @@ class MainWindow(QtWidgets.QMainWindow):
         for key in (
             "recenter",
             "position",
-            "windowSpecific",
             "mouseMacros",
             "inputBackend",
             "inputMode",
@@ -574,6 +726,10 @@ class MainWindow(QtWidgets.QMainWindow):
         ):
             if key in feature_settings:
                 self.settings.data[key] = json.loads(json.dumps(feature_settings[key]))
+        if self._profile_lists_follow_profile() and "windowSpecific" in feature_settings:
+            self.settings.data["windowSpecific"] = json.loads(json.dumps(feature_settings["windowSpecific"]))
+        elif not self._profile_lists_follow_profile():
+            self.settings.data["windowSpecific"] = self._frozen_window_specific()
 
     def _set_combo_data(self, combo, value) -> None:
         """Set a combo box by itemData without emitting change signals."""
@@ -942,7 +1098,12 @@ class MainWindow(QtWidgets.QMainWindow):
         """Return a compact description for a macro action."""
         action_type = str(action.get("type", "") or "")
         if action_type == "mouseClick":
-            return self.i18n.t("macro.preview.action.mouseClick", "Click {0}").format(action.get("button", "left"))
+            try:
+                hold_ms = int(action.get("holdMs", 0) or 0)
+            except Exception:
+                hold_ms = 0
+            suffix = f" / {hold_ms}ms" if hold_ms > 0 else ""
+            return self.i18n.t("macro.preview.action.mouseClick", "Click {0}").format(action.get("button", "left")) + suffix
         if action_type == "key":
             return self.i18n.t("macro.preview.action.key", "Key {0}").format(action.get("key", "?"))
         if action_type == "keyDown":
@@ -953,6 +1114,12 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.i18n.t("macro.preview.action.mouseDown", "Mouse down {0}").format(action.get("button", "left"))
         if action_type == "mouseUp":
             return self.i18n.t("macro.preview.action.mouseUp", "Mouse up {0}").format(action.get("button", "left"))
+        if action_type == "mouseMove":
+            return self.i18n.t("macro.preview.action.mouseMove", "Move to {0},{1}").format(action.get("x", 0), action.get("y", 0))
+        if action_type == "mouseMoveRelative":
+            return self.i18n.t("macro.preview.action.mouseMoveRelative", "Move by {0},{1}").format(action.get("dx", 0), action.get("dy", 0))
+        if action_type == "mouseScroll":
+            return self.i18n.t("macro.preview.action.mouseScroll", "Scroll {0},{1}").format(action.get("dx", 0), action.get("dy", action.get("amount", 0)))
         if action_type == "hotkey":
             return self.i18n.t("macro.preview.action.hotkey", "Hotkey {0}").format(format_hotkey_display(action))
         if action_type == "text":
@@ -962,6 +1129,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return self.i18n.t("macro.preview.action.text", "Text \"{0}\"").format(text)
         if action_type == "delay":
             return self.i18n.t("macro.preview.action.delay", "Delay {0}ms").format(action.get("ms", 0))
+        if action_type == "repeat":
+            return self.i18n.t("macro.preview.action.repeat", "Repeat x{0}").format(action.get("count", 1))
         return action_type or "?"
 
     def _macro_preset_label(self, relative_path: str) -> str:
@@ -1063,8 +1232,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if not isinstance(rule, dict):
                 lines.append(f"{index}. ?")
                 continue
-            hold = rule.get("holdMouseButton", "?")
-            press = rule.get("pressMouseButton", "?")
+            hold = rule.get("holdKey") or rule.get("holdMouseButton", "?")
+            press = rule.get("pressKey") or rule.get("pressMouseButton", "?")
+            toggle_on = rule.get("toggleOnKey") or rule.get("toggleOnMouseButton") or hold
+            toggle_off = rule.get("toggleOffKey") or rule.get("toggleOffMouseButton") or toggle_on
             mode = str(rule.get("triggerMode", "hold") or "hold")
             enabled = self.i18n.t("simple.enabled", "Enabled") if rule.get("enabled", False) else self.i18n.t("simple.disabled", "Disabled")
             actions = rule.get("actions", [])
@@ -1076,9 +1247,26 @@ class MainWindow(QtWidgets.QMainWindow):
             if mode == "holdLoop":
                 trigger_text = self.i18n.t("macro.preview.trigger.holdLoop", "hold {0} loop").format(hold)
             elif mode == "toggleLoop":
-                trigger_text = self.i18n.t("macro.preview.trigger.toggleLoop", "press {0} toggle loop").format(hold)
+                if toggle_off != toggle_on:
+                    trigger_text = self.i18n.t(
+                        "macro.preview.trigger.toggleLoopOnOff",
+                        "press {0} arm loop, press {1} stop",
+                    ).format(toggle_on, toggle_off)
+                else:
+                    trigger_text = self.i18n.t("macro.preview.trigger.toggleLoop", "press {0} toggle loop").format(toggle_on)
+                if rule.get("loopWhilePressHeld"):
+                    trigger_text += self.i18n.t(
+                        "macro.preview.trigger.loopWhilePressHeld",
+                        ", while holding {0}",
+                    ).format(press)
             elif mode == "toggle":
-                trigger_text = self.i18n.t("macro.preview.trigger.toggle", "toggle {0}, then press {1}").format(hold, press)
+                if toggle_off != toggle_on:
+                    trigger_text = self.i18n.t(
+                        "macro.preview.trigger.toggleOnOff",
+                        "press {0} arm, press {1} stop; trigger {2}",
+                    ).format(toggle_on, toggle_off, press)
+                else:
+                    trigger_text = self.i18n.t("macro.preview.trigger.toggle", "toggle {0}, then press {1}").format(toggle_on, press)
             else:
                 trigger_text = self.i18n.t("macro.preview.trigger.hold", "{0} + {1}").format(hold, press)
             lines.append(f"{index}. {enabled}: {trigger_text} → {action_text or '?'}")

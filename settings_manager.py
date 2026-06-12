@@ -88,6 +88,15 @@ def normalize_hotkey(config: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[s
     return normalized
 
 
+def bounded_int(value: Any, default: int = 0, minimum: int = 0, maximum: int = 60000) -> int:
+    """Parse and clamp an integer config value."""
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = default
+    return max(minimum, min(maximum, parsed))
+
+
 class SettingsManager:
     """Manages application settings including loading, validation, and saving."""
 
@@ -155,6 +164,38 @@ class SettingsManager:
         window_specific.setdefault("targetWindowHandle", 0)
         window_specific.setdefault("autoLockOnWindowFocus", False)
         window_specific.setdefault("resumeAfterWindowSwitch", False)
+        list_binding = self.data.setdefault("profileListBinding", {})
+        if not isinstance(list_binding, dict):
+            list_binding = {}
+        frozen_window_specific = list_binding.get("windowSpecific", {})
+        if not isinstance(frozen_window_specific, dict):
+            frozen_window_specific = {}
+        frozen_blacklist = list_binding.get("processBlacklist", [])
+        if not isinstance(frozen_blacklist, list):
+            frozen_blacklist = []
+        self.data["profileListBinding"] = {
+            "followProfile": bool(list_binding.get("followProfile", True)),
+            "processBlacklist": [
+                str(item).strip()
+                for item in frozen_blacklist
+                if str(item).strip()
+            ],
+            "windowSpecific": {
+                "enabled": bool(frozen_window_specific.get("enabled", window_specific.get("enabled", False))),
+                "targetWindows": [
+                    str(item).strip()
+                    for item in frozen_window_specific.get("targetWindows", window_specific.get("targetWindows", []))
+                    if str(item).strip()
+                ],
+                "targetWindowHandle": 0,
+                "autoLockOnWindowFocus": bool(
+                    frozen_window_specific.get("autoLockOnWindowFocus", window_specific.get("autoLockOnWindowFocus", False))
+                ),
+                "resumeAfterWindowSwitch": bool(
+                    frozen_window_specific.get("resumeAfterWindowSwitch", window_specific.get("resumeAfterWindowSwitch", False))
+                ),
+            },
+        }
         self.data.setdefault("startup", {"launchOnBoot": False})
         self.data.setdefault("closeAction", "ask")
         taskbar_settings = self.data.setdefault("taskbar", {})
@@ -217,6 +258,7 @@ class SettingsManager:
             "enabled": False,
             "button": "left",
             "intervalMs": 100,
+            "clickHoldMs": 0,
             "preset": "efficient",
             "sound": deep_copy(self.DEFAULT_CLICKER_SOUND),
             "processBlacklist": [],
@@ -239,6 +281,7 @@ class SettingsManager:
         normalized["enabled"] = bool(source.get("enabled", False))
         normalized["button"] = source.get("button", "left") if source.get("button") in ("left", "right", "middle") else "left"
         normalized["intervalMs"] = max(1, int(source.get("intervalMs", 100)))
+        normalized["clickHoldMs"] = bounded_int(source.get("clickHoldMs", 0), 0, 0, 1000)
         preset = source.get("preset")
         normalized["preset"] = preset if preset in CLICKER_PRESETS else self._resolve_preset(normalized["intervalMs"])
 
@@ -318,13 +361,27 @@ class SettingsManager:
             normalized["key"] = str(source.get("key", "") or "")
         elif action_type in ("mouseDown", "mouseUp", "mouseClick"):
             normalized["button"] = normalize_mouse_button(source.get("button", "left"), "left")
+            if action_type == "mouseClick":
+                normalized["holdMs"] = bounded_int(source.get("holdMs", 0), 0, 0, 5000)
+        elif action_type == "mouseMove":
+            normalized["x"] = bounded_int(source.get("x", 0), 0, -100000, 100000)
+            normalized["y"] = bounded_int(source.get("y", 0), 0, -100000, 100000)
+        elif action_type == "mouseMoveRelative":
+            normalized["dx"] = bounded_int(source.get("dx", 0), 0, -32767, 32767)
+            normalized["dy"] = bounded_int(source.get("dy", 0), 0, -32767, 32767)
+        elif action_type == "mouseScroll":
+            normalized["dx"] = bounded_int(source.get("dx", 0), 0, -12000, 12000)
+            normalized["dy"] = bounded_int(source.get("dy", source.get("amount", 0)), 0, -12000, 12000)
         elif action_type == "text":
             normalized["text"] = str(source.get("text", "") or "")
         elif action_type == "delay":
-            try:
-                normalized["ms"] = max(0, min(60000, int(source.get("ms", 0))))
-            except Exception:
-                normalized["ms"] = 0
+            normalized["ms"] = bounded_int(source.get("ms", 0), 0, 0, 60000)
+        elif action_type == "repeat":
+            nested_actions = source.get("actions", [])
+            if not isinstance(nested_actions, list):
+                nested_actions = []
+            normalized["count"] = bounded_int(source.get("count", 1), 1, 0, 1000)
+            normalized["actions"] = [self._normalize_macro_action(action) for action in nested_actions[:32]]
         return normalized
 
     def _normalize_macro_rule(self, rule: Dict[str, Any], index: int = 0) -> Dict[str, Any]:
@@ -339,7 +396,7 @@ class SettingsManager:
         on_cancel = source.get("onCancel", [])
         if not isinstance(on_cancel, list):
             on_cancel = []
-        return {
+        normalized_rule = {
             "id": str(source.get("id") or f"macro-{index + 1}"),
             "name": str(source.get("name") or f"Macro {index + 1}"),
             "enabled": bool(source.get("enabled", False)),
@@ -351,10 +408,26 @@ class SettingsManager:
             "cancelOnFocusLost": bool(source.get("cancelOnFocusLost", False)),
             "cooldownMs": max(0, min(60000, int(source.get("cooldownMs", 0) or 0))),
             "loopIntervalMs": max(1, min(60000, int(source.get("loopIntervalMs", source.get("cooldownMs", 1)) or 1))),
+            "loopWhilePressHeld": bool(source.get("loopWhilePressHeld", False)),
             "interruptible": bool(source.get("interruptible", True)),
             "actions": [self._normalize_macro_action(action) for action in actions[:32]],
             "onCancel": [self._normalize_macro_action(action) for action in on_cancel[:16]],
         }
+        if "holdKey" in source:
+            normalized_rule["holdKey"] = str(source.get("holdKey", "") or "")
+        if "pressKey" in source:
+            normalized_rule["pressKey"] = str(source.get("pressKey", "") or "")
+        if "toggleOnKey" in source:
+            normalized_rule["toggleOnKey"] = str(source.get("toggleOnKey", "") or "")
+        if "toggleOffKey" in source:
+            normalized_rule["toggleOffKey"] = str(source.get("toggleOffKey", "") or "")
+        if "toggleOnMouseButton" in source:
+            raw = str(source.get("toggleOnMouseButton", "") or "").strip()
+            normalized_rule["toggleOnMouseButton"] = normalize_mouse_button(raw, "left") if raw else ""
+        if "toggleOffMouseButton" in source:
+            raw = str(source.get("toggleOffMouseButton", "") or "").strip()
+            normalized_rule["toggleOffMouseButton"] = normalize_mouse_button(raw, "left") if raw else ""
+        return normalized_rule
 
     def _ensure_mouse_macros(self) -> None:
         """Normalize mouse macro configuration."""

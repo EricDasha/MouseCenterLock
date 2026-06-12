@@ -27,7 +27,12 @@ class ActionScheduler:
         self._sleep = sleep
 
     def run(self, actions: Any) -> None:
+        self._run_actions(actions, depth=0)
+
+    def _run_actions(self, actions: Any, *, depth: int) -> None:
         if not isinstance(actions, list):
+            return
+        if depth > 4:
             return
         for action in actions[:32]:
             if self._should_cancel():
@@ -36,7 +41,21 @@ class ActionScheduler:
                 continue
             action_type = str(action.get("type", "") or "")
             if action_type == "delay":
-                self._delay(max(0, min(60000, int(action.get("ms", 0)))) / 1000.0)
+                try:
+                    delay_ms = max(0, min(60000, int(action.get("ms", 0))))
+                except Exception:
+                    delay_ms = 0
+                self._delay(delay_ms / 1000.0)
+            elif action_type == "repeat":
+                try:
+                    count = max(0, min(1000, int(action.get("count", 1) or 1)))
+                except Exception:
+                    count = 1
+                nested_actions = action.get("actions", [])
+                for _index in range(count):
+                    if self._should_cancel():
+                        return
+                    self._run_actions(nested_actions, depth=depth + 1)
             else:
                 self._execute_action(action)
 

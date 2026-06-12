@@ -19,6 +19,8 @@ This folder contains JSON presets that can be selected from Advanced Settings â†
 - `middle-left-test.json`: runtime diagnostics; hold middle button, click left â†’ top-row `1`.
 - `back-left-2-delay-1.json`: hold mouse Back side button (`back` / `x1`), each left click â†’ top-row `2`, wait 100ms, top-row `1`; the real left click is passed through, so the action list does not click left again.
 - `key-delay-key.json`: hold keyboard `A`, each `B` press â†’ `A`, wait 50ms, `B`; while `A` remains held, repeated `B` presses repeat the sequence.
+- `repeat-r-on-1-off-2.json`: press `1` to start pressing `R` every 100ms; press `2` to stop.
+- `left-hold-repeat-r-on-1-off-2.json`: press `1` to arm; while armed, hold left mouse to press `R` every 100ms; press `2` to stop.
 
 ## Rule fields
 
@@ -30,10 +32,13 @@ This folder contains JSON presets that can be selected from Advanced Settings â†
   "triggerMode": "hold",
   "holdMouseButton": "x1",
   "pressMouseButton": "left",
+  "toggleOnKey": "1",
+  "toggleOffKey": "2",
   "actions": [],
   "onCancel": [],
   "cooldownMs": 0,
-  "loopIntervalMs": 1
+  "loopIntervalMs": 1,
+  "loopWhilePressHeld": false
 }
 ```
 
@@ -45,6 +50,8 @@ This folder contains JSON presets that can be selected from Advanced Settings â†
 | `toggle` | Press once to arm, then use the trigger key to fire |
 | `holdLoop` | While the hold key is pressed, repeat the action list |
 | `toggleLoop` | Press once to start looping, press again to stop |
+
+Loop modes can set `loopWhilePressHeld: true`: each loop iteration only fires while `pressMouseButton` / `pressKey` is currently held. `toggle` / `toggleLoop` can also use one-way controls: `toggleOnKey` / `toggleOnMouseButton` only starts, and `toggleOffKey` / `toggleOffMouseButton` only stops.
 
 ### Safety stop
 
@@ -74,7 +81,9 @@ This folder contains JSON presets that can be selected from Advanced Settings â†
 - `hotkey`: key combination, e.g. `{ "type": "hotkey", "modCtrl": true, "key": "C" }`
 - `key`: single key, e.g. `{ "type": "key", "key": "1" }`
 - `keyDown` / `keyUp`: press / release, useful for overlapping timings
-- `mouseClick`: mouse click
+- `mouseClick`: mouse click; `holdMs` keeps the button down before release for compatibility
 - `mouseDown` / `mouseUp`: mouse press / release
+- `mouseMove` / `mouseMoveRelative` / `mouseScroll`: cursor and wheel actions
 - `text`: type text
 - `delay`: wait milliseconds, e.g. `{ "type": "delay", "ms": 80 }`
+- `repeat`: repeat a nested action list

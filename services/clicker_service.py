@@ -10,7 +10,6 @@ from PySide6 import QtCore
 
 from win_api import (
     GlobalInputListener,
-    click_mouse,
     get_active_window_info,
     get_window_process_name,
     key_to_vk,
@@ -63,9 +62,8 @@ class ClickerService(QtCore.QObject):
 
         self.hold_state_timer = QtCore.QTimer(self)
         self.hold_state_timer.timeout.connect(self._poll_hold_trigger_state)
-        self._hook_mode_active = self._input_listener.start()
-        if not self._hook_mode_active:
-            self.hold_state_timer.start(12)
+        self._hook_mode_active = False
+        self._sync_hold_detection_mode(self._get_profile())
 
     @property
     def is_running(self) -> bool:
@@ -173,6 +171,7 @@ class ClickerService(QtCore.QObject):
         self._action_executor.execute({
             "type": "mouseClick",
             "button": profile.get("button", "left"),
+            "holdMs": profile.get("clickHoldMs", 0),
         })
 
     def _modifier_pressed(self, vk: int) -> bool:
@@ -217,10 +216,14 @@ class ClickerService(QtCore.QObject):
 
     def _emit_key_event(self, key_name: str, is_pressed: bool) -> None:
         """Bridge low-level key events into the Qt thread."""
+        if not self._hold_detection_required(self._get_profile()):
+            return
         self.inputEvent.emit("key", key_name, is_pressed)
 
     def _emit_mouse_event(self, button_name: str, is_pressed: bool) -> None:
         """Bridge low-level mouse events into the Qt thread."""
+        if not self._hold_detection_required(self._get_profile()):
+            return
         self.inputEvent.emit("mouse", button_name, is_pressed)
 
     def _on_global_input_event(self, event_type: str, name: str, is_pressed: bool) -> None:
@@ -244,24 +247,37 @@ class ClickerService(QtCore.QObject):
         if self._hook_mode_active:
             self._evaluate_hold_trigger_state(self._get_profile(), fallback_allowed=False)
 
-    def _sync_hold_detection_mode(self, profile: Dict[str, Any]) -> None:
-        """Enable the polling fallback only when hook mode is unavailable."""
+    def _hold_detection_required(self, profile: Dict[str, Any]) -> bool:
+        """Return whether this profile needs low-level hold-trigger detection."""
         triggers = profile.get("triggers", {})
         mode = triggers.get("mode")
-        hold_mode = mode in ("holdKey", "holdMouseButton") and profile.get("enabled", False)
+        return bool(mode in ("holdKey", "holdMouseButton") and profile.get("enabled", False))
+
+    def _sync_hold_detection_mode(self, profile: Dict[str, Any]) -> None:
+        """Enable the polling fallback only when hook mode is unavailable."""
+        hold_mode = self._hold_detection_required(profile)
+
+        if hold_mode and not self._hook_mode_active:
+            self._hook_mode_active = self._input_listener.start()
+            if not self._hook_mode_active:
+                self._input_listener.stop()
+
+        if not hold_mode:
+            self._input_listener.stop()
+            self._hook_mode_active = False
 
         if self._hook_mode_active:
             if self.hold_state_timer.isActive():
                 self.hold_state_timer.stop()
-            if not hold_mode:
-                self._pressed_keys.clear()
-                self._pressed_mouse_buttons.clear()
         else:
             if hold_mode:
                 if not self.hold_state_timer.isActive():
                     self.hold_state_timer.start(12)
             elif self.hold_state_timer.isActive():
                 self.hold_state_timer.stop()
+        if not hold_mode:
+            self._pressed_keys.clear()
+            self._pressed_mouse_buttons.clear()
 
     def _modifier_name_map(self) -> Dict[str, str]:
         """Map config modifier flags to tracked key names."""

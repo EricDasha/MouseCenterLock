@@ -19,6 +19,8 @@
 - `middle-left-test.json`: 実行時診断用。中ボタンを押しながら左クリック → 上段数字 `1`。
 - `back-left-2-delay-1.json`: `back` / `x1` を押しながら左クリック → `2`、100ms、`1`。左クリック自体は実クリックを通す。
 - `key-delay-key.json`: `A` を押しながら `B` を押すたびに → `A`、50ms、`B`。
+- `repeat-r-on-1-off-2.json`: `1` で 100ms ごとに `R`、`2` で停止。
+- `left-hold-repeat-r-on-1-off-2.json`: `1` で検知を開始し、左ボタンを押している間だけ 100ms ごとに `R`、`2` で停止。
 
 ## ルール項目
 

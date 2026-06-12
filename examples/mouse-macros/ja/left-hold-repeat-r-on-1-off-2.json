@@ -1,0 +1,21 @@
+{
+  "rules": [
+    {
+      "id": "left-hold-repeat-r-on-1-off-2",
+      "name": "1 で待機：左クリック長押し中 100ms ごとに R、2 で停止",
+      "enabled": true,
+      "triggerMode": "toggleLoop",
+      "toggleOnKey": "1",
+      "toggleOffKey": "2",
+      "pressMouseButton": "left",
+      "loopWhilePressHeld": true,
+      "loopIntervalMs": 100,
+      "actions": [
+        {
+          "type": "key",
+          "key": "R"
+        }
+      ]
+    }
+  ]
+}

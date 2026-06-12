@@ -23,11 +23,13 @@ Lock the cursor to the virtual screen center, primary display center, current wi
 
 ### Auto clicker profiles
 
-Supports toggle/hold triggers, click interval, process blacklist, startup sound, and multiple profiles. The **More** menu can import, export, delete, or clear saved profiles. If a profile has unsaved edits, switching profiles asks whether to save them.
+Supports toggle/hold triggers, click interval, process blacklist, startup sound, click hold duration, and multiple profiles. The **More** menu can import, export, delete, or clear saved profiles. If a profile has unsaved edits, switching profiles asks whether to save them.
+
+If a target ignores instant clicks, set **Mouse down hold (ms)** to `8` ~ `20` so each click becomes down → short hold → up.
 
 ### Simple macros
 
-Build ordered input sequences: mouse clicks, key down/up, delays, hotkeys, and text. Macros include a default `F12` panic stop key to force-stop running/toggled actions and release held outputs.
+Build ordered input sequences: mouse clicks with optional hold duration, mouse move/relative move/scroll, key down/up, delays, repeats, hotkeys, and text. Macros include a default `F12` panic stop key to force-stop running/toggled actions and release held outputs.
 
 ### Window rules
 
@@ -81,6 +83,8 @@ Mouse macros support both the UI builder and external JSON files.
 MouseControlLayer mainly uses Windows API / SendInput. It is not driver-level input. Elevated windows, Raw Input games, anti-cheat protected games, or apps that filter simulated input may not work.
 
 ## Input backends
+
+The Advanced Settings input backend is shared by auto clicker and macro output. If a target ignores instant clicks, try `native-sendinput` with an 8-20ms auto-clicker mouse hold duration, then try `window-message`.
 
 | Backend | Status | Notes |
 |---|---|---|

@@ -19,6 +19,8 @@
 - `middle-left-test.json`: 실행 중 진단용. 가운데 버튼을 누른 채 왼쪽 클릭 → 상단 숫자 `1`.
 - `back-left-2-delay-1.json`: `back` / `x1` 을 누른 채 왼쪽 클릭 → `2`, 100ms, `1`. 왼쪽 클릭 자체는 실제 입력을 통과시킴.
 - `key-delay-key.json`: `A`를 누른 채 `B`를 누를 때마다 → `A`, 50ms, `B`.
+- `repeat-r-on-1-off-2.json`: `1`로 100ms마다 `R` 입력, `2`로 중지.
+- `left-hold-repeat-r-on-1-off-2.json`: `1`로 감지 시작, 왼쪽 버튼을 누르는 동안 100ms마다 `R`, `2`로 중지.
 
 ## 규칙 항목
 

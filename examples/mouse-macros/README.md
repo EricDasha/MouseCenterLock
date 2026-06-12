@@ -24,6 +24,12 @@ Choose your language:
 - `onCancel`: cleanup actions when interrupted
 - `cooldownMs`: minimum delay before the same rule can fire again
 - `loopIntervalMs`: repeat interval for loop modes
+- `loopWhilePressHeld`: for loop modes, only fire while `pressMouseButton` / `pressKey` is held
+- `toggleOnKey` / `toggleOnMouseButton`: optional one-way arm input for `toggle` / `toggleLoop`
+- `toggleOffKey` / `toggleOffMouseButton`: optional one-way stop input for `toggle` / `toggleLoop`; when omitted, the on/hold input keeps legacy same-key toggle behavior
+- `mouseClick.holdMs`: keep the mouse button down before release for compatibility
+- `repeat`: repeat a nested action list
+- `mouseMove` / `mouseMoveRelative` / `mouseScroll`: cursor and wheel actions
 - App-level `panicHotkey`: default `F12`; force-stops running/toggled macros and releases held outputs.
 
 ## Example map
@@ -35,5 +41,7 @@ Choose your language:
 | `x2-left-paste-enter.json` | side button + click to paste |
 | `middle-right-text.json` | text macro |
 | `key-delay-key.json` | keyboard hold + repeatable trigger |
+| `repeat-r-on-1-off-2.json` | press `1` to press `R` every 100ms, press `2` to stop |
+| `left-hold-repeat-r-on-1-off-2.json` | press `1` to arm, hold left mouse to press `R` every 100ms, press `2` to stop |
 
 Each language folder contains the same JSON examples plus localized notes.

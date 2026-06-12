@@ -19,6 +19,8 @@
 - `middle-left-test.json`：运行时诊断用；按住中键，再点左键 → 主键盘 `1`。
 - `back-left-2-delay-1.json`：按住鼠标后侧键（`back`/`x1`），每次点左键 → 主键盘 `2`、等待 100ms、主键盘 `1`；左键本身由真实点击产生，动作里不再额外点击左键。
 - `key-delay-key.json`：按住键盘 `A`，每次按下 `B` → `A`、等待 50ms、`B`；不松开 `A` 时，重复按 `B` 会重复执行。
+- `repeat-r-on-1-off-2.json`：按 `1` 开始每 100ms 按一次 `R`；按 `2` 停止。
+- `left-hold-repeat-r-on-1-off-2.json`：按 `1` 开启侦测；开启后按住左键 → 每 100ms 按一次 `R`；松开左键暂停输出；按 `2` 停止侦测。
 
 ## 规则字段
 
@@ -30,10 +32,13 @@
   "triggerMode": "hold",
   "holdMouseButton": "x1",
   "pressMouseButton": "left",
+  "toggleOnKey": "1",
+  "toggleOffKey": "2",
   "actions": [],
   "onCancel": [],
   "cooldownMs": 0,
-  "loopIntervalMs": 1
+  "loopIntervalMs": 1,
+  "loopWhilePressHeld": false
 }
 ```
 
@@ -45,6 +50,40 @@
 | `toggle` | 按一次切换 armed，再按动作键执行 |
 | `holdLoop` | 按住触发键时，循环执行动作 |
 | `toggleLoop` | 按一次切换循环，再按一次停止 |
+
+循环模式可设置 `loopWhilePressHeld: true`：只有 `pressMouseButton` / `pressKey` 正按住时才执行每一轮循环；松开后循环保持 armed，但暂不输出动作。
+
+`toggle` / `toggleLoop` 可设置独立单向开关：
+
+- `toggleOnKey` / `toggleOnMouseButton`：只负责开启 armed / loop。
+- `toggleOffKey` / `toggleOffMouseButton`：只负责关闭 armed / loop。
+- 未设置独立开关时，沿用旧行为：`holdKey` / `holdMouseButton` 同一个触发键反复切换开关。
+
+例如“按 `1` 开侦测，按住左键每 100ms 按 `R`，按 `2` 停止”：
+
+```json
+{
+  "rules": [
+    {
+      "id": "left-hold-repeat-r-on-1-off-2",
+      "name": "按 1 开启侦测：按住左键每 100ms 按 R，按 2 停止",
+      "enabled": true,
+      "triggerMode": "toggleLoop",
+      "toggleOnKey": "1",
+      "toggleOffKey": "2",
+      "pressMouseButton": "left",
+      "loopWhilePressHeld": true,
+      "loopIntervalMs": 100,
+      "actions": [
+        {
+          "type": "key",
+          "key": "R"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ### 安全终止键
 
@@ -74,7 +113,11 @@
 - `hotkey`：组合键，例如 `{ "type": "hotkey", "modCtrl": true, "key": "C" }`
 - `key`：单键，例如 `{ "type": "key", "key": "1" }`
 - `keyDown` / `keyUp`：按下 / 松开，适合重叠时序
-- `mouseClick`：鼠标点击
+- `mouseClick`：鼠标点击；可带 `holdMs` 让按下和松开间隔几毫秒，提高部分目标兼容性
 - `mouseDown` / `mouseUp`：鼠标按下 / 松开
+- `mouseMove`：移动到屏幕坐标，例如 `{ "type": "mouseMove", "x": 960, "y": 540 }`
+- `mouseMoveRelative`：相对移动，例如 `{ "type": "mouseMoveRelative", "dx": 10, "dy": -5 }`
+- `mouseScroll`：滚轮，例如 `{ "type": "mouseScroll", "dy": -120 }`
 - `text`：输入文本
 - `delay`：等待毫秒，例如 `{ "type": "delay", "ms": 80 }`
+- `repeat`：重复动作块，例如 `{ "type": "repeat", "count": 3, "actions": [{ "type": "key", "key": "R" }] }`

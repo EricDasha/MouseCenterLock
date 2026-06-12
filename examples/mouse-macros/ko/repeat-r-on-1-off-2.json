@@ -1,0 +1,19 @@
+{
+  "rules": [
+    {
+      "id": "repeat-r-on-1-off-2",
+      "name": "1로 100ms마다 R 입력, 2로 중지",
+      "enabled": true,
+      "triggerMode": "toggleLoop",
+      "toggleOnKey": "1",
+      "toggleOffKey": "2",
+      "loopIntervalMs": 100,
+      "actions": [
+        {
+          "type": "key",
+          "key": "R"
+        }
+      ]
+    }
+  ]
+}

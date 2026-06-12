@@ -240,6 +240,12 @@
   "clicker.profile.import.failed": "프로필 가져오기에 실패했습니다.",
   "clicker.profile.unsaved.title": "저장되지 않은 프로필 변경",
   "clicker.profile.unsaved.message": "프로필을 전환하기 전에 현재 변경 사항을 저장할까요?",
+  "profile.lists.follow": "자동 클릭 블랙리스트와 대상 창을 프로필에 따름",
+  "profile.lists.follow.hint": "켜짐: 프로필 전환 시 각 프로필의 블랙리스트와 대상 창 목록을 불러옵니다. 꺼짐: 현재 블랙/화이트리스트를 전역으로 고정하며, 프로필 안의 목록은 유지되고 다시 켜면 복원됩니다.",
+  "profile.lists.follow.disable.title": "현재 블랙/화이트리스트를 고정할까요?",
+  "profile.lists.follow.disable.message": "현재 자동 클릭 프로세스 블랙리스트와 대상 창 목록을 전역으로 고정합니다. 프로필에 저장된 목록은 삭제되지 않고, 따르기 해제 중에만 무시되며 다시 켜면 복원됩니다.",
+  "profile.lists.follow.enabled": "블랙/화이트리스트가 다시 프로필을 따릅니다.",
+  "profile.lists.follow.disabled": "현재 블랙/화이트리스트가 전역으로 고정되었습니다.",
   "save": "저장",
   "discard": "저장 안 함",
   "cancel": "취소",
@@ -259,5 +265,7 @@
   "taskbar.title.clicker": "마우스 오토 클릭 시작됨",
   "taskbar.title.macro": "마우스 매크로 시작됨",
   "taskbar.flash.enabled": "잠금 해제 시 작업 표시줄 녹색 깜박임",
-  "taskbar.flash.duration": "잠금 해제 깜박임 시간"
+  "taskbar.flash.duration": "잠금 해제 깜박임 시간",
+  "section.inputOutput": "입출력",
+  "inputBackend.sharedHint": "이 백엔드는 자동 클릭과 매크로 출력이 함께 사용합니다. 대상이 즉시 클릭을 무시하면 Native SendInput과 마우스 누름 유지 시간을 먼저 시도하고, 그다음 Window Message를 시도하세요."
 }

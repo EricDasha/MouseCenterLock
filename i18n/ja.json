@@ -240,6 +240,12 @@
   "clicker.profile.import.failed": "プロファイルの読み込みに失敗しました。",
   "clicker.profile.unsaved.title": "未保存のプロファイル変更",
   "clicker.profile.unsaved.message": "プロファイルを切り替える前に現在の変更を保存しますか？",
+  "profile.lists.follow": "連打ブラックリストと対象ウィンドウをプロファイルに追従",
+  "profile.lists.follow.hint": "オン: プロファイル切替時に各プロファイルのブラックリストと対象ウィンドウを読み込みます。オフ: 現在のブラック/ホワイトリストを全体固定にし、プロファイル内のコピーは保持して再度オンにすると復元します。",
+  "profile.lists.follow.disable.title": "現在のブラック/ホワイトリストを固定しますか？",
+  "profile.lists.follow.disable.message": "現在の自動クリックのプロセスブラックリストと対象ウィンドウ一覧を全体固定にします。プロファイル内の一覧は削除せず、追従オフ中だけ無視されます。オンに戻すと再び使われます。",
+  "profile.lists.follow.enabled": "ブラック/ホワイトリストはプロファイル追従に戻りました。",
+  "profile.lists.follow.disabled": "現在のブラック/ホワイトリストを全体固定にしました。",
   "save": "保存",
   "discard": "保存しない",
   "cancel": "キャンセル",
@@ -259,5 +265,7 @@
   "taskbar.title.clicker": "マウス連打を開始しました",
   "taskbar.title.macro": "マウスマクロを開始しました",
   "taskbar.flash.enabled": "解除時にタスクバーを緑で点滅",
-  "taskbar.flash.duration": "解除点滅時間"
+  "taskbar.flash.duration": "解除点滅時間",
+  "section.inputOutput": "入出力",
+  "inputBackend.sharedHint": "このバックエンドは自動クリックとマクロ出力で共用されます。瞬間クリックが無視される場合は Native SendInput とマウス押下保持時間、次に Window Message を試してください。"
 }
