@@ -48,6 +48,7 @@ def collect_clicker_profile_form_data(window) -> Dict[str, Any]:
         "name": profile_name,
         "enabled": window.clickerEnabledCheck.isChecked(),
         "button": window.clickerButtonCombo.currentData(),
+        "inputBackend": window.clickerInputBackendCombo.currentData() if hasattr(window, "clickerInputBackendCombo") else active.get("inputBackend", "auto"),
         "preset": preset,
         "intervalMs": interval_ms,
         "clickHoldMs": click_hold_ms,
@@ -86,6 +87,13 @@ def load_clicker_profile_into_form(window, profile: Dict[str, Any]) -> None:
             if window.clickerButtonCombo.itemData(i) == profile.get("button", "left"):
                 window.clickerButtonCombo.setCurrentIndex(i)
                 break
+        if hasattr(window, "clickerInputBackendCombo"):
+            backend = profile.get("inputBackend", "auto")
+            backend = {"sendinput": "native-sendinput", "native-scancode": "native-sendinput", "python-fallback": "python-sendinput"}.get(backend, backend)
+            for i in range(window.clickerInputBackendCombo.count()):
+                if window.clickerInputBackendCombo.itemData(i) == backend:
+                    window.clickerInputBackendCombo.setCurrentIndex(i)
+                    break
 
         preset = profile.get("preset", window._get_clicker_preset_for_interval(profile.get("intervalMs", 100)))
         for i in range(window.clickerPresetCombo.count()):

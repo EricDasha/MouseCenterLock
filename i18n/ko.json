@@ -267,5 +267,6 @@
   "taskbar.flash.enabled": "잠금 해제 시 작업 표시줄 녹색 깜박임",
   "taskbar.flash.duration": "잠금 해제 깜박임 시간",
   "section.inputOutput": "입출력",
-  "inputBackend.sharedHint": "이 백엔드는 자동 클릭과 매크로 출력이 함께 사용합니다. 대상이 즉시 클릭을 무시하면 Native SendInput과 마우스 누름 유지 시간을 먼저 시도하고, 그다음 Window Message를 시도하세요."
+  "inputBackend.sharedHint": "매크로 출력은 이 백엔드를 사용합니다. 자동 클릭 백엔드는 아래 클릭 프로필별로 설정하며 기본값은 Auto입니다.",
+  "clicker.inputBackend": "클리커 백엔드"
 }

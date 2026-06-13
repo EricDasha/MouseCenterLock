@@ -140,6 +140,7 @@ class SettingsFormTests(unittest.TestCase):
             clickerProfileNameEdit=_LineEditWidget("Steam Safe"),
             clickerEnabledCheck=_CheckWidget(True),
             clickerButtonCombo=_ComboWidget("left"),
+            clickerInputBackendCombo=_ComboWidget("window-message"),
             clickerPresetCombo=_ComboWidget("efficient"),
             clickerIntervalSpin=_ValueWidget(100),
             clickerSoundEnabledCheck=_CheckWidget(False),
@@ -160,6 +161,7 @@ class SettingsFormTests(unittest.TestCase):
         profile = collect_clicker_profile_form_data(window)
 
         self.assertEqual(profile["processBlacklist"], ["steam.exe", "steamwebhelper.exe"])
+        self.assertEqual(profile["inputBackend"], "window-message")
         self.assertEqual(profile["triggers"]["holdMouseButton"], "x1")
         self.assertEqual(profile["featureSettings"]["mouseMacros"], {"enabled": True})
         self.assertNotIn("startup", profile["featureSettings"])

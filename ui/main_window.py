@@ -77,8 +77,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._taskbar_flash_timer = QtCore.QTimer(self)
         self._taskbar_flash_timer.setSingleShot(True)
         self._taskbar_flash_timer.timeout.connect(self._update_taskbar_status)
-        self._input_service = InputService(
+        self._macro_input_service = InputService(
             get_backend=lambda: self.settings.data.get("inputBackend", "auto"),
+            get_fallback_backend=lambda: self.settings.data.get("fallbackBackend", "native-sendinput"),
+            get_fallback_policy=lambda: self.settings.data.get("fallbackPolicy", "auto"),
+        )
+        self._clicker_input_service = InputService(
+            get_backend=lambda: self._get_active_clicker_profile().get("inputBackend", "auto"),
             get_fallback_backend=lambda: self.settings.data.get("fallbackBackend", "native-sendinput"),
             get_fallback_policy=lambda: self.settings.data.get("fallbackPolicy", "auto"),
         )
@@ -87,12 +92,12 @@ class MainWindow(QtWidgets.QMainWindow):
             on_state_changed=self._on_clicker_runtime_changed,
             on_notify_started=self._notify_clicker_started,
             on_notify_stopped=self._notify_clicker_stopped,
-            input_service=self._input_service,
+            input_service=self._clicker_input_service,
             parent=self,
         )
         self._macro_service = MouseMacroService(
             get_config=lambda: self.settings.data.get("mouseMacros", {}),
-            input_service=self._input_service,
+            input_service=self._macro_input_service,
             parent=self,
         )
         self._macro_service.stateChanged.connect(self._on_macro_runtime_changed)

@@ -84,7 +84,7 @@ MouseControlLayer mainly uses Windows API / SendInput. It is not driver-level in
 
 ## Input backends
 
-The Advanced Settings input backend is shared by auto clicker and macro output. If a target ignores instant clicks, try `native-sendinput` with an 8-20ms auto-clicker mouse hold duration, then try `window-message`.
+Macro output defaults to `auto` and can be changed in Advanced Settings. Auto clicker has its own per-profile backend selector; if a target ignores instant clicks, try `native-sendinput` with an 8-20ms mouse hold duration, then try `window-message`.
 
 | Backend | Status | Notes |
 |---|---|---|

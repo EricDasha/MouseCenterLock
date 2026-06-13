@@ -194,6 +194,29 @@ class SettingsManagerTests(unittest.TestCase):
 
         self.assertEqual(settings.data["clickerProfiles"][0]["clickHoldMs"], 12)
 
+    def test_clicker_profile_normalizes_input_backend(self):
+        settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
+        settings.loaded_from_path = ""
+        settings.last_error = ""
+        settings.data = {
+            "clickerProfiles": [
+                {
+                    "id": "default",
+                    "name": "Default",
+                    "inputBackend": "native-scancode",
+                },
+                {
+                    "id": "second",
+                    "name": "Second",
+                    "inputBackend": "bad",
+                },
+            ]
+        }
+        settings._set_defaults()
+
+        self.assertEqual(settings.data["clickerProfiles"][0]["inputBackend"], "native-sendinput")
+        self.assertEqual(settings.data["clickerProfiles"][1]["inputBackend"], "auto")
+
     def test_mouse_macro_normalizes_advanced_mouse_and_repeat_actions(self):
         settings = settings_manager.SettingsManager.__new__(settings_manager.SettingsManager)
         settings.loaded_from_path = ""

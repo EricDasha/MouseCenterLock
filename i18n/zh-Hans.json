@@ -281,5 +281,6 @@
   "taskbar.flash.enabled": "解锁时任务栏绿色闪烁提示",
   "taskbar.flash.duration": "解锁闪烁时长",
   "section.inputOutput": "输入输出",
-  "inputBackend.sharedHint": "该后端同时用于连点器和宏输出。目标无视瞬时点击时，优先尝试原生 SendInput + 鼠标按住时长，再尝试窗口消息。"
+  "inputBackend.sharedHint": "宏输出使用此后端。连点器后端在下方按连点方案单独配置，默认自动。",
+  "clicker.inputBackend": "连点器后端"
 }

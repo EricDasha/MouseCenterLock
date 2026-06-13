@@ -259,5 +259,6 @@
   "taskbar.flash.enabled": "解鎖時工作列綠色閃爍提示",
   "taskbar.flash.duration": "解鎖閃爍時長",
   "section.inputOutput": "輸入輸出",
-  "inputBackend.sharedHint": "此後端同時用於連點器與巨集輸出。目標忽略瞬時點擊時，優先嘗試原生 SendInput + 滑鼠按住時長，再嘗試視窗訊息。"
+  "inputBackend.sharedHint": "巨集輸出使用此後端。連點器後端在下方按連點方案單獨設定，預設自動。",
+  "clicker.inputBackend": "連點器後端"
 }

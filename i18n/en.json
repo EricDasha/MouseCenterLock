@@ -281,5 +281,6 @@
   "taskbar.flash.enabled": "Flash green taskbar hint when unlocked",
   "taskbar.flash.duration": "Unlock flash duration",
   "section.inputOutput": "Input Output",
-  "inputBackend.sharedHint": "This backend is shared by auto clicker and macro output. If a target ignores instant clicks, try Native SendInput plus mouse down hold, then Window Message."
+  "inputBackend.sharedHint": "Macro output uses this backend. Auto clicker backend is configured per clicker profile below and defaults to Auto.",
+  "clicker.inputBackend": "Clicker Backend"
 }

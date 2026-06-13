@@ -267,5 +267,6 @@
   "taskbar.flash.enabled": "解除時にタスクバーを緑で点滅",
   "taskbar.flash.duration": "解除点滅時間",
   "section.inputOutput": "入出力",
-  "inputBackend.sharedHint": "このバックエンドは自動クリックとマクロ出力で共用されます。瞬間クリックが無視される場合は Native SendInput とマウス押下保持時間、次に Window Message を試してください。"
+  "inputBackend.sharedHint": "マクロ出力はこのバックエンドを使用します。自動クリックのバックエンドは下のクリックプロファイルごとに設定でき、既定は Auto です。",
+  "clicker.inputBackend": "クリッカーバックエンド"
 }
