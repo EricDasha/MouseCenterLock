@@ -285,7 +285,12 @@ class SettingsManager:
         backend = INPUT_BACKEND_ALIASES.get(backend, backend)
         normalized["inputBackend"] = backend if backend in INPUT_BACKENDS else "auto"
         normalized["intervalMs"] = max(1, int(source.get("intervalMs", 100)))
-        normalized["clickHoldMs"] = bounded_int(source.get("clickHoldMs", 0), 0, 0, 1000)
+        normalized["clickHoldMs"] = bounded_int(
+            source.get("clickHoldMs", base["clickHoldMs"]),
+            base["clickHoldMs"],
+            0,
+            1000,
+        )
         preset = source.get("preset")
         normalized["preset"] = preset if preset in CLICKER_PRESETS else self._resolve_preset(normalized["intervalMs"])
 

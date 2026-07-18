@@ -64,7 +64,7 @@
   "clicker.preset.desc.custom": "Manually set the click interval",
   "clicker.interval": "Click Interval (ms)",
   "clicker.holdMs": "Mouse down hold (ms)",
-  "clicker.holdMs.tooltip": "Compatibility mode: keep mouse down before release. Try 8-20ms if a target ignores instant clicks.",
+  "clicker.holdMs.tooltip": "Each click is sent as down -> hold -> up. 0 uses an automatic 50% duty cycle (8-50ms); at a 100ms interval this means 50ms down and 50ms released.",
   "clicker.hotkey": "Auto Clicker Toggle",
   "clicker.hotkey.profileHint": "Auto clicker trigger keys are configured per clicker profile below.",
   "clicker.runtime": "Running",
@@ -282,5 +282,11 @@
   "taskbar.flash.duration": "Unlock flash duration",
   "section.inputOutput": "Input Output",
   "inputBackend.sharedHint": "Macro output uses this backend. Auto clicker backend is configured per clicker profile below and defaults to Auto.",
+  "help.inputBackend": "Selects how macro actions are sent to Windows. Auto prefers Native SendInput. This setting controls macro output; the auto clicker has its own backend below.",
+  "help.clickerBackend": "Chooses how this clicker profile sends mouse input. Auto uses Native SendInput when available. Window Message targets the foreground window but is not accepted by every game.",
+  "help.clickerPreset": "Speed presets only fill in a click interval. Choose Custom when you want to enter the interval yourself.",
+  "help.clickerInterval": "Time from the start of one click to the start of the next. 100ms means up to 10 click cycles per second. The mouse-down hold occupies part of this period.",
+  "help.clickerHoldMs": "How long each click stays pressed before release. 0 uses automatic timing: about half of the click interval, limited to 8-50ms. Increase it for games that miss short clicks or weapons that fire on release.",
+  "help.clickerTriggerMode": "Toggle starts or stops with one hotkey press. Hold Key runs only while a keyboard key is held. Hold Mouse Button runs only while the selected mouse button is held.",
   "clicker.inputBackend": "Clicker Backend"
 }

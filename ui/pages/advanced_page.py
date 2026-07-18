@@ -4,7 +4,7 @@ Advanced page builder.
 from PySide6 import QtCore, QtWidgets
 
 from widgets import HotkeyCapture
-from ui.pages.common import create_section_label
+from ui.pages.common import create_delayed_help_label, create_section_label
 from services.macro_schema import MOUSE_BUTTONS, MOUSE_MACRO_TRIGGER_MODES
 from win_api import is_startup_enabled
 
@@ -74,7 +74,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addWidget(create_section_label(window.i18n.t("section.inputOutput", "Input Output")))
 
     input_backend_layout = QtWidgets.QHBoxLayout()
-    input_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("inputBackend.title", "Input Backend")))
+    input_backend_layout.addWidget(create_delayed_help_label(
+        window.i18n.t("inputBackend.title", "Input Backend"),
+        window.i18n.t(
+            "help.inputBackend",
+            "Selects how macro actions are sent to Windows. Auto prefers Native SendInput. This setting controls macro output; the auto clicker has its own backend below.",
+        ),
+    ))
     window.inputBackendCombo = QtWidgets.QComboBox()
     window.inputBackendCombo.addItem(window.i18n.t("inputBackend.auto", "Auto"), "auto")
     window.inputBackendCombo.addItem(window.i18n.t("inputBackend.nativeSendInput", "Native SendInput"), "native-sendinput")
@@ -149,7 +155,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(clicker_button_layout)
 
     clicker_backend_layout = QtWidgets.QHBoxLayout()
-    clicker_backend_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.inputBackend", "Clicker Backend")))
+    clicker_backend_layout.addWidget(create_delayed_help_label(
+        window.i18n.t("clicker.inputBackend", "Clicker Backend"),
+        window.i18n.t(
+            "help.clickerBackend",
+            "Chooses how this clicker profile sends mouse input. Auto uses Native SendInput when available. Window Message targets the foreground window but is not accepted by every game.",
+        ),
+    ))
     window.clickerInputBackendCombo = QtWidgets.QComboBox()
     window.clickerInputBackendCombo.addItem(window.i18n.t("inputBackend.auto", "Auto"), "auto")
     window.clickerInputBackendCombo.addItem(window.i18n.t("inputBackend.nativeSendInput", "Native SendInput"), "native-sendinput")
@@ -163,7 +175,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(clicker_backend_layout)
 
     clicker_preset_layout = QtWidgets.QHBoxLayout()
-    clicker_preset_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.preset", "Click Speed")))
+    clicker_preset_layout.addWidget(create_delayed_help_label(
+        window.i18n.t("clicker.preset", "Click Speed"),
+        window.i18n.t(
+            "help.clickerPreset",
+            "Speed presets only fill in a click interval. Choose Custom when you want to enter the interval yourself.",
+        ),
+    ))
     window.clickerPresetCombo = QtWidgets.QComboBox()
     window.clickerPresetCombo.addItem(window.i18n.t("clicker.preset.efficient", "Efficient Mode"), "efficient")
     window.clickerPresetCombo.addItem(window.i18n.t("clicker.preset.extreme", "Extreme Mode"), "extreme")
@@ -179,7 +197,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addWidget(window.clickerPresetHint)
 
     clicker_interval_layout = QtWidgets.QHBoxLayout()
-    window.clickerIntervalLabel = QtWidgets.QLabel(window.i18n.t("clicker.interval", "Click Interval (ms)"))
+    window.clickerIntervalLabel = create_delayed_help_label(
+        window.i18n.t("clicker.interval", "Click Interval (ms)"),
+        window.i18n.t(
+            "help.clickerInterval",
+            "Time from the start of one click to the start of the next. 100ms means up to 10 click cycles per second. The mouse-down hold occupies part of this period.",
+        ),
+    )
     clicker_interval_layout.addWidget(window.clickerIntervalLabel)
     window.clickerIntervalSpin = QtWidgets.QSpinBox()
     window.clickerIntervalSpin.setRange(1, 5000)
@@ -191,14 +215,20 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(clicker_interval_layout)
 
     clicker_hold_layout = QtWidgets.QHBoxLayout()
-    clicker_hold_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.holdMs", "Mouse down hold (ms)")))
+    clicker_hold_layout.addWidget(create_delayed_help_label(
+        window.i18n.t("clicker.holdMs", "Mouse down hold (ms)"),
+        window.i18n.t(
+            "help.clickerHoldMs",
+            "How long each click stays pressed before release. 0 uses automatic timing: about half of the click interval, limited to 8-50ms. Increase it for games that miss short clicks or weapons that fire on release.",
+        ),
+    ))
     window.clickerHoldMsSpin = QtWidgets.QSpinBox()
     window.clickerHoldMsSpin.setRange(0, 1000)
     window.clickerHoldMsSpin.setSingleStep(1)
     window.clickerHoldMsSpin.setSuffix(" ms")
     window.clickerHoldMsSpin.setToolTip(window.i18n.t(
         "clicker.holdMs.tooltip",
-        "Compatibility mode: keep mouse down before release. Try 8-20ms if a target ignores instant clicks."
+        "Each click is sent as down -> hold -> up. 0 uses an automatic 50% duty cycle (8-50ms); at a 100ms interval this means 50ms down and 50ms released."
     ))
     window.clickerHoldMsSpin.valueChanged.connect(lambda _value: window._schedule_live_apply())
     clicker_hold_layout.addWidget(window.clickerHoldMsSpin)
@@ -206,7 +236,13 @@ def build_advanced_page(window) -> QtWidgets.QWidget:
     layout.addLayout(clicker_hold_layout)
 
     trigger_mode_layout = QtWidgets.QHBoxLayout()
-    trigger_mode_layout.addWidget(QtWidgets.QLabel(window.i18n.t("clicker.trigger.mode", "Trigger Mode")))
+    trigger_mode_layout.addWidget(create_delayed_help_label(
+        window.i18n.t("clicker.trigger.mode", "Trigger Mode"),
+        window.i18n.t(
+            "help.clickerTriggerMode",
+            "Toggle starts or stops with one hotkey press. Hold Key runs only while a keyboard key is held. Hold Mouse Button runs only while the selected mouse button is held.",
+        ),
+    ))
     window.clickerTriggerModeCombo = QtWidgets.QComboBox()
     window.clickerTriggerModeCombo.addItem(window.i18n.t("clicker.trigger.toggle", "Toggle"), "toggle")
     window.clickerTriggerModeCombo.addItem(window.i18n.t("clicker.trigger.holdKey", "Hold Key"), "holdKey")

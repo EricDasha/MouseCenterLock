@@ -268,5 +268,11 @@
   "taskbar.flash.duration": "잠금 해제 깜박임 시간",
   "section.inputOutput": "입출력",
   "inputBackend.sharedHint": "매크로 출력은 이 백엔드를 사용합니다. 자동 클릭 백엔드는 아래 클릭 프로필별로 설정하며 기본값은 Auto입니다.",
+  "help.inputBackend": "매크로 동작을 Windows로 보내는 방식을 선택합니다. Auto는 Native SendInput을 우선 사용합니다. 이 설정은 매크로 출력용이며 자동 클릭은 아래에서 별도 백엔드를 사용합니다.",
+  "help.clickerBackend": "현재 클릭 프로필이 마우스 입력을 보내는 방식을 선택합니다. Auto는 사용 가능하면 Native SendInput을 사용합니다. Window Message는 현재 전면 창으로 보내지만 모든 게임에서 동작하지는 않습니다.",
+  "help.clickerPreset": "클릭 속도 프리셋은 클릭 간격을 자동으로 입력합니다. 간격을 직접 입력하려면 Custom을 선택하세요.",
+  "help.clickerInterval": "한 클릭이 시작된 시점부터 다음 클릭이 시작될 때까지의 시간입니다. 100ms는 초당 최대 약 10개의 클릭 주기를 뜻하며, 마우스를 누르는 시간도 이 주기에 포함됩니다.",
+  "help.clickerHoldMs": "각 클릭에서 버튼을 누른 뒤 놓기까지 유지하는 시간입니다. 0이면 클릭 간격의 약 50%를 자동 사용하며 8-50ms로 제한됩니다. 짧은 클릭을 놓치는 게임이나 버튼을 놓을 때 발사되는 무기는 값을 늘리세요.",
+  "help.clickerTriggerMode": "Toggle은 단축키를 누를 때마다 시작하거나 중지합니다. Hold Key는 지정한 키를 누르는 동안만, Hold Mouse Button은 선택한 마우스 버튼을 누르는 동안만 실행됩니다.",
   "clicker.inputBackend": "클리커 백엔드"
 }

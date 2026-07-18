@@ -68,6 +68,11 @@ _MODIFIER_VKS = {
     "modWin": 0x5B,
 }
 
+# A down/up pair submitted in the same SendInput batch can be invisible to
+# frame-polled input systems (notably some Unreal Engine games). Zero remains
+# a valid config value, but means "automatic compatibility hold".
+DEFAULT_MOUSE_CLICK_HOLD_MS = 20
+
 
 def _lparam_from_point(x: int, y: int) -> int:
     return (int(y) & 0xFFFF) << 16 | (int(x) & 0xFFFF)
@@ -137,28 +142,18 @@ class InputService:
             hold_ms = max(0, min(5000, int(hold_ms or 0)))
         except Exception:
             hold_ms = 0
-        if hold_ms > 0:
+        effective_hold_ms = hold_ms or DEFAULT_MOUSE_CLICK_HOLD_MS
+        try:
             self.mouse_down(button_name)
-            time.sleep(hold_ms / 1000.0)
+            time.sleep(effective_hold_ms / 1000.0)
+        finally:
             self.mouse_up(button_name)
-            self._log_route("mouseClick", self.backend(), "down-up-hold", f"button={button_name} holdMs={hold_ms}")
-            return
-        requested = self.backend()
-        backend, fallback_reason = self._resolve_backend(requested)
-        if fallback_reason and backend == requested:
-            self._log_route("mouseClick", backend, "unavailable", f"button={button_name}", requested=requested, reason=fallback_reason)
-            return
-        if backend == BACKEND_WINDOW_MESSAGE:
-            if self._mouse_button_window_message(button_name, down=True, up=True):
-                self._log_route("mouseClick", backend, "window-message", f"button={button_name}", requested=requested, reason=fallback_reason)
-                return
-            log_message(f"InputService window-message click failed: button={button_name}")
-            return
-        if self._native_enabled(backend) and native_input.click_mouse(button_name):
-            self._log_route("mouseClick", backend, "native-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
-            return
-        sendinput_click_mouse(button_name)
-        self._log_route("mouseClick", backend, "python-sendinput", f"button={button_name}", requested=requested, reason=fallback_reason)
+        self._log_route(
+            "mouseClick",
+            self.backend(),
+            "down-hold-up",
+            f"button={button_name} holdMs={effective_hold_ms} configuredHoldMs={hold_ms}",
+        )
 
     def mouse_down(self, button: str = "left") -> None:
         self._mouse_button(button, down=True, up=False, action="mouseDown")

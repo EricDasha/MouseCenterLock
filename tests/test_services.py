@@ -4,7 +4,7 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from services.clicker_service import ClickerService
 from services.input_backends import get_backend_status, all_backend_statuses
@@ -89,12 +89,17 @@ class ServiceTests(unittest.TestCase):
     def test_input_service_prefers_rust_backend_for_sendinput_clicks(self):
         service = InputService(get_backend=lambda: "sendinput")
 
-        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
-             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+        with mock.patch("services.input_service.native_input.mouse_down", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.mouse_up", return_value=True) as native_up, \
+             mock.patch("services.input_service.sendinput_mouse_down") as python_down, \
+             mock.patch("services.input_service.sendinput_mouse_up") as python_up, \
+             mock.patch("services.input_service.time.sleep"):
             service.click_mouse("right")
 
-        native_click.assert_called_once_with("right")
-        python_click.assert_not_called()
+        native_down.assert_called_once_with("right")
+        native_up.assert_called_once_with("right")
+        python_down.assert_not_called()
+        python_up.assert_not_called()
 
     def test_input_service_falls_back_when_rust_backend_unavailable(self):
         service = InputService(get_backend=lambda: "native-sendinput")
@@ -150,6 +155,35 @@ class ServiceTests(unittest.TestCase):
         sleep.assert_called_once_with(0.012)
         mouse_up.assert_called_once_with("left")
 
+    def test_input_service_mouse_click_zero_uses_compatibility_hold(self):
+        service = InputService(get_backend=lambda: "native-sendinput")
+
+        with mock.patch.object(service, "mouse_down") as mouse_down, \
+             mock.patch.object(service, "mouse_up") as mouse_up, \
+             mock.patch("services.input_service.time.sleep") as sleep:
+            service.mouse_click("left", hold_ms=0)
+
+        mouse_down.assert_called_once_with("left")
+        sleep.assert_called_once_with(0.02)
+        mouse_up.assert_called_once_with("left")
+
+    def test_clicker_auto_hold_uses_half_of_100ms_period(self):
+        profile = {"intervalMs": 100, "clickHoldMs": 0}
+        service = ClickerService(
+            get_profile=lambda: profile,
+            on_state_changed=lambda: None,
+            on_notify_started=lambda _profile: None,
+            on_notify_stopped=lambda _profile: None,
+            input_listener_factory=_FakeInputListener,
+        )
+
+        self.assertEqual(service._effective_click_hold_ms(profile), 50)
+        self.assertEqual(service._effective_click_hold_ms({"intervalMs": 20, "clickHoldMs": 0}), 10)
+        self.assertEqual(service._effective_click_hold_ms({"intervalMs": 100, "clickHoldMs": 25}), 25)
+
+        service.hold_state_timer.stop()
+        service.clicker_timer.stop()
+
     def test_input_service_supports_mouse_move_and_scroll_actions(self):
         service = InputService(get_backend=lambda: "python-sendinput")
 
@@ -180,12 +214,17 @@ class ServiceTests(unittest.TestCase):
     def test_input_service_python_sendinput_skips_rust_backend(self):
         service = InputService(get_backend=lambda: "python-sendinput")
 
-        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click, \
-             mock.patch("services.input_service.sendinput_click_mouse") as python_click:
+        with mock.patch("services.input_service.native_input.mouse_down", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.mouse_up", return_value=True) as native_up, \
+             mock.patch("services.input_service.sendinput_mouse_down") as python_down, \
+             mock.patch("services.input_service.sendinput_mouse_up") as python_up, \
+             mock.patch("services.input_service.time.sleep"):
             service.click_mouse("left")
 
-        native_click.assert_not_called()
-        python_click.assert_called_once_with("left")
+        native_down.assert_not_called()
+        native_up.assert_not_called()
+        python_down.assert_called_once_with("left")
+        python_up.assert_called_once_with("left")
 
     def test_input_service_virtual_hid_reserved_falls_back_to_native_path(self):
         service = InputService(
@@ -194,10 +233,13 @@ class ServiceTests(unittest.TestCase):
             get_fallback_policy=lambda: "auto",
         )
 
-        with mock.patch("services.input_service.native_input.click_mouse", return_value=True) as native_click:
+        with mock.patch("services.input_service.native_input.mouse_down", return_value=True) as native_down, \
+             mock.patch("services.input_service.native_input.mouse_up", return_value=True) as native_up, \
+             mock.patch("services.input_service.time.sleep"):
             service.click_mouse("left")
 
-        native_click.assert_called_once_with("left")
+        native_down.assert_called_once_with("left")
+        native_up.assert_called_once_with("left")
 
     def test_input_service_virtual_hid_error_policy_does_not_silent_fallback(self):
         service = InputService(
@@ -985,6 +1027,8 @@ class ServiceTests(unittest.TestCase):
             input_listener_factory=_FakeInputListener,
         )
 
+        self.assertEqual(service.clicker_timer.timerType(), QtCore.Qt.TimerType.PreciseTimer)
+
         service.start(show_message=True, immediate_click=False)
         self.assertTrue(service.is_running)
         self.assertEqual(started, ["left"])
@@ -1134,7 +1178,13 @@ class ServiceTests(unittest.TestCase):
         )
 
         service.start(show_message=False, immediate_click=True)
+        self.assertEqual(input_service.clicks, ["left:down"])
+        self.assertTrue(service.click_release_timer.isActive())
+        service._on_clicker_tick()
+        self.assertEqual(input_service.clicks, ["left:down"])
+        service.stop(show_message=False)
         self.assertEqual(input_service.clicks, ["left:down", "left:up"])
+        self.assertFalse(service.click_release_timer.isActive())
 
         service.hold_state_timer.stop()
         service.clicker_timer.stop()

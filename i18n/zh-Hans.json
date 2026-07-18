@@ -64,7 +64,7 @@
   "clicker.preset.desc.custom": "手动设置点击间隔",
   "clicker.interval": "点击间隔 (毫秒)",
   "clicker.holdMs": "鼠标按住时长 (毫秒)",
-  "clicker.holdMs.tooltip": "兼容模式：每次点击按下后保持几毫秒再松开；目标不接收瞬时点击时可尝试 8-20ms。",
+  "clicker.holdMs.tooltip": "每次点击按“按下 → 保持 → 松开”分开发送。设为 0 时自动使用 50% 占空比（8-50ms）；点击间隔 100ms 时即按下 50ms、松开 50ms。",
   "clicker.hotkey": "连点切换",
   "clicker.hotkey.profileHint": "连点器触发按键在下方按方案分别配置。",
   "clicker.runtime": "运行中",
@@ -282,5 +282,11 @@
   "taskbar.flash.duration": "解锁闪烁时长",
   "section.inputOutput": "输入输出",
   "inputBackend.sharedHint": "宏输出使用此后端。连点器后端在下方按连点方案单独配置，默认自动。",
+  "help.inputBackend": "决定宏动作通过哪种方式发送给 Windows。自动模式会优先使用 Native SendInput。此处只控制宏输出，连点器在下方使用独立的后端设置。",
+  "help.clickerBackend": "决定当前连点方案如何发送鼠标输入。自动模式会在可用时使用 Native SendInput；窗口消息只发送给当前前台窗口，并非所有游戏都接受。",
+  "help.clickerPreset": "点击速度预设只是自动填写点击间隔。需要自己输入间隔时请选择“自定义”。",
+  "help.clickerInterval": "从一次点击开始到下一次点击开始的时间。100ms 表示每秒最多约 10 个点击周期；鼠标按住时长会占用周期中的一部分。",
+  "help.clickerHoldMs": "每次点击按下后保持多久再松开。设为 0 时自动使用约 50% 的点击周期，并限制在 8-50ms。游戏漏掉短点击或武器需要松开发射时可适当增加。",
+  "help.clickerTriggerMode": "切换模式每按一次快捷键启动或停止；按住键盘仅在按住指定键时运行；按住鼠标仅在按住指定鼠标键时运行。",
   "clicker.inputBackend": "连点器后端"
 }

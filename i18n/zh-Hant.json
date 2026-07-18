@@ -260,5 +260,11 @@
   "taskbar.flash.duration": "解鎖閃爍時長",
   "section.inputOutput": "輸入輸出",
   "inputBackend.sharedHint": "巨集輸出使用此後端。連點器後端在下方按連點方案單獨設定，預設自動。",
+  "help.inputBackend": "決定巨集動作透過哪種方式傳送給 Windows。自動模式會優先使用 Native SendInput。此處只控制巨集輸出，連點器在下方使用獨立的後端設定。",
+  "help.clickerBackend": "決定目前連點方案如何傳送滑鼠輸入。自動模式會在可用時使用 Native SendInput；視窗訊息只傳送給目前前景視窗，並非所有遊戲都接受。",
+  "help.clickerPreset": "點擊速度預設只會自動填入點擊間隔。需要自行輸入間隔時請選擇「自訂」。",
+  "help.clickerInterval": "從一次點擊開始到下一次點擊開始的時間。100ms 表示每秒最多約 10 個點擊週期；滑鼠按住時長會占用週期中的一部分。",
+  "help.clickerHoldMs": "每次點擊按下後保持多久再放開。設為 0 時自動使用約 50% 的點擊週期，並限制在 8-50ms。遊戲漏掉短點擊或武器需要放開發射時可適當增加。",
+  "help.clickerTriggerMode": "切換模式每按一次快捷鍵啟動或停止；按住鍵盤只在按住指定按鍵時執行；按住滑鼠只在按住指定滑鼠鍵時執行。",
   "clicker.inputBackend": "連點器後端"
 }

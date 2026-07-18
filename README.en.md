@@ -25,7 +25,7 @@ Lock the cursor to the virtual screen center, primary display center, current wi
 
 Supports toggle/hold triggers, click interval, process blacklist, startup sound, click hold duration, and multiple profiles. The **More** menu can import, export, delete, or clear saved profiles. If a profile has unsaved edits, switching profiles asks whether to save them.
 
-If a target ignores instant clicks, set **Mouse down hold (ms)** to `8` ~ `20` so each click becomes down → short hold → up.
+Clicker and macro mouse clicks now share a down → hold → up route instead of placing down/up in one `SendInput` batch. With **Mouse down hold (ms)** set to `0`, the clicker uses an automatic 50% duty cycle clamped to `8` ~ `50ms`; a `100ms` click interval therefore becomes roughly `50ms` down and `50ms` released, closer to a full Key Wizard-style click cycle. Use an explicit longer hold for charge-on-release weapons.
 
 ### Simple macros
 

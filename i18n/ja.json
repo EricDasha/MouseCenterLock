@@ -268,5 +268,11 @@
   "taskbar.flash.duration": "解除点滅時間",
   "section.inputOutput": "入出力",
   "inputBackend.sharedHint": "マクロ出力はこのバックエンドを使用します。自動クリックのバックエンドは下のクリックプロファイルごとに設定でき、既定は Auto です。",
+  "help.inputBackend": "マクロ操作を Windows へ送る方式を選びます。Auto は Native SendInput を優先します。この設定はマクロ出力用で、自動クリックには下の個別設定があります。",
+  "help.clickerBackend": "このクリックプロファイルがマウス入力を送る方式を選びます。Auto は利用可能なら Native SendInput を使用します。Window Message は前面ウィンドウへ送信しますが、すべてのゲームで動作するわけではありません。",
+  "help.clickerPreset": "速度プリセットはクリック間隔を自動入力するだけです。間隔を手動で入力する場合は Custom を選択してください。",
+  "help.clickerInterval": "1 回のクリック開始から次のクリック開始までの時間です。100ms は毎秒最大約 10 クリック周期です。マウスを押し続ける時間もこの周期に含まれます。",
+  "help.clickerHoldMs": "各クリックでボタンを押してから離すまでの時間です。0 の場合はクリック間隔の約 50% を自動使用し、8-50ms に制限します。短いクリックを認識しないゲームや、離した時に発射する武器では値を増やしてください。",
+  "help.clickerTriggerMode": "Toggle はホットキーを押すたびに開始・停止します。Hold Key は指定キーを押している間だけ、Hold Mouse Button は指定したマウスボタンを押している間だけ動作します。",
   "clicker.inputBackend": "クリッカーバックエンド"
 }

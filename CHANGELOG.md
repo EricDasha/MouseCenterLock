@@ -2,6 +2,9 @@
 
 ## 開發中 / 最近變更
 
+- 為連點器後端、點擊間隔、滑鼠按住時長等易混淆名稱加入延遲 3 秒的懸停說明，移開游標即關閉
+- 連點與巨集的滑鼠點擊統一改為分離的 `mouseDown → hold → mouseUp` 路徑；`clickHoldMs=0` 按點擊間隔自動使用 50% 占空比（8-50ms），100ms 周期會形成 50ms 按下與約 50ms 松開窗口
+- 連點計時器改用 Qt `PreciseTimer`，降低短間隔連點的抖動
 - 新增 Rust native input backend 與 backend 診斷
 - 滑鼠巨集支援 `keyDown` / `keyUp`、`mouseDown` / `mouseUp`、`cooldownMs`、`triggerMode`
 - 巨集觸發新增 `holdLoop` / `toggleLoop`，並加入內建範例預設與重置

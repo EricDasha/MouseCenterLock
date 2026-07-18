@@ -22,6 +22,9 @@ from services.sound_service import SoundPlayer
 class ClickerService(QtCore.QObject):
     """Own the auto-clicker runtime, timers, and hold-trigger polling."""
 
+    AUTO_HOLD_MIN_MS = 8
+    AUTO_HOLD_MAX_MS = 50
+
     inputEvent = QtCore.Signal(str, str, bool)
 
     def __init__(
@@ -52,7 +55,14 @@ class ClickerService(QtCore.QObject):
         self._sound_player = SoundPlayer(self)
 
         self.clicker_timer = QtCore.QTimer(self)
+        self.clicker_timer.setTimerType(QtCore.Qt.TimerType.PreciseTimer)
         self.clicker_timer.timeout.connect(self._on_clicker_tick)
+
+        self._click_button_down: Optional[str] = None
+        self.click_release_timer = QtCore.QTimer(self)
+        self.click_release_timer.setSingleShot(True)
+        self.click_release_timer.setTimerType(QtCore.Qt.TimerType.PreciseTimer)
+        self.click_release_timer.timeout.connect(self._release_click_button)
 
         self._input_listener = input_listener_factory(
             on_key_event=self._emit_key_event,
@@ -103,10 +113,12 @@ class ClickerService(QtCore.QObject):
     def stop(self, show_message: bool = True) -> None:
         """Stop the auto clicker."""
         if not self._running:
+            self._release_click_button()
             return
 
         self._running = False
         self._apply_clicker_timer()
+        self._release_click_button()
         self._sound_player.play_event(self._get_profile().get("sound", {}).get("stop", {}))
         self._on_state_changed()
         if show_message:
@@ -168,11 +180,44 @@ class ClickerService(QtCore.QObject):
             if self._running:
                 self.stop(show_message=False)
             return
-        self._action_executor.execute({
-            "type": "mouseClick",
-            "button": profile.get("button", "left"),
-            "holdMs": profile.get("clickHoldMs", 0),
-        })
+        button = str(profile.get("button", "left") or "left").lower()
+        configured_hold_ms = profile.get("clickHoldMs")
+        if configured_hold_ms is None:
+            # Compatibility for callers that inject the legacy click function.
+            self._action_executor.click_mouse(button)
+            return
+        if self._click_button_down is not None:
+            return
+        effective_hold_ms = self._effective_click_hold_ms(profile)
+        self._action_executor.mouse_down(button)
+        self._click_button_down = button
+        self.click_release_timer.start(effective_hold_ms)
+
+    def _effective_click_hold_ms(self, profile: Dict[str, Any]) -> int:
+        """Resolve the DOWN width; auto mode uses half of the click period."""
+        try:
+            configured_hold_ms = max(0, min(1000, int(profile.get("clickHoldMs", 0) or 0)))
+        except Exception:
+            configured_hold_ms = 0
+        if configured_hold_ms > 0:
+            return configured_hold_ms
+        try:
+            interval_ms = max(1, int(profile.get("intervalMs", 100) or 100))
+        except Exception:
+            interval_ms = 100
+        return max(
+            self.AUTO_HOLD_MIN_MS,
+            min(self.AUTO_HOLD_MAX_MS, interval_ms // 2),
+        )
+
+    def _release_click_button(self) -> None:
+        """Release a pending click pulse, including stop/profile-change paths."""
+        if self.click_release_timer.isActive():
+            self.click_release_timer.stop()
+        button = self._click_button_down
+        self._click_button_down = None
+        if button:
+            self._action_executor.mouse_up(button)
 
     def _modifier_pressed(self, vk: int) -> bool:
         """Return whether a modifier virtual key is currently pressed."""
