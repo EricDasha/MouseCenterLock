@@ -1,184 +1,143 @@
-**语言 / Language / 日本語 / 언어**: [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md) | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
-
----
-
 # MouseControlLayer
 
-MouseControlLayer 是一個 Windows 滑鼠 / 鍵盤控制工具，主要用於滑鼠鎖定、自動點擊與簡單巨集操作
+<div align="center">
 
-一個想做「把滑鼠鎖在螢幕中心」的小軟體，然後因為實際使用時還需要連點、快捷鍵、視窗規則和一些巨集動作，所以逐漸累積成了現在的專案
+[![Windows CI](https://github.com/EricDasha/MouseControlLayer/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/EricDasha/MouseControlLayer/actions/workflows/windows-ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/EricDasha/MouseControlLayer?color=2ea44f&label=release)](https://github.com/EricDasha/MouseControlLayer/releases/latest)
+[![License](https://img.shields.io/github/license/EricDasha/MouseControlLayer)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-10%2B-0078d4?logo=windows)](#运行要求)
 
-適合這些場景：
+把鼠标固定在屏幕或窗口中心，也顺手解决连点、热键和简单键鼠动作。
 
-- 需要把滑鼠固定到螢幕中心或視窗中心
-- 需要用熱鍵切換連點狀態
-- 需要給滑鼠側鍵、鍵盤按鍵綁定一組簡單動作
-- 需要針對不同視窗使用不同規則
+[下载最新版](https://github.com/EricDasha/MouseControlLayer/releases/latest) · [宏配置示例](examples/mouse-macros/README.md) · [反馈问题](https://github.com/EricDasha/MouseControlLayer/issues)
 
+<img src="docs/assets/mouse-control-layer.png" width="578" alt="MouseControlLayer 简单模式界面">
 
-## 目錄
+</div>
 
-- [MouseControlLayer](#mousecontrollayer)
-  - [目錄](#目錄)
-  - [功能](#功能)
-    - [滑鼠鎖定](#滑鼠鎖定)
-    - [自動點擊](#自動點擊)
-    - [簡單巨集](#簡單巨集)
-    - [視窗規則](#視窗規則)
-    - [其他功能](#其他功能)
-  - [系統需求](#系統需求)
-  - [建置（PyInstaller）](#建置pyinstaller)
-  - [滑鼠巨集設定](#滑鼠巨集設定)
-  - [已知限制](#已知限制)
-  - [輸入後端](#輸入後端)
-  - [專案結構](#專案結構)
-  - [更新日誌](#更新日誌)
-  - [授權](#授權)
+## 这是做什么的
 
-## 功能
+MouseControlLayer（MCL）最初只为一个需求写：**把鼠标锁在屏幕中心**。
 
-### 滑鼠鎖定
+后来实际使用时又缺连点、侧键触发、窗口规则和几段简单宏，于是这些功能被放进了同一个小工具里。它更适合需要快速切换配置的游戏或桌面场景，而不是拿一套复杂脚本系统来解决一个按键问题。
 
-可以把滑鼠鎖定到指定位置，例如：
+- **鼠标锁定**：虚拟屏幕中心、主显示器中心、当前窗口中心或自定义坐标
+- **自动连点**：切换启动、按住键盘启动、按住鼠标键启动，多方案独立保存
+- **简单宏**：鼠标点击/按下/松开、键盘按键、延迟、循环、移动和滚轮
+- **窗口规则**：只在指定进程或窗口生效，支持前台切换时自动锁定/解锁
+- **日常使用**：系统托盘、全局热键、开机启动、深浅主题和多语言
 
-- 螢幕中心
-- 主顯示器中心
-- 目前視窗中心
-- 自訂位置
+## 下载和使用
 
-適合需要固定滑鼠位置的視窗或遊戲場景
+1. 打开 [Releases](https://github.com/EricDasha/MouseControlLayer/releases/latest)。
+2. 下载 `MCL-*-windows-x64.zip`。
+3. 解压后运行 `MouseControlLayer.exe`。
+4. 在“高级”页设置热键、连点方案和目标窗口；平时留在“简单”页开关即可。
 
-### 自動點擊
+配置保存在程序目录的 `Mconfig.json`。升级时可以保留这个文件；想恢复默认设置时，退出 MCL 后删除它再重新启动。
 
-支援透過熱鍵啟用 / 停止自動點擊，也可以設定為按住某個按鍵時持續點擊。連點方案可在「更多」中匯入、匯出、刪除或清空；切換方案前若有未儲存變更，會詢問是否儲存。
+> [!TIP]
+> MCL 有单实例保护。如果双击新版后没有出现新窗口，先检查系统托盘并彻底退出正在运行的旧版。
 
-常見用途包括：
+## 连点器怎么调
 
-- 長按觸發連點
-- 快捷鍵切換連點狀態
-- 調整點擊間隔
+连点不是只有一个“每隔多少毫秒”。一个完整周期里还有鼠标保持按下的时间，部分游戏会漏掉过短的点击。
 
-### 簡單巨集
+| 设置 | 实际含义 | 建议 |
+|---|---|---|
+| 点击间隔 | 一次点击开始到下一次点击开始 | `100ms` 约等于每秒 10 个点击周期 |
+| 鼠标按住时长 | `mouseDown` 到 `mouseUp` 之间保持多久 | 设为 `0` 时自动使用约 50% 周期，并限制在 `8–50ms` |
+| 连点器后端 | 当前连点方案发送鼠标事件的方式 | 先用 `Auto`；目标不接受时再试其他后端 |
+| 触发模式 | 如何启动或停止连点 | 可选择切换、按住键盘或按住鼠标键 |
 
-可以把滑鼠或鍵盤輸入組合成一組動作，例如：
+例如点击间隔为 `100ms`、鼠标按住时长为 `0` 时，MCL 会生成大致这样的周期：
 
-- 點擊滑鼠
-- 按下 / 放開鍵盤按鍵
-- 延遲指定時間
-- 按順序執行一組輸入
-
-巨集功能主要面向簡單、可控的輸入流程，不是複雜腳本引擎
-
-### 視窗規則
-
-可以為不同視窗設定不同規則，讓鎖定、連點或巨集只在指定程式中生效
-
-### 其他功能
-
-- 系統匣執行
-- 開機自啟
-- 深色 / 淺色主題
-- 多語言介面
-- 多顯示器支援
-
-## 系統需求
-
-- Windows 10+
-- Python 3.9+
-- 相依項目：見 `requirements.txt`
-
-安裝相依項目：
-```bash
-python -m pip install -r requirements.txt
+```text
+按下 50ms → 松开约 50ms → 下一次按下
 ```
 
-執行：
-```bash
+这比把按下和松开同时塞进一次调用更容易被按帧读取输入的程序识别。需要蓄力后松开发射的操作，可以直接填写更长的按住时间。
+
+## 输入后端
+
+宏和连点方案可以分别选择后端。一般保持 `Auto` 即可，只有目标程序不响应时才需要调整。
+
+| 后端 | 用途 |
+|---|---|
+| `native-sendinput` | 默认路径，使用随程序打包的 Rust DLL 发送鼠标事件、扫描码和 Unicode 输入 |
+| `python-sendinput` | Python/ctypes 实现的 SendInput 兼容路径 |
+| `window-message` | 将消息发送给当前前台窗口；部分普通窗口可用，游戏不一定接受 |
+| `virtual-hid` | 预留接口，目前没有可用驱动 |
+| `hardware-hid` | 预留外部硬件输入接口 |
+
+“高级”页里部分容易混淆的名称支持悬停说明：把光标停在名称上 3 秒会出现解释，移开后自动关闭。
+
+## 简单宏
+
+宏可以直接在界面中组合，也可以加载外部 JSON。下面是一段“按下左键、等待、再松开”的动作：
+
+```json
+[
+  { "type": "mouseDown", "button": "left" },
+  { "type": "delay", "ms": 300 },
+  { "type": "mouseUp", "button": "left" }
+]
+```
+
+项目已经附带不同语言的配置示例，完整字段和可用动作见 [examples/mouse-macros/README.md](examples/mouse-macros/README.md)。宏默认使用 `F12` 作为紧急停止键，停止时会释放由 MCL 保持按下的键鼠输出。
+
+## 兼容性
+
+MCL 使用 Windows `SendInput`、窗口消息和全局 Hook，属于用户态输入工具，不是虚拟 HID 驱动。
+
+以下场景可能无法接收模拟输入：
+
+- 以更高管理员权限运行的窗口
+- 只读取 Raw Input 或驱动层输入的程序
+- 主动过滤 injected input 的游戏或反作弊环境
+- 对前台焦点、按下时长或帧采样时机要求严格的程序
+
+遇到问题时建议依次检查：目标程序与 MCL 的权限是否一致、连点按住时长是否过短、当前方案选择了哪个后端。仍无法工作时，可在 [Issues](https://github.com/EricDasha/MouseControlLayer/issues) 附上目标程序、配置和日志。
+
+## 从源码运行
+
+### 运行要求
+
+- Windows 10 或更新版本
+- Python 3.9+
+- 依赖见 `requirements.txt`
+
+```powershell
+python -m pip install -r requirements.txt
 python mouse_center_lock_gui.py
 ```
 
-測試：
-```bash
-python -m unittest discover tests
+运行测试：
+
+```powershell
+python -m unittest discover -s tests -v
 ```
 
-## 建置（PyInstaller）
+完整打包（语法检查、JSON 校验、测试、Rust 后端和 PyInstaller）：
 
-建立虛擬環境（建議）並建置視窗化 exe：
-```bash
+```powershell
 python build.py
 ```
-或使用 PyInstaller 直接建置：
-```bash
-pyinstaller --noconfirm --clean MCL.spec
+
+产物位于：
+
+```text
+dist/MouseControlLayer.exe
+release/MCL-<version>-windows-x64.zip
 ```
-exe 檔案將位於 `dist/MouseControlLayer.exe`
 
-打包腳本選項：
-- `python build.py` — 完整建置（清理 + 測試 + 打包）
-- `python build.py --skip-test` — 跳過單元測試
-- `python build.py --dev` — 開發建置（含除錯資訊）
-- `python build.py --clean-only` — 僅清理建置產物
+## 相关文档
 
-如需恢復預設設定，請刪除本機 `Mconfig.json`，程式會回退讀取 `Mconfig.example.json`若程式目錄中仍有舊版 `config.json`，新版本也會相容讀取
+- [更新记录](CHANGELOG.md)
+- [输入后端路线图](docs/backend-roadmap.md)
+- [鼠标宏配置与示例](examples/mouse-macros/README.md)
+- [English](README.en.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-## 滑鼠巨集設定
+## License
 
-滑鼠巨集支援兩種來源：
-
-- **介面拼裝**：直接在進階頁編輯規則
-- **外部 JSON**：載入範例檔或自訂檔案
-
-完整規格、範例檔案、按鍵名稱與動作型別見：
-
-- [滑鼠巨集範例與設定說明](examples/mouse-macros/README.md)
-
-後端階段、fallback 策略與非目標見：[輸入後端路線圖](docs/backend-roadmap.md)
-
-## 已知限制
-
-MouseControlLayer 主要依賴 Windows API / SendInput 實現輸入模擬，不屬於驅動層輸入
-
-因此在以下場景中可能無法正常工作：
-
-- 系統管理員權限視窗
-- 使用 Raw Input 的遊戲
-- 帶有反作弊保護的遊戲
-- 主動過濾模擬輸入的軟體
-- 對前台視窗和輸入焦點要求較嚴格的程式
-
-這些限制來自 Windows 輸入機制和目標程式本身，不一定是專案 bug
-
-## 輸入後端
-
-專案目前提供多個輸入後端，用於在不同場景下盡量提高相容性
-
-| 後端 | 狀態 | 說明 |
-|---|---|---|
-| `native-sendinput` | 預設 | 基於 Rust DLL，優先使用 scan code / Unicode 輸入 |
-| `python-sendinput` | 兜底 | Python 實作的 SendInput 路徑，相容性較保守 |
-| `window-message` | 相容 | 向前台視窗訊息鏈傳送輸入訊息 |
-| `virtual-hid` | 預留 | 為後續虛擬 HID / 驅動輸入預留 |
-| `hardware-hid` | 預留 | 為外部硬體輸入模式預留 |
-
-這些後端不能保證繞過遊戲、反作弊或系統權限限制
-
-## 專案結構
-
-- `mouse_center_lock_gui.py` – GUI 應用（PySide6）
-- `win_api.py` – Windows API 封裝模組
-- `widgets.py` – 自訂 UI 元件（快捷鍵捕獲、進程選擇器）
-- `services/` – 執行期服務（連點器、鎖定狀態機、巨集執行鏈）
-- `ui/pages/` – 簡單 / 進階頁面建構模組
-- `tests/` – 最小單元測試集
-- `i18n/` – 語言檔案
-- `assets/` – 圖示和資源
-- `Mconfig.example.json` – 可提交的預設設定範本；執行時 `Mconfig.json` 僅作本機設定（相容讀取舊版 `config.json`）
-
-## 更新日誌
-
-完整更新記錄見 [CHANGELOG.md](CHANGELOG.md)。
-
-## 授權
-
-[GPL-3.0](LICENSE)
+[GNU General Public License v3.0](LICENSE)
